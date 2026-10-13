@@ -149,7 +149,7 @@ void describe('createEventStoreSchema with configured database schemas', () => {
       },
     });
 
-    const dryRun = await eventStore.schema.migrate({ dryRun: true });
+    const dryRun = await eventStore.schema.migrate({ dryRun: 'transactional' });
 
     assertDeepEqual(dryRun.applied, [schemaMigrationFor(schemaOptions)]);
     assertFalse(await configuredTableExists('events', 'emt_streams'));

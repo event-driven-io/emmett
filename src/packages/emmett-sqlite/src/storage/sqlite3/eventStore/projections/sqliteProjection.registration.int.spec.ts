@@ -32,7 +32,7 @@ void describe('SQLite projection registration', () => {
     });
 
     try {
-      await eventStore.schema.migrate();
+      await eventStore.init();
 
       assertEqual(registrationType, 'inline');
     } finally {

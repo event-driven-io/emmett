@@ -21,6 +21,7 @@ export const d1EventStoreDriver = {
       ...options.connectionOptions?.transactionOptions,
     },
   }),
+  migrationOptions: (pool) => ({ execute: pool.execute }),
 } satisfies EventStoreDriver<typeof d1DumboDriver, D1EventStoreDriverOptions>;
 
 export type D1EventStoreDriver = typeof d1EventStoreDriver;

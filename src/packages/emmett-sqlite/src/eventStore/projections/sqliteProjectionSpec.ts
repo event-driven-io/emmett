@@ -1,4 +1,4 @@
-import type { MigrationStyle, SQL } from '@event-driven-io/dumbo';
+import type { SQL } from '@event-driven-io/dumbo';
 import { dumbo, type Dumbo, type QueryResultRow } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
@@ -27,6 +27,7 @@ import {
 } from '../schema';
 import {
   getSQLiteEventStore,
+  type SQLiteEventStoreOptions,
   type SQLiteReadEventMetadata,
 } from '../SQLiteEventStore';
 import {
@@ -74,9 +75,7 @@ export type SQLiteProjectionSpecOptions<
 
   driver: Driver;
   pool?: Dumbo;
-  schema?:
-    | ({ autoMigration?: MigrationStyle } & EventStoreDatabaseSchemaOptions)
-    | undefined;
+  schema?: SQLiteEventStoreOptions<Driver>['schema'] | undefined;
 } & InferOptionsFromEventStoreDriver<Driver> &
   JSONSerializationOptions;
 

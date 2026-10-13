@@ -195,28 +195,28 @@ void describe('Schema migrations tests', () => {
     assertDeepEqual(skipped, [sameMigrationChangedSQL]);
   });
 
-  void it('applies the migration already when the user dry-runs it, as the dry run is NOT rolled back', async () => {
+  void it('applies the migration after the user runs a diff dry run first', async () => {
     // Given
-    const dryRun = await eventStore.schema.migrate({ dryRun: true });
+    const dryRun = await eventStore.schema.migrate({ dryRun: 'diff' });
 
     assertDeepEqual(dryRun.applied, [
       ...migrations_0_42_0,
       ...migrations_0_43_0,
       schemaMigration,
     ]);
-    assertTrue(await tableExists(connection.execute, 'dmb_migrations'));
-    assertTrue(await tableExists(connection.execute, 'emt_streams'));
+    assertFalse(await tableExists(connection.execute, 'dmb_migrations'));
+    assertFalse(await tableExists(connection.execute, 'emt_streams'));
 
     // When
     const { applied, skipped } = await eventStore.schema.migrate();
 
     // Then
-    assertThatArray(applied).isEmpty();
-    assertDeepEqual(skipped, [
+    assertDeepEqual(applied, [
       ...migrations_0_42_0,
       ...migrations_0_43_0,
       schemaMigration,
     ]);
+    assertThatArray(skipped).isEmpty();
 
     assertTrue(await tableExists(connection.execute, 'dmb_migrations'));
 

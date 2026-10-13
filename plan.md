@@ -57,7 +57,7 @@ Spec: [spec.md](spec.md). State: [todo.md](todo.md). The clean baseline is `2180
   - It exposes `component`, `migrations` and `migrator`. The driver's `migrationOptions` are spread into each new migrator.
   - The event store, the consumer and an own-pool processor each hold one instance.
 - **Default schema for projections:** the PG and SQLite adapters define `withDefaultSchemaName(databaseSchemaName)` on Pongo and raw SQL projections. It returns a rebuilt definition; an explicit schema in the definition wins. The event store calls it on each registration that has it, with `projectionsDatabaseSchemaName ?? databaseSchemaName`, and skips the call when both are unset. Core types stay as in 2.1.
-- **Pongo projections:** `schema` is the component a Pongo client db with the projection's default schema name holds for its collection (`definition?.withTableName(name) ?? pongoSchema.collection(name)`, in `collectionOptions.databaseSchemaName` when set). Build it as `PongoDatabaseComponent` does, from a Pongo database definition rebased with `withDefaultSchemaName`; no pool is needed. The handler's Pongo database uses the same default schema name. `pongoProjection` passes `schema` through. `init` stays until G6.
+- **Pongo projections:** `schema` is the component a Pongo client db with the projection's default schema name holds for its collection (`definition?.withTableName(name) ?? pongoSchema.collection(name)`, in `collectionOptions.databaseSchemaName` when set). Build it as `PongoDatabaseComponent` does, from a Pongo database definition rebased with `withDefaultSchemaName`; no pool is needed. The handler's Pongo database uses the same default schema name. `pongoProjection` passes `schema` through. `init` stays until 4.5 (PostgreSQL) and 5.3 (SQLite).
 - **Raw SQL projections:** `schema` is a Dumbo database component; `withDefaultSchemaName` rebuilds it with the component's `withDefaultSchemaName`.
 - **Pongo client reuse (D5):** one Pongo client per storage instead of one per batch. Inline: one client on the store's database. Async: one client created from the projector's pool in its init. First check how the batch transaction reaches a reused client. When it costs too much, stop and report; it moves to the spec's future improvements.
 - **Projection registration** serializes the definition without `schema`.
@@ -73,11 +73,12 @@ Spec: [spec.md](spec.md). State: [todo.md](todo.md). The clean baseline is `2180
     1. automatic assurance: `migrate()` under `CreateOrUpdate` (skipped when the flag is set), `migrator.ensureMigrated()` under `EnsureMigrated`, nothing under `None`;
     2. `init` for each inline registration in its own transaction, with `registrationType: 'inline'`, under every `autoMigration` value (D7).
   - `schema = { component, sql, print, migrate, ensureMigrated, dangerous }`.
+  - `schema.ignoreMigrationHashMismatch` goes into the migrator configuration (D9). A per-call option on `migrate()` overrides it.
   - A local function inside `getPostgreSQLEventStore` builds the store object for a pool. The store uses it with its own pool; `withSession` uses it with the session's connection instead of calling `getPostgreSQLEventStore`. The session shares the store's `init()`, so it runs no assurance and no inline `init` of its own (D8).
   - The processing-scope `messageStore` keeps `autoMigration: 'None'`, no `projections` and no `hooks`, so its `init()` does nothing.
   - `consumer()` passes `autoMigration`. When `processors` is omitted, it passes one projector per async registration in `processors`: `postgreSQLProjector({ projection, observability })`, with the observability the consumer would merge.
 - **Consumer:**
-  - It has an `autoMigration` option, resolved against the inherited value.
+  - It has `autoMigration` and `ignoreMigrationHashMismatch` options, resolved against the inherited values.
   - Graph: its event-store schema component instance. It adds each processor `schema` that passes Dumbo's `isSchemaComponent` at construction (the `processors` array) and on each later registration. A `schema` with the owner shape is kept in a child-owner list, not added.
   - `schema = { component, sql, print, migrate, ensureMigrated }`. `migrate()` and `ensureMigrated()` run on its own graph first, then call the same method on each child owner. `sql()` and `print()` show its grouped graph only (Q4).
   - `hooks.onInit` runs automatic assurance on its own graph. Child owners run theirs in their own init.
@@ -108,10 +109,18 @@ Decided on 2026-10-09:
 Decided on 2026-10-10:
 
 - **D8:** `autoMigration` gets `EnsureMigrated`. `None` runs no assurance and reads no history; `EnsureMigrated` calls `ensureMigrated()`; `CreateOrUpdate` calls `migrate()`. Emmett core defines the union until Dumbo ships it; Dumbo and Pongo get the same change in parallel. `withSession` reuses the store through a local function of the pool, not a second store instance.
+- **D9:** Dumbo does not repair a recorded hash after it ignores a mismatch. So the event store gets `schema.ignoreMigrationHashMismatch` as configuration; its consumer and own-storage processors take the same value. Pongo gets the same client setting (P.3). The Pongo hash-mismatch test checks only that `migrate()` with the option passes and the hash stays unchanged.
+- **D10:** order per database: the event store moves inline `init` out of `migrate()`, then processors and consumer migrate processor schemas, then Pongo projections stop migrating. PostgreSQL first (G4), then SQLite (G5). Dumbo and Pongo changes run in parallel (GP); Emmett adopts them in GA.
 - **Owners:** event store `init()`; recursive owners (a processor with its own pool is a child owner of its consumer); one reusable event-store schema component per event store and consumer; any processor may contribute `schema`.
 - **Q1:** the shape of `schema` tells grouped processors from child owners (`isSchemaComponent`).
 - **Q3:** on another storage, a processor migrates only its own schema; the user sets up checkpointing there. Metadata storage is a future improvement.
 - **Q4:** an owner's `sql()` and `print()` show its grouped graph only.
+
+Decided on 2026-10-12:
+
+- **D11:** Dumbo's `migrate()` gets the per-call option `overrideMigrationHashes`. On a hash mismatch it writes the computed hash into the history record and does not run the migration SQL again. Its type is a union with `ignoreMigrationHashMismatch`: `overrideMigrationHashes: true` is allowed only when `ignoreMigrationHashMismatch` is `true` or not set. Pongo's `db.schema.migrate()` (P.5) and Emmett's `eventStore.schema.migrate()` and `consumer.schema.migrate()` (A.1) pass it through. It is never configuration.
+- **D12:** keep the known failure "rejects a nested transaction and rolls back" (sqlite3, durableObject) short. 5.1 runs directly after 4.1. Both event stores run inline `init` on one connection without an outer transaction, so the Pongo migration transaction in a Pongo `init` is not nested. The test passes after 5.1.
+- **D13:** the Dumbo and Pongo group (GP) runs first, before the rest of G4.
 
 ## 4. Rules
 
@@ -124,18 +133,20 @@ Decided on 2026-10-10:
 
 ## 5. Groups
 
-| Group | Steps                   | Needs              |
-| ----- | ----------------------- | ------------------ |
-| GT    | T.1                     | done, gate pending |
-| G0    | 0.1                     | none               |
-| G1    | 1.1 ∥ 1.2 ∥ 1.3         | G0                 |
-| G2    | 2.1 ∥ 2.2 ∥ 2.3         | G1                 |
-| G3    | 3.1 ∥ 3.2 ∥ 3.3         | G2                 |
-| G4    | 4.1 ∥ 4.2               | G3                 |
-| G5    | (5.1 → 5.2 → 5.3) ∥ 5.4 | G4                 |
-| G6    | 6.1 → 6.2               | G5                 |
-| G7    | 7.1 ∥ 7.2 ∥ 7.3         | G6                 |
-| G8    | 8.1 → 8.2               | G7                 |
+| Group | Steps                                         | Needs              |
+| ----- | --------------------------------------------- | ------------------ |
+| GT    | T.1                                           | done, gate pending |
+| G0    | 0.1                                           | none               |
+| G1    | 1.1 ∥ 1.2 ∥ 1.3                               | G0                 |
+| G2    | 2.1 ∥ 2.2 ∥ 2.3                               | G1                 |
+| G3    | 3.1 ∥ 3.2 ∥ 3.3                               | G2                 |
+| G4    | 4.0 → 4.1 → 5.1 → 4.2 → 4.3 → 4.4 → 4.5 (D12) | G3, GP (D13)       |
+| G5    | 5.2 → 5.3 (SQLite)                            | G4                 |
+| G6    | 6.1                                           | G5                 |
+| G7    | 7.1 ∥ 7.2 ∥ 7.3                               | G6                 |
+| G8    | 8.1 → 8.2                                     | G7                 |
+| GP    | P.1 → P.2 → P.3 → P.4 → P.5 (Dumbo and Pongo) | none, first (D13)  |
+| GA    | A.1                                           | GP released, G6    |
 
 ## 6. Prompts
 
@@ -216,7 +227,7 @@ D8. Add AutoMigration = 'None' | 'EnsureMigrated' | 'CreateOrUpdate' to core nex
 ### 4.1 PG event store
 
 ```text
-Section 2 "Event store", D7, D8. Use AutoMigration in the PG store options. Integration tests:
+Section 2 "Event store", D7, D8, D9. Use AutoMigration in the PG store options. Add schema.ignoreMigrationHashMismatch and put it into the migrator configuration. Integration tests:
 - one migrate() under None creates the event store and the inline and async Pongo collections;
 - sql() lists them in registration order; component lists the whole graph;
 - ensureMigrated throws PendingMigrationsError on a fresh database and passes after migrate;
@@ -228,27 +239,24 @@ Section 2 "Event store", D7, D8. Use AutoMigration in the PG store options. Inte
 - dry run rolls back (replace the baseline assertion) and does not satisfy assurance;
 - after the first operation, appends, withSession calls and a processor's messageStore read no migration history;
 - a withSession session runs no inline init and no hooks, also when it is the first operation;
+- with schema.ignoreMigrationHashMismatch: true, init() and ensureMigrated() pass after a recorded event-store hash was changed; without it they throw; a per-call option on migrate() overrides the setting;
 - the baseline hook and "schema only once" tests stay green.
+init() runs the inline projection init calls on one connection, without an outer transaction (D12).
+Also rewrite the Pongo hash-mismatch test on PG, sqlite3, d1 and durableObject (D9): migrate() without the option throws, migrate({ ignoreMigrationHashMismatch: true }) resolves, and the recorded hash stays unchanged. Remove its append and document check.
 ```
 
-### 4.2 SQLite event store
+### 4.2-4.4 PG projector, consumer, store wiring (sequential)
 
 ```text
-Same as 4.1 in shared code. The driver gets migrationOptions?(pool): MigratorOptions; D1 returns Pongo's d1MigrationOptions values. D1 dry-run tests now expect rejection. Run on sqlite3, d1 and durableObject. If the hooks cannot run on D1 strict mode, stop and report.
-```
-
-### 5.1-5.3 PG projector, consumer, store wiring (sequential)
-
-```text
-5.1 Processors:
+4.2 Processors:
 - Shared pool: the processor exposes its schema (a projector: its projection's by default; a reactor: its own option).
-- Own pool: a child owner. Its migrator covers only its own schema; its schema value is the owner shape (component, sql, print, migrate, ensureMigrated); assurance in onInit before projection.init, with resolveAutoMigration(options.autoMigration, the consumer's effective value).
+- Own pool: a child owner. Its migrator covers only its own schema; its schema value is the owner shape (component, sql, print, migrate, ensureMigrated); assurance in onInit before projection.init, with resolveAutoMigration(options.autoMigration, the consumer's effective value) and the consumer's ignoreMigrationHashMismatch.
 Tests: schema for each pool kind (component versus owner shape); an own-pool projector creates no emt_processors on its storage; an own-pool projector on a fresh database migrates on init; it inherits the consumer's EnsureMigrated and then throws PendingMigrationsError; under an inherited None it reads no migration history; its own CreateOrUpdate overrides the consumer's EnsureMigrated; a shared-pool processor does not migrate on init.
 
-5.2 Consumer:
-- autoMigration option, schema API, its reusable component instance with same-pool processor schemas added at construction and on registration; owner-shaped schemas kept as child owners; hooks.onInit runs assurance on its own graph; sql() and print() show the grouped graph only.
+4.3 Consumer:
+- autoMigration and ignoreMigrationHashMismatch options, schema API, its reusable component instance with same-pool processor schemas added at construction and on registration; owner-shaped schemas kept as child owners; hooks.onInit runs assurance on its own graph; sql() and print() show the grouped graph only.
 Tests:
-- a standalone start creates everything;
+- a standalone start creates everything, including the collection of a Pongo projector passed to consumer.projector();
 - under EnsureMigrated, start throws and creates nothing;
 - under None, start reads no migration history;
 - sql() order;
@@ -257,33 +265,64 @@ Tests:
 - a processor replaced by another projection with the same ID changes the graph;
 - after migrate, dropping the migration table does not break start.
 
-5.3 Store:
-- pass the inherited autoMigration;
+4.4 Store:
+- pass the inherited autoMigration and ignoreMigrationHashMismatch;
 - when processors is undefined, pass one postgreSQLProjector({ projection, observability }) per async registration.
 Tests (spec examples 2 and 3):
 - defaults run with the same settings as consumer.projector({ projection });
 - [] and an explicit array add none;
 - a same-ID projector replaces the default;
 - inherit None and EnsureMigrated, override CreateOrUpdate, override None;
+- inherit ignoreMigrationHashMismatch;
 - starts without DDL after store migrate.
 ```
 
-### 5.4 SQLite projector, consumer, store wiring
+### 4.5 PG Pongo projections stop migrating
 
 ```text
-Run 5.1-5.3 in order, in shared SQLite code. Spread driver.migrationOptions. Keep assurance inside the consumer's withConnection scope. All three drivers must be green after each sub-step.
+PG only: remove only the multi-stream init that calls collection.schema.migrate(). Registration and pongoProjection's own init option stay. Test first: processor init still writes the registration and does not create a missing collection. If another spec then fails, fix the owner graph, not the projection.
 ```
 
-### 6.1 Pongo projections stop migrating
+### 5.1 SQLite event store
 
 ```text
-PG and SQLite: remove only the multi-stream init that calls collection.schema.migrate(). Registration and pongoProjection's own init option stay. Test first: processor init still writes the registration and does not create a missing collection. If another spec then fails, fix the owner graph, not the projection.
+Same as 4.1 in shared code, without the hash-mismatch test rewrite (done in 4.1). Runs directly after 4.1 (D12). The known failure "rejects a nested transaction and rolls back" (sqlite3, durableObject) must pass after this step. The driver gets migrationOptions?(pool): MigratorOptions; D1 returns Pongo's d1MigrationOptions values. D1 dry-run tests now expect rejection. Run on sqlite3, d1 and durableObject. If the hooks cannot run on D1 strict mode, stop and report.
 ```
 
-### 6.2 Reuse Pongo clients (D5)
+### 5.2 SQLite projector, consumer, store wiring
+
+```text
+Run 4.2-4.4 in order, in shared SQLite code. Spread driver.migrationOptions. Keep assurance inside the consumer's withConnection scope. All three drivers must be green after each sub-step.
+```
+
+### 5.3 SQLite Pongo projections stop migrating
+
+```text
+Same as 4.5 for SQLite, on sqlite3, d1 and durableObject.
+```
+
+### 6.1 Reuse Pongo clients (D5)
 
 ```text
 PG and SQLite pongoProjections.ts. First read how a Pongo client takes a session or connection per operation in beta.57, and report how the batch transaction would reach a reused client. If that needs a Pongo change or more than the projection factories and the owners, stop and report; Oskar decides whether it becomes a follow-up. Otherwise, test first: under None, a run of inline appends and async batches reads the migration history once per Pongo client, not once per batch. Then create one client per storage: inline on the store's database, async from the projector's pool in init.
+```
+
+### P.1-P.5 Dumbo and Pongo changes (in the Dumbo and Pongo repository)
+
+```text
+Spec section "Changes in Dumbo and Pongo". Test first in each step.
+P.1 Dumbo: MigrationStyle = 'None' | 'EnsureMigrated' | 'CreateOrUpdate'.
+P.2 Pongo: automatic assurance calls migrate() under CreateOrUpdate, ensureMigrated() under EnsureMigrated, nothing under None. Tests: under None, a collection operation reads no migration history and creates no migration table; under EnsureMigrated, it throws PendingMigrationsError on a fresh database.
+P.3 Pongo: client and database options get schema.ignoreMigrationHashMismatch, passed to each database's migrator configuration. Tests: with the setting, collection operations work after a recorded hash was changed; without it they throw; a per-call option overrides it.
+P.4 Dumbo: per-call migrate() option overrideMigrationHashes (D11), typed as the union from the spec. On a mismatch, write the computed hash into the history record under the lock, in the migration transaction, without running the migration SQL. Not in MigratorOptions; ensureMigrated() does not take it. Tests: change a recorded hash, migrate({ overrideMigrationHashes: true }), then the record has the computed hash, the migration SQL did not run again, and a later ensureMigrated() without options passes; a type test that { ignoreMigrationHashMismatch: false, overrideMigrationHashes: true } does not compile.
+P.5 Pongo: db.schema.migrate() takes overrideMigrationHashes with the same union type and passes it to Dumbo. Test: after db.schema.migrate({ overrideMigrationHashes: true }), collection operations work without any ignore option.
+Update the Pongo and Dumbo docs for the new value and options.
+```
+
+### A.1 Adopt the Dumbo and Pongo release
+
+```text
+Update Emmett's Dumbo and Pongo dependencies to the release with P.1-P.5. Replace Emmett's AutoMigration union with Dumbo's MigrationStyle. Pass the event store's ignoreMigrationHashMismatch to every Pongo client that Emmett creates for projections. eventStore.schema.migrate() and consumer.schema.migrate() take overrideMigrationHashes with Dumbo's union type and pass it to Dumbo. Tests first, on PG, sqlite3, d1 and durableObject: with schema.ignoreMigrationHashMismatch: true, an append with an inline Pongo projection works after a recorded collection hash was changed; under None, Pongo projection clients read no migration history; eventStore.schema.migrate({ overrideMigrationHashes: true }) repairs a changed event-store hash and a changed collection hash, and a later ensureMigrated() without options passes; the same for consumer.schema.migrate() with a changed processor hash.
 ```
 
 ### 7.1 Concurrency

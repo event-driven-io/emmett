@@ -1,6 +1,7 @@
 import {
   runSQLMigrations,
   type Dumbo,
+  type MigrationDryRun,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
 import type { JSONSerializationOptions } from '@event-driven-io/emmett';
@@ -38,7 +39,7 @@ export * from './tables';
 export { schemaSQL };
 
 export type CreateEventStoreSchemaOptions = {
-  dryRun?: boolean | undefined;
+  dryRun?: MigrationDryRun | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
   migrationTimeoutMs?: number | undefined;
 } & JSONSerializationOptions &

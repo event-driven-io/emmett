@@ -56,7 +56,9 @@ import {
 } from './consumers';
 import {
   handleProjections,
+  connectionToPostgreSQLProjectionInitContext,
   transactionToPostgreSQLProjectionHandlerContext,
+  type PostgreSQLProjectionInitContext,
   type PostgreSQLProjectionDefinition,
   type PostgreSQLProjectionHandlerContext,
 } from './projections';
@@ -194,10 +196,15 @@ export type PostgresEventStoreOptions<
   projections?: ProjectionRegistration<
     ProjectionHandlingType,
     PostgresReadEventMetadata,
-    PostgreSQLProjectionHandlerContext<Driver>
+    PostgreSQLProjectionHandlerContext<Driver>,
+    unknown,
+    PostgreSQLProjectionInitContext<Driver>
   >[];
   observability?: EmmettObservabilityConfig;
-  schema?: { autoMigration?: AutoMigration } & EventStoreDatabaseSchemaOptions;
+  schema?: {
+    autoMigration?: AutoMigration;
+    ignoreMigrationHashMismatch?: boolean;
+  } & EventStoreDatabaseSchemaOptions;
   hooks?: {
     /**
      * This hook will be called **BEFORE** event store schema is created
@@ -244,10 +251,15 @@ export type PostgresEventStoreConnectionStringOptions = {
   projections?: ProjectionRegistration<
     ProjectionHandlingType,
     PostgresReadEventMetadata,
-    PostgreSQLProjectionHandlerContext<PgEventStoreDriver>
+    PostgreSQLProjectionHandlerContext<PgEventStoreDriver>,
+    unknown,
+    PostgreSQLProjectionInitContext<PgEventStoreDriver>
   >[];
   observability?: EmmettObservabilityConfig;
-  schema?: { autoMigration?: AutoMigration } & EventStoreDatabaseSchemaOptions;
+  schema?: {
+    autoMigration?: AutoMigration;
+    ignoreMigrationHashMismatch?: boolean;
+  } & EventStoreDatabaseSchemaOptions;
   hooks?: {
     /**
      * This hook will be called **BEFORE** event store schema is created
@@ -386,6 +398,9 @@ export function getPostgreSQLEventStore(
   const eventStoreSchema = eventStoreSchemaComponent({
     pool,
     schema: options.schema,
+    migrationOptions: {
+      ignoreMigrationHashMismatch: options.schema?.ignoreMigrationHashMismatch,
+    },
   });
   for (const { projection } of projectionRegistrations) {
     if (isSchemaComponent(projection.schema))
@@ -399,10 +414,18 @@ export function getPostgreSQLEventStore(
   const migrate = async (
     migrationOptions?: CreateEventStoreSchemaOptions,
   ): Promise<RunSQLMigrationsResult> => {
-    const dryRun = migrationOptions?.dryRun === true;
+    const dryRun = migrationOptions?.dryRun ?? false;
 
     if (schemaMigrated && !dryRun)
       return { applied: [], skipped: [...eventStoreSchema.migrations] };
+
+    if (dryRun === 'diff')
+      return eventStoreSchema.migrator.migrate({
+        dryRun,
+        ignoreMigrationHashMismatch:
+          migrationOptions?.ignoreMigrationHashMismatch,
+        migrationTimeoutMS: migrationOptions?.migrationTimeoutMs,
+      });
 
     const migrationSchemaOptions = {
       ...options.schema,
@@ -425,7 +448,6 @@ export function getPostgreSQLEventStore(
 
       const result = await eventStoreSchema.migrator.migrate({
         execute: transaction.execute,
-        dryRun,
         ignoreMigrationHashMismatch:
           migrationOptions?.ignoreMigrationHashMismatch,
         migrationTimeoutMS: migrationOptions?.migrationTimeoutMs,
@@ -435,7 +457,7 @@ export function getPostgreSQLEventStore(
         await options.hooks.onAfterSchemaCreated(context);
       }
 
-      return { success: !dryRun, result };
+      return { success: dryRun !== 'transactional', result };
     });
 
     if (!dryRun) schemaMigrated = true;
@@ -446,10 +468,10 @@ export function getPostgreSQLEventStore(
   const ensureMigrated = () => eventStoreSchema.migrator.ensureMigrated();
 
   const initializeInlineProjections = () =>
-    pool.withTransaction(async (transaction) => {
-      const context = transactionToPostgreSQLProjectionHandlerContext(
+    pool.withConnection(async (connection) => {
+      const context = connectionToPostgreSQLProjectionInitContext(
         session,
-        transaction,
+        connection,
       );
 
       for (const projection of inlineProjections) {

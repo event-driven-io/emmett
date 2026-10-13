@@ -1,6 +1,7 @@
 import {
   runSQLMigrations,
   type Dumbo,
+  type MigrationDryRun,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
 import type {
@@ -33,7 +34,7 @@ export * from './tables';
 export * from './typing';
 
 export type CreateEventStoreSchemaOptions = {
-  dryRun?: boolean | undefined;
+  dryRun?: MigrationDryRun | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
   migrationTimeoutMs?: number | undefined;
 } & EventStoreDatabaseSchemaOptions;
@@ -84,5 +85,7 @@ export const createEventStoreSchema = <
       await hooks.onAfterSchemaCreated(schemaContext);
     }
 
-    return options?.dryRun ? { success: false, result } : result;
+    return options?.dryRun === 'transactional'
+      ? { success: false, result }
+      : result;
   });

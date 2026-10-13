@@ -329,7 +329,6 @@ void describe('SQLite Pongo projection schema configuration', () => {
     'ignores a Pongo collection migration hash mismatch when the user asks for it',
     withDeadline,
     async () => {
-      const streamName = `shopping_cart-${uuid()}`;
       const eventStore = () =>
         getSQLiteEventStore({
           driver: d1EventStoreDriver,
@@ -372,22 +371,11 @@ void describe('SQLite Pongo projection schema configuration', () => {
       const ignoring = eventStore();
       try {
         await ignoring.schema.migrate({ ignoreMigrationHashMismatch: true });
-
-        await ignoring.appendToStream(streamName, [
-          { type: 'ProductItemAdded', data: { quantity: 8 } },
-        ]);
       } finally {
         await ignoring.close();
       }
 
-      assertDeepEqual(
-        await summaryIn(projectionsDatabaseSchemaName, streamName),
-        {
-          _id: streamName,
-          _version: 1n,
-          productItemsCount: 8,
-        },
-      );
+      assertDeepEqual(await collectionMigrationHashes(), ['changed']);
     },
   );
 
@@ -443,6 +431,17 @@ void describe('SQLite Pongo projection schema configuration', () => {
         databaseSchemaName: migrationSchemaName,
         tableName: migrationTableName,
       })} SET sql_hash = ${'changed'} WHERE name LIKE ${`%${collectionName}%`}`,
+    );
+
+  const collectionMigrationHashes = (): Promise<string[]> =>
+    mapRows(
+      pool.execute.query<{ sql_hash: string }>(
+        SQL`SELECT DISTINCT sql_hash FROM ${SQLTableReference.from({
+          databaseSchemaName: migrationSchemaName,
+          tableName: migrationTableName,
+        })} WHERE name LIKE ${`%${collectionName}%`}`,
+      ),
+      ({ sql_hash }) => sql_hash,
     );
 
   const withSummaries = <Result>(

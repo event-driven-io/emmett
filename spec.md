@@ -38,6 +38,8 @@ The connection and transaction are not missing today. PostgreSQL and SQLite proj
 - Add `EnsureMigrated` to the `autoMigration` union: `'None' | 'EnsureMigrated' | 'CreateOrUpdate'`.
 - Under `CreateOrUpdate`, automatic assurance calls `migrate()`. Under `EnsureMigrated`, it calls `ensureMigrated()`, which checks migration history without DDL. Under `None`, there is no automatic assurance: no migration and no history read.
 - Report pending migrations through Dumbo's typed `PendingMigrationsError` when the read-only check fails.
+- Let users configure `ignoreMigrationHashMismatch` on the event store, because Dumbo does not repair a recorded hash after it ignores a mismatch.
+- Make the agreed Dumbo and Pongo changes: the `EnsureMigrated` value, `None` without a history read, and a Pongo client setting to ignore hash mismatches.
 - Make `dryRun` execute inside a transaction and roll back on every driver. PostgreSQL currently commits it. D1 rejects it, as Pongo does.
 
 ## Non-goals
@@ -196,13 +198,36 @@ For PostgreSQL migrations, `createFunctionIfDoesNotExistSQL(functionName, functi
 - On D1, Pongo creates the migrator with `{ execute: pool.execute, transactionOptions: { mode: 'strict' } }`. Migrations run directly on the pool, and dry runs are rejected. The history record and the migration SQL are in one batch, so D1 applies them together or not at all.
 - Docs: `src/docs/schema-migrations.md`, `src/docs/getting-started.md`, the root `README.md`, and `src/packages/dumbo/README.md`.
 
-### `EnsureMigrated` in Dumbo and Pongo
+## Changes in Dumbo and Pongo
 
-This is a separate Dumbo and Pongo change. Emmett does not wait for it.
+These changes go into the Dumbo and Pongo repository, in parallel with the Emmett work. Emmett does not wait for them. Emmett adopts them when a Dumbo and Pongo release includes them.
 
-- Dumbo's `MigrationStyle` becomes `'None' | 'EnsureMigrated' | 'CreateOrUpdate'`.
-- Pongo's automatic assurance calls `migrate()` under `CreateOrUpdate`, `ensureMigrated()` under `EnsureMigrated`, and nothing under `None`.
-- Until Emmett uses that release, Emmett core defines the same union for its own `autoMigration` options, and the Pongo clients that Emmett creates with `None` still read the migration history once per client.
+### Dumbo
+
+- `MigrationStyle` becomes `'None' | 'EnsureMigrated' | 'CreateOrUpdate'`.
+- The per-call options of `SchemaComponentMigrator.migrate()` get `overrideMigrationHashes`. On a hash mismatch, `migrate()` writes the computed hash into the history record and does not run the migration SQL again. It does this under the migration lock, in the migration transaction. The option is per call only: it is not in `MigratorOptions`, and `ensureMigrated()` does not take it.
+- The option is a union with `ignoreMigrationHashMismatch`. `overrideMigrationHashes: true` is allowed only when `ignoreMigrationHashMismatch` is `true` or not set:
+
+  ```ts
+  type MigrationHashMismatchOptions =
+    | { ignoreMigrationHashMismatch?: boolean; overrideMigrationHashes?: false }
+    | { ignoreMigrationHashMismatch?: true; overrideMigrationHashes: true };
+  ```
+
+- Tests: change a recorded hash, call `migrate({ overrideMigrationHashes: true })`, and check that the record has the computed hash, that no migration SQL ran again, and that a later `ensureMigrated()` without options passes. A type test checks that `{ ignoreMigrationHashMismatch: false, overrideMigrationHashes: true }` does not compile.
+
+### Pongo
+
+- Automatic assurance calls `migrate()` under `CreateOrUpdate`, `ensureMigrated()` under `EnsureMigrated`, and nothing under `None`. Under `None`, Pongo reads no migration history.
+- The client and database options get `schema.ignoreMigrationHashMismatch?: boolean`. Pongo passes it to the configuration of each database's `SchemaComponentMigrator`, so automatic assurance, `db.schema.migrate()`, and `db.schema.ensureMigrated()` all use it. A per-call `ignoreMigrationHashMismatch` still overrides it.
+- `db.schema.migrate()` takes the per-call `overrideMigrationHashes` option, with the same union type, and passes it to Dumbo.
+- Tests: under `None`, a collection operation on a database with no migration table succeeds or fails on the missing table, and creates no migration table; under `EnsureMigrated`, it throws `PendingMigrationsError`; with `schema.ignoreMigrationHashMismatch: true`, collection operations work after a recorded hash was changed; after `db.schema.migrate({ overrideMigrationHashes: true })`, collection operations work without any ignore option.
+- Docs: the `autoMigration` values and the new options.
+
+### Emmett before and after the release
+
+- Before the release, Emmett core defines the `autoMigration` union itself. The Pongo clients that Emmett creates with `None` still read the migration history once per client, and they do not get the event store's hash-mismatch setting.
+- After the release, Emmett uses Dumbo's `MigrationStyle` instead of its own union, and passes the event store's `ignoreMigrationHashMismatch` setting to every Pongo client that it creates for projections. `eventStore.schema.migrate()` and `consumer.schema.migrate()` take the per-call `overrideMigrationHashes` option and pass it to Dumbo.
 
 ## Storage-bound schema operations
 
@@ -387,6 +412,34 @@ This call reads the configured migration table without creating it or any other 
 
 The operation must work for PostgreSQL runtime roles that have DML and `EXECUTE` privileges but no namespace `CREATE` privilege.
 
+## Ignoring a migration hash mismatch
+
+Dumbo does not repair a recorded hash when it ignores a mismatch. The record keeps the wrong hash, and every later check that runs without the option throws `InvalidOperationError` again. So a per-call `migrate({ ignoreMigrationHashMismatch: true })` lets only that call pass.
+
+To keep an application working with a wrong recorded hash, the user sets it as configuration:
+
+```ts
+const eventStore = getPostgreSQLEventStore({
+  driver: pgEventStoreDriver,
+  connectionString,
+  schema: { ignoreMigrationHashMismatch: true },
+});
+```
+
+- The PostgreSQL and SQLite event stores accept `schema.ignoreMigrationHashMismatch?: boolean`. The store puts it into the configuration of its `SchemaComponentMigrator`, so `init()`, `schema.migrate()`, and `schema.ensureMigrated()` use it.
+- A per-call `ignoreMigrationHashMismatch` on `schema.migrate()` overrides it for that call.
+- A consumer takes the value of the event store that created it. A processor with its own storage takes its consumer's value.
+- The Pongo clients that Emmett creates for projections get the value after Emmett adopts the Pongo release from [Changes in Dumbo and Pongo](#changes-in-dumbo-and-pongo).
+
+To repair the recorded hashes, the user calls `migrate()` once with `overrideMigrationHashes`. After that, no ignore option is necessary:
+
+```ts
+await eventStore.schema.migrate({ overrideMigrationHashes: true });
+```
+
+- `eventStore.schema.migrate()` and `consumer.schema.migrate()` accept it after Emmett adopts the Dumbo release from [Changes in Dumbo and Pongo](#changes-in-dumbo-and-pongo).
+- It is per call only. The event store and consumer options do not have it.
+
 ## Public behavior examples
 
 ### Provision every registered projection in one call
@@ -481,7 +534,8 @@ The consumer migrates its own graph on the event-store database in one transacti
 
 ### Dumbo and Pongo
 
-Done in [Pongo PR #225](https://github.com/event-driven-io/Pongo/pull/225). See [Done in Pongo PR #225](#done-in-pongo-pr-225). Update Emmett's Dumbo and Pongo dependencies to a release that includes it.
+- Done in [Pongo PR #225](https://github.com/event-driven-io/Pongo/pull/225). See [Done in Pongo PR #225](#done-in-pongo-pr-225). Update Emmett's Dumbo and Pongo dependencies to a release that includes it.
+- Make the changes in [Changes in Dumbo and Pongo](#changes-in-dumbo-and-pongo) in the Dumbo and Pongo repository. When a release includes them, update Emmett's dependencies, replace Emmett's `autoMigration` union with Dumbo's `MigrationStyle`, pass the event store's `ignoreMigrationHashMismatch` setting to the Pongo clients that Emmett creates, and pass the per-call `overrideMigrationHashes` option from `eventStore.schema.migrate()` and `consumer.schema.migrate()` to Dumbo.
 
 ### Emmett test support
 
@@ -504,8 +558,9 @@ Done in [Pongo PR #225](https://github.com/event-driven-io/Pongo/pull/225). See 
   - Create the composed `SchemaComponentMigrator` once and expose it through the existing event-store schema object.
   - Replace lazy event-store migration with automatic assurance: `migrate()` under `CreateOrUpdate`, `ensureMigrated()` under `EnsureMigrated`, nothing under `None`.
   - Build the store object in a local function of the pool. `withSession` uses it with the session's connection, so the session shares the store's `init()`.
+  - Accept `schema.ignoreMigrationHashMismatch` and put it into the migrator configuration.
 - Update `src/packages/emmett-postgresql/src/eventStore/consumers/postgreSQLEventStoreConsumer.ts` to:
-  - Resolve inherited `autoMigration`.
+  - Resolve inherited `autoMigration` and `ignoreMigrationHashMismatch`.
   - Group the schemas of same-pool processors in its event-store schema component instance, from the `processors` array and from `projector()`, `reactor()`, and `workflowProcessor()` calls.
   - Pick the automatic assurance call from the effective `autoMigration` value, and expose `component`, `sql`, `print`, `migrate`, and `ensureMigrated`.
   - Call `schema.migrate()` and `schema.ensureMigrated()` on processors with their own storage after its own run.
@@ -561,7 +616,8 @@ The order below follows real dependencies and starts with isolated quick wins. E
 15. Add event-store consumer tests showing omitted `processors` passes projectors for async definitions with default settings, an explicit array suppresses defaults, and an explicit same-ID registration replaces an automatic projector.
 16. Add least-privilege PostgreSQL integration coverage: migrate with a migration role, then start an event store and consumer with `autoMigration: 'EnsureMigrated'` under a role with DML and `EXECUTE` but no schema `CREATE`; assert that `ensureMigrated()` succeeds without DDL, migration-table creation, or lock acquisition. Add the pending-schema variant and assert the typed error identifies pending migrations.
 17. Add tests confirming `dryRun` executes transactionally and rolls back (PostgreSQL now included; D1 rejects it), and that it does not satisfy parent or child migrators.
-18. Update documentation from the tested public examples, then run formatting/type checks and the smallest affected PostgreSQL and SQLite integration suites before the repository-wide unit and full test commands required for application-code completion.
+18. Rewrite the Pongo hash-mismatch tests (PostgreSQL, sqlite3, D1, Durable Objects): `migrate()` without the option throws, `migrate({ ignoreMigrationHashMismatch: true })` resolves, and the recorded hash stays unchanged. Add tests for the event store setting: with `schema.ignoreMigrationHashMismatch: true`, `init()` and `ensureMigrated()` pass after a recorded event-store hash was changed. After the Pongo release, add a test that an append with an inline Pongo projection works after a recorded collection hash was changed, and a test that `eventStore.schema.migrate({ overrideMigrationHashes: true })` repairs a changed event-store hash and a changed collection hash, so that a later `ensureMigrated()` without options passes.
+19. Update documentation from the tested public examples, then run formatting/type checks and the smallest affected PostgreSQL and SQLite integration suites before the repository-wide unit and full test commands required for application-code completion.
 
 ## Acceptance criteria
 
@@ -590,6 +646,8 @@ The order below follows real dependencies and starts with isolated quick wins. E
 - Explicit `schema.migrate()` works under `None` and `EnsureMigrated`.
 - A child using an already satisfied owner migrator does not access migration history again during initialization in the same bound object graph.
 - An explicitly configured processor pool is excluded from its parent's migration bundle and follows its own migration lifecycle. Its `autoMigration` defaults to the consumer's effective value. The consumer's `schema.migrate()` migrates it in a separate run after the consumer's own run.
+- `schema.ignoreMigrationHashMismatch: true` on an event store makes its automatic assurance, `schema.migrate()`, and `schema.ensureMigrated()` pass a recorded hash mismatch. Its consumer takes the same value. A per-call option overrides it.
+- After the Dumbo and Pongo release, `schema.migrate({ overrideMigrationHashes: true })` on an event store or a consumer writes the computed hashes into the history records, and later checks pass without any ignore option. `overrideMigrationHashes: true` together with `ignoreMigrationHashMismatch: false` does not compile.
 - Read-only `ensureMigrated()` ignores extra historical migrations, respects the existing hash-ignore option, treats a missing migration table as all expected migrations pending, reports pending values through `PendingMigrationsError`, and throws `InvalidOperationError` for a hash mismatch that is not ignored.
 - `dryRun` executes and rolls back on PostgreSQL, SQLite3, and Durable Objects, and is rejected on D1.
 - Inline projection `init` runs once per event-store instance under every `autoMigration` value and never executes DDL. A `withSession` session shares it. `schema.migrate()` does not call it.

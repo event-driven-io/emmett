@@ -19,6 +19,7 @@ import {
   postgreSQLProjection,
   type PostgreSQLProjectionDefinition,
   type PostgreSQLProjectionHandlerContext,
+  type PostgreSQLProjectionInitContext,
 } from '..';
 import type { PostgresReadEventMetadata } from '../../postgreSQLEventStore';
 import { pongoDriverOf } from '../../eventStoreDriver';
@@ -28,8 +29,12 @@ export type PongoProjectionHandlerContext =
     pongo: PongoClient;
   };
 
+export type PongoProjectionInitContext = PostgreSQLProjectionInitContext & {
+  pongo: PongoClient;
+};
+
 const pongoClientSchemaOptions = (
-  context: PostgreSQLProjectionHandlerContext,
+  context: Pick<PostgreSQLProjectionHandlerContext, 'migrationOptions'>,
   defaultSchemaName: string | undefined,
 ) => ({
   defaultSchemaName:
@@ -90,7 +95,7 @@ export type PongoProjectionOptions<
   ) => Promise<void>;
   canHandle: CanHandle<EventType>;
   truncate?: TruncateProjection<PongoProjectionHandlerContext>;
-  init?: (context: PongoProjectionHandlerContext) => void | Promise<void>;
+  init?: (context: PongoProjectionInitContext) => void | Promise<void>;
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
@@ -116,8 +121,9 @@ export const pongoProjection = <
     schema,
     defaultSchemaName,
   } = options;
-  const pongoSchemaOptions = (context: PostgreSQLProjectionHandlerContext) =>
-    pongoClientSchemaOptions(context, defaultSchemaName);
+  const pongoSchemaOptions = (
+    context: Pick<PostgreSQLProjectionHandlerContext, 'migrationOptions'>,
+  ) => pongoClientSchemaOptions(context, defaultSchemaName);
 
   return postgreSQLProjection<EventType, EventPayloadType>({
     name,

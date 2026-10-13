@@ -72,6 +72,37 @@ export const transactionToSQLiteProjectionHandlerContext = <
     observabilityScope: noopScope,
   }) as SQLiteProjectionHandlerContext<Driver>;
 
+export type SQLiteProjectionInitContext<
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+> = ProjectionHandlerContext<
+  Omit<
+    SQLiteProjectionHandlerContext<Driver>,
+    'session' | 'observabilityScope'
+  >,
+  Omit<SQLiteProjectionHandlerContext<Driver>['session'], 'transaction'>
+>;
+
+export const connectionToSQLiteProjectionInitContext = <
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+>(
+  session: {
+    pool: Dumbo;
+    driver?: Driver;
+    connectionOptions?: InferDumboOptionsFromEventStoreDriver<Driver>;
+  },
+  connection: AnyConnection,
+): SQLiteProjectionInitContext<Driver> =>
+  ({
+    execute: connection.execute,
+    driverType: session.pool.driverType,
+    driver: session.driver,
+    session: {
+      ...session,
+      connection,
+    },
+    observabilityScope: noopScope,
+  }) as SQLiteProjectionInitContext<Driver>;
+
 export type SQLiteProjectionHandler<
   EventType extends Event = Event,
   EventMetaDataType extends SQLiteReadEventMetadata = SQLiteReadEventMetadata,
@@ -90,7 +121,9 @@ export type SQLiteProjectionDefinition<
   EventType,
   SQLiteReadEventMetadata,
   SQLiteProjectionHandlerContext<Driver>,
-  EventPayloadType
+  EventPayloadType,
+  unknown,
+  SQLiteProjectionInitContext<Driver>
 > & {
   withDefaultSchemaName?: (
     databaseSchemaName: string,
@@ -149,7 +182,9 @@ export const sqliteProjection = <
     EventType,
     SQLiteReadEventMetadata,
     SQLiteProjectionHandlerContext<Driver>,
-    EventPayloadType
+    EventPayloadType,
+    unknown,
+    SQLiteProjectionInitContext<Driver>
   >(definition);
 
 export type SQLiteRawBatchSQLProjection<
@@ -166,7 +201,7 @@ export type SQLiteRawBatchSQLProjection<
   ) => Promise<SQL[]> | SQL[];
   canHandle: CanHandle<EventType>;
   init?: (
-    context: ProjectionInitOptions<SQLiteProjectionHandlerContext<Driver>>,
+    context: ProjectionInitOptions<SQLiteProjectionInitContext<Driver>>,
   ) => void | Promise<void> | SQL | Promise<SQL> | Promise<SQL[]> | SQL[];
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
@@ -227,7 +262,7 @@ export type SQLiteRawSQLProjection<
   ) => Promise<SQL[]> | SQL[] | Promise<SQL> | SQL;
   canHandle: CanHandle<EventType>;
   init?: (
-    context: ProjectionInitOptions<SQLiteProjectionHandlerContext<Driver>>,
+    context: ProjectionInitOptions<SQLiteProjectionInitContext<Driver>>,
   ) => void | Promise<void> | SQL | Promise<SQL> | Promise<SQL[]> | SQL[];
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;

@@ -347,7 +347,7 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     });
 
     try {
-      const dryRun = await store.schema.migrate({ dryRun: true });
+      const dryRun = await store.schema.migrate({ dryRun: 'transactional' });
 
       assertDeepEqual(dryRun.applied, [schemaMigrationFor(schemaOptions)]);
       assertFalse(

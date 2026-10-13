@@ -19,6 +19,7 @@ import {
   sqliteProjection,
   type SQLiteProjectionDefinition,
   type SQLiteProjectionHandlerContext,
+  type SQLiteProjectionInitContext,
 } from '..';
 import type { SQLiteReadEventMetadata } from '../../SQLiteEventStore';
 import { pongoDriverOf } from '../../eventStoreDriver';
@@ -27,8 +28,12 @@ export type PongoProjectionHandlerContext = SQLiteProjectionHandlerContext & {
   pongo: PongoClient;
 };
 
+export type PongoProjectionInitContext = SQLiteProjectionInitContext & {
+  pongo: PongoClient;
+};
+
 const pongoClientSchemaOptions = (
-  context: SQLiteProjectionHandlerContext,
+  context: Pick<SQLiteProjectionHandlerContext, 'migrationOptions'>,
   defaultSchemaName: string | undefined,
 ) => ({
   defaultSchemaName:
@@ -86,7 +91,7 @@ export type PongoProjectionOptions<
   ) => Promise<void>;
   canHandle: CanHandle<EventType>;
   truncate?: TruncateProjection<PongoProjectionHandlerContext>;
-  init?: (context: PongoProjectionHandlerContext) => void | Promise<void>;
+  init?: (context: PongoProjectionInitContext) => void | Promise<void>;
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
@@ -112,8 +117,9 @@ export const pongoProjection = <
     schema,
     defaultSchemaName,
   } = options;
-  const pongoSchemaOptions = (context: SQLiteProjectionHandlerContext) =>
-    pongoClientSchemaOptions(context, defaultSchemaName);
+  const pongoSchemaOptions = (
+    context: Pick<SQLiteProjectionHandlerContext, 'migrationOptions'>,
+  ) => pongoClientSchemaOptions(context, defaultSchemaName);
 
   return sqliteProjection<EventType, EventPayloadType>({
     name,

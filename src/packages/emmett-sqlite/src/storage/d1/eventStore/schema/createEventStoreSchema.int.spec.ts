@@ -9,7 +9,6 @@ import {
   assertDeepEqual,
   assertEqual,
   assertFalse,
-  assertThatArray,
   assertTrue,
 } from '@event-driven-io/emmett';
 import assert from 'assert';
@@ -153,7 +152,7 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     );
   });
 
-  void it('applies the configured migration already when the user dry-runs it, as the dry run is NOT rolled back', async () => {
+  void it('applies the configured migration after the user runs a diff dry run first', async () => {
     const schemaOptions = {
       databaseSchemaName: 'events',
       migrationTable: {
@@ -171,18 +170,17 @@ void describe('createEventStoreSchema with configured database schemas', () => {
       },
     });
 
-    const dryRun = await eventStore.schema.migrate({ dryRun: true });
+    const dryRun = await eventStore.schema.migrate({ dryRun: 'diff' });
 
     assertDeepEqual(dryRun.applied, [schemaMigrationFor(schemaOptions)]);
-    assertTrue(await configuredTableExists('events', 'emt_streams'));
-    assertTrue(
+    assertFalse(await configuredTableExists('events', 'emt_streams'));
+    assertFalse(
       await configuredTableExists('infrastructure', 'emmett_migrations'),
     );
 
-    const { applied, skipped } = await eventStore.schema.migrate();
+    const { applied } = await eventStore.schema.migrate();
 
-    assertThatArray(applied).isEmpty();
-    assertDeepEqual(skipped, [schemaMigrationFor(schemaOptions)]);
+    assertDeepEqual(applied, [schemaMigrationFor(schemaOptions)]);
     assertTrue(await configuredTableExists('events', 'emt_streams'));
     assertDeepEqual(
       await migrationNames({

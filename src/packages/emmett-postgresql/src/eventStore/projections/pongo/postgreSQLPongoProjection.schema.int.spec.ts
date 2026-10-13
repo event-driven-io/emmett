@@ -448,7 +448,6 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
       const migrationSchemaName = schemaName('infrastructure');
       const migrationTableName = 'emmett_migrations';
       const collectionName = schemaName('shopping_cart_summary');
-      const streamName = `shopping_cart:${uuid()}`;
 
       const eventStore = () =>
         getPostgreSQLEventStore({
@@ -496,17 +495,17 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
       const ignoring = eventStore();
       try {
         await ignoring.schema.migrate({ ignoreMigrationHashMismatch: true });
-
-        await ignoring.appendToStream(streamName, [
-          { type: 'ProductItemAdded', data: { quantity: 8 } },
-        ]);
       } finally {
         await ignoring.close();
       }
 
       assertDeepEqual(
-        await summaryIn(projectionSchemaName, collectionName, streamName),
-        { _id: streamName, _version: 1n, productItemsCount: 8 },
+        await collectionMigrationHashes(
+          migrationSchemaName,
+          migrationTableName,
+          collectionName,
+        ),
+        ['changed'],
       );
     },
   );
@@ -521,6 +520,21 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
         databaseSchemaName,
         tableName,
       })} SET sql_hash = ${'changed'} WHERE name LIKE ${`%${collectionName}%`}`,
+    );
+
+  const collectionMigrationHashes = (
+    databaseSchemaName: string,
+    tableName: string,
+    collectionName: string,
+  ): Promise<string[]> =>
+    mapRows(
+      pool.execute.query<{ sql_hash: string }>(
+        SQL`SELECT DISTINCT sql_hash FROM ${SQLTableReference.from({
+          databaseSchemaName,
+          tableName,
+        })} WHERE name LIKE ${`%${collectionName}%`}`,
+      ),
+      ({ sql_hash }) => sql_hash,
     );
 
   const withSummaries = async <Result>(

@@ -305,7 +305,7 @@ void describe('Schema migrations tests', () => {
 
   void it('applies the migration after the user dry-runs it first', async () => {
     // Given
-    const dryRun = await eventStore.schema.migrate({ dryRun: true });
+    const dryRun = await eventStore.schema.migrate({ dryRun: 'transactional' });
 
     assertDeepEqual(dryRun.applied, [
       ...migrations_0_42_0,

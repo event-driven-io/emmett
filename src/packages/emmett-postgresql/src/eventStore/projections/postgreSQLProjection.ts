@@ -74,6 +74,37 @@ export const transactionToPostgreSQLProjectionHandlerContext = <
     observabilityScope: noopScope,
   }) as PostgreSQLProjectionHandlerContext<Driver>;
 
+export type PostgreSQLProjectionInitContext<
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
+> = ProjectionHandlerContext<
+  Omit<
+    PostgreSQLProjectionHandlerContext<Driver>,
+    'session' | 'observabilityScope'
+  >,
+  Omit<PostgreSQLProjectionHandlerContext<Driver>['session'], 'transaction'>
+>;
+
+export const connectionToPostgreSQLProjectionInitContext = <
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
+>(
+  session: {
+    pool: Dumbo;
+    driver?: Driver;
+    connectionOptions?: InferDumboOptionsFromEventStoreDriver<Driver>;
+  },
+  connection: AnyConnection,
+): PostgreSQLProjectionInitContext<Driver> =>
+  ({
+    execute: connection.execute,
+    driverType: session.pool.driverType,
+    driver: session.driver,
+    session: {
+      ...session,
+      connection,
+    },
+    observabilityScope: noopScope,
+  }) as PostgreSQLProjectionInitContext<Driver>;
+
 export type PostgreSQLProjectionHandler<
   EventType extends Event = Event,
   EventMetaDataType extends PostgresReadEventMetadata =
@@ -93,7 +124,9 @@ export type PostgreSQLProjectionDefinition<
   EventType,
   PostgresReadEventMetadata,
   PostgreSQLProjectionHandlerContext<Driver>,
-  EventPayloadType
+  EventPayloadType,
+  unknown,
+  PostgreSQLProjectionInitContext<Driver>
 > & {
   withDefaultSchemaName?: (
     databaseSchemaName: string,
@@ -163,7 +196,9 @@ export const postgreSQLProjection = <
     EventType,
     PostgresReadEventMetadata,
     PostgreSQLProjectionHandlerContext,
-    EventPayloadType
+    EventPayloadType,
+    unknown,
+    PostgreSQLProjectionInitContext
   >({
     ...definition,
     init: async (options) => {
@@ -203,7 +238,7 @@ export type PostgreSQLRawBatchSQLProjection<
   ) => Promise<SQL[]> | SQL[];
   canHandle: CanHandle<EventType>;
   init?: (
-    context: ProjectionInitOptions<PostgreSQLProjectionHandlerContext>,
+    context: ProjectionInitOptions<PostgreSQLProjectionInitContext>,
   ) => void | Promise<void> | SQL | Promise<SQL> | Promise<SQL[]> | SQL[];
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
@@ -262,7 +297,7 @@ export type PostgreSQLRawSQLProjection<
   ) => Promise<SQL[]> | SQL[] | Promise<SQL> | SQL;
   canHandle: CanHandle<EventType>;
   init?: (
-    context: ProjectionInitOptions<PostgreSQLProjectionHandlerContext>,
+    context: ProjectionInitOptions<PostgreSQLProjectionInitContext>,
   ) => void | Promise<void> | SQL | Promise<SQL> | Promise<SQL[]> | SQL[];
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;

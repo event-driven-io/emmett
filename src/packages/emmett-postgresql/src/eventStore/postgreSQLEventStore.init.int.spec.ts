@@ -1,4 +1,9 @@
-import { dumbo, PendingMigrationsError, SQL } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  InvalidOperationError,
+  PendingMigrationsError,
+  SQL,
+} from '@event-driven-io/dumbo';
 import {
   pgDumboDriver,
   tableExists,
@@ -293,6 +298,38 @@ void describe('PostgreSQL event store init', () => {
   );
 
   void it(
+    'initializes inline projections outside a transaction, so their own transactions are not nested',
+    withDeadline,
+    async () => {
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString,
+        connectionOptions: {
+          transactionOptions: { allowNestedTransactions: false },
+        },
+        schema: storeSchema(),
+        projections: projections.inline([
+          postgreSQLProjection<ProductItemAdded>({
+            name: schemaName('transactional_init'),
+            canHandle: ['ProductItemAdded'],
+            handle: () => {},
+            init: ({ context }) =>
+              context.session.connection.withTransaction(() =>
+                Promise.resolve(),
+              ),
+          }),
+        ]),
+      });
+
+      try {
+        await store.init();
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
     'initializes on the first operation when nobody called init',
     withDeadline,
     async () => {
@@ -430,9 +467,50 @@ void describe('PostgreSQL event store init', () => {
       });
 
       try {
-        const dryRun = await store.schema.migrate({ dryRun: true });
+        const dryRun = await store.schema.migrate({
+          dryRun: 'transactional',
+        });
 
         assertTrue(dryRun.applied.length > 0);
+        assertFalse(await migrationTableExists(schema));
+        await assertThrowsAsync(
+          () => store.init(),
+          (error) => error instanceof PendingMigrationsError,
+        );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'returns pending migrations in a diff dry run without applying them or running the schema hooks',
+    withDeadline,
+    async () => {
+      let hookCalls = 0;
+      const schema = storeSchema();
+      const store = storeWith({
+        schema: { autoMigration: 'EnsureMigrated', ...schema },
+        hooks: {
+          onBeforeSchemaCreated: () => {
+            hookCalls++;
+          },
+          onAfterSchemaCreated: () => {
+            hookCalls++;
+          },
+        },
+      });
+
+      try {
+        const dryRun = await store.schema.migrate({ dryRun: 'diff' });
+
+        assertTrue(dryRun.applied.length > 0);
+        assertEqual(hookCalls, 0);
+        assertFalse(
+          await tableExists(pool.execute, 'emt_streams', {
+            databaseSchemaName: schema.databaseSchemaName,
+          }),
+        );
         assertFalse(await migrationTableExists(schema));
         await assertThrowsAsync(
           () => store.init(),
@@ -523,6 +601,100 @@ void describe('PostgreSQL event store init', () => {
       }
     },
   );
+
+  void describe('with a changed migration hash', () => {
+    const storeAfterCollectionHashChanged = async (
+      ignoreMigrationHashMismatch?: boolean,
+    ) => {
+      const schema = storeSchema();
+      const asyncProjections = projections.async([
+        shoppingCartSummary(schemaName('async_summary')),
+      ]);
+      const migrated = storeWith({ schema, projections: asyncProjections });
+      try {
+        await migrated.schema.migrate();
+      } finally {
+        await migrated.close();
+      }
+      await pool.execute.command(
+        SQL`UPDATE ${SQL.identifier(schema.migrationTable.schemaName)}.${SQL.identifier(schema.migrationTable.tableName)} SET sql_hash = 'changed' WHERE name <> 'emt:postgresql:eventstore:initial'`,
+      );
+
+      return storeWith({
+        schema:
+          ignoreMigrationHashMismatch === undefined
+            ? schema
+            : { ignoreMigrationHashMismatch, ...schema },
+        projections: asyncProjections,
+      });
+    };
+
+    const isHashMismatch = (error: unknown) =>
+      error instanceof InvalidOperationError;
+
+    void it(
+      'initializes and ensures migrated with the ignoreMigrationHashMismatch setting',
+      withDeadline,
+      async () => {
+        const store = await storeAfterCollectionHashChanged(true);
+
+        try {
+          await store.init();
+          await store.schema.ensureMigrated();
+        } finally {
+          await store.close();
+        }
+      },
+    );
+
+    void it(
+      'rejects init without the ignoreMigrationHashMismatch setting',
+      withDeadline,
+      async () => {
+        const store = await storeAfterCollectionHashChanged();
+
+        try {
+          await assertThrowsAsync(() => store.init(), isHashMismatch);
+        } finally {
+          await store.close();
+        }
+      },
+    );
+
+    void it(
+      'rejects ensuring migrated without the ignoreMigrationHashMismatch setting',
+      withDeadline,
+      async () => {
+        const store = await storeAfterCollectionHashChanged();
+
+        try {
+          await assertThrowsAsync(
+            () => store.schema.ensureMigrated(),
+            isHashMismatch,
+          );
+        } finally {
+          await store.close();
+        }
+      },
+    );
+
+    void it(
+      'lets a per-call migrate option override the ignoreMigrationHashMismatch setting',
+      withDeadline,
+      async () => {
+        const store = await storeAfterCollectionHashChanged(true);
+
+        try {
+          await assertThrowsAsync(
+            () => store.schema.migrate({ ignoreMigrationHashMismatch: false }),
+            isHashMismatch,
+          );
+        } finally {
+          await store.close();
+        }
+      },
+    );
+  });
 });
 
 type AppendToStream = ReturnType<

@@ -12,6 +12,7 @@ import type {
   ExtractDumboTypeFromDriver,
   InferDbClientFromConnection,
   InferTransactionFromConnection,
+  MigratorOptions,
 } from '@event-driven-io/dumbo';
 
 export interface EventStoreDriver<
@@ -24,6 +25,7 @@ export interface EventStoreDriver<
   mapToDumboOptions(
     options: DriverOptions,
   ): ExtractDumboDatabaseDriverOptions<DatabaseDriver>;
+  migrationOptions?(pool: Dumbo): MigratorOptions;
 }
 
 export const eventStoreDriverOf = <
