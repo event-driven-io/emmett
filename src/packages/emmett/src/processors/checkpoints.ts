@@ -78,7 +78,7 @@ export type Checkpointer<
 export type ReadProcessorCheckpoint<
   HandlerContext extends DefaultRecord = DefaultRecord,
 > = (
-  options: { processorId: string; partition?: string },
+  options: { processorId: string; partition?: string; version?: number },
   context: HandlerContext,
 ) => Promise<ReadProcessorCheckpointResult>;
 

@@ -1,5 +1,5 @@
 import { single, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
-import type { ProcessorCheckpoint } from '@event-driven-io/emmett';
+import { bigInt, type ProcessorCheckpoint } from '@event-driven-io/emmett';
 import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
 import { postgreSQLFunctionName } from './postgreSQLFunctionName';
 import {
@@ -100,6 +100,20 @@ BEGIN
       RETURN 1;  -- Successfully inserted
   EXCEPTION WHEN unique_violation THEN
       -- If insertion failed, it means the row already exists
+      UPDATE ${tableReference(databaseSchemaName, processorsTable.name)}
+      SET
+        "last_processed_checkpoint" = p_position,
+        "last_processed_transaction_id" = p_transaction_id,
+        "last_updated" = now()
+      WHERE "processor_id" = p_processor_id
+        AND "last_processed_checkpoint" = '${SQL.plain(bigInt.toNormalizedString(0n))}'
+        AND "partition" = p_partition
+        AND "version" = p_version;
+
+      IF FOUND THEN
+          RETURN 1;  -- Replaced the placeholder row created by the processor lock
+      END IF;
+
       SELECT "last_processed_checkpoint" INTO current_position
       FROM ${tableReference(databaseSchemaName, processorsTable.name)}
       WHERE "processor_id" = p_processor_id 

@@ -1103,11 +1103,10 @@ void describe('Processors', () => {
       };
     };
 
-    void it('resolves BEGINNING even when a checkpoint is stored', async () => {
+    void it('resumes from the stored checkpoint when startFrom BEGINNING is specified', async () => {
       // Given
-      const { checkpoints, wasRead } = trackingCheckpointer(
-        bigIntProcessorCheckpoint(9n),
-      );
+      const stored = bigIntProcessorCheckpoint(9n);
+      const { checkpoints, wasRead } = trackingCheckpointer(stored);
       const processor = reactor({
         processorId: uuid(),
         startFrom: 'BEGINNING',
@@ -1120,16 +1119,15 @@ void describe('Processors', () => {
       onTestFinished(() => processor.close());
 
       // Then
-      assertEqual(startPosition, 'BEGINNING');
+      assertDeepEqual(startPosition, { lastCheckpoint: stored });
       assertEqual(wasRead(), true);
     });
 
-    void it('resolves an explicit checkpoint after reading the stored checkpoint', async () => {
+    void it('resumes from the stored checkpoint when an explicit start position is specified', async () => {
       // Given
       const provided = bigIntProcessorCheckpoint(5n);
-      const { checkpoints, wasRead } = trackingCheckpointer(
-        bigIntProcessorCheckpoint(9n),
-      );
+      const stored = bigIntProcessorCheckpoint(9n);
+      const { checkpoints, wasRead } = trackingCheckpointer(stored);
       const processor = reactor({
         processorId: uuid(),
         startFrom: { lastCheckpoint: provided },
@@ -1142,7 +1140,7 @@ void describe('Processors', () => {
       onTestFinished(() => processor.close());
 
       // Then
-      assertDeepEqual(startPosition, { lastCheckpoint: provided });
+      assertDeepEqual(startPosition, { lastCheckpoint: stored });
       assertEqual(wasRead(), true);
     });
 
@@ -1207,11 +1205,10 @@ void describe('Processors', () => {
       assertDeepEqual(currentPosition, { lastCheckpoint: stored });
     });
 
-    void it('returns END verbatim, leaving the consumer to resolve the checkpoint', async () => {
+    void it('resumes from the stored checkpoint when startFrom END is specified', async () => {
       // Given
-      const { checkpoints, wasRead } = trackingCheckpointer(
-        bigIntProcessorCheckpoint(9n),
-      );
+      const stored = bigIntProcessorCheckpoint(9n);
+      const { checkpoints, wasRead } = trackingCheckpointer(stored);
       const processor = reactor({
         processorId: uuid(),
         startFrom: 'END',
@@ -1224,7 +1221,30 @@ void describe('Processors', () => {
       onTestFinished(() => processor.close());
 
       // Then
-      assertEqual(startPosition, 'END');
+      assertDeepEqual(startPosition, { lastCheckpoint: stored });
+      assertEqual(wasRead(), true);
+    });
+
+    void it.each([
+      'BEGINNING' as const,
+      'END' as const,
+      { lastCheckpoint: bigIntProcessorCheckpoint(5n) },
+    ])('uses startFrom %j when no checkpoint is stored', async (startFrom) => {
+      // Given
+      const { checkpoints, wasRead } = trackingCheckpointer(null);
+      const processor = reactor({
+        processorId: uuid(),
+        startFrom,
+        eachMessage: () => Promise.resolve(),
+        checkpoints,
+      });
+
+      // When
+      const startPosition = await processor.start({});
+      onTestFinished(() => processor.close());
+
+      // Then
+      assertDeepEqual(startPosition, startFrom);
       assertEqual(wasRead(), true);
     });
   });

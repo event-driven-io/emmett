@@ -1,4 +1,5 @@
 import { SQL, sqlMigration, type SQLMigration } from '@event-driven-io/dumbo';
+import { bigInt } from '@event-driven-io/emmett';
 import { defaultTag, processorsTable, unknownTag } from '../../typing';
 
 // Removes the mixed-format checkpoint fallback from store_processor_checkpoint.
@@ -52,6 +53,20 @@ BEGIN
       VALUES (p_processor_id, p_version, p_position, p_partition, p_transaction_id, now(), now());
       RETURN 1;
   EXCEPTION WHEN unique_violation THEN
+      UPDATE "${SQL.plain(processorsTable.name)}"
+      SET
+        "last_processed_checkpoint" = p_position,
+        "last_processed_transaction_id" = p_transaction_id,
+        "last_updated" = now()
+      WHERE "processor_id" = p_processor_id
+        AND "last_processed_checkpoint" = '${SQL.plain(bigInt.toNormalizedString(0n))}'
+        AND "partition" = p_partition
+        AND "version" = p_version;
+
+      IF FOUND THEN
+          RETURN 1;
+      END IF;
+
       SELECT "last_processed_checkpoint" INTO current_position
       FROM "${SQL.plain(processorsTable.name)}"
       WHERE "processor_id" = p_processor_id

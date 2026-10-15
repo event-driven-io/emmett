@@ -23,6 +23,7 @@ import {
   defaultTag,
   type AnyEvent,
   type AnyMessage,
+  type AnyMessageHandlerContext,
   type AnyReadEventMetadata,
   type AnyRecordedMessageMetadata,
   type BatchMessageHandlerResult,
@@ -31,7 +32,6 @@ import {
   type DefaultRecord,
   type Event,
   type Message,
-  type AnyMessageHandlerContext,
   type MessageHandlerContext,
   type PartialHandlerContext,
   type RecordedMessage,
@@ -951,6 +951,7 @@ export const reactor = <
                     {
                       processorId: processorId,
                       partition,
+                      version,
                     },
                     {
                       ...startOptions,
@@ -970,6 +971,13 @@ export const reactor = <
               );
             }
 
+            lastCheckpoint = lastStoredCheckpoint;
+
+            if (lastCheckpoint !== null) {
+              started('checkpoint', lastCheckpoint);
+              return { lastCheckpoint };
+            }
+
             if (startFrom !== undefined && typeof startFrom !== 'string') {
               lastCheckpoint = startFrom.lastCheckpoint;
               started('explicit', startFrom.lastCheckpoint);
@@ -981,17 +989,8 @@ export const reactor = <
               return startFrom;
             }
 
-            lastCheckpoint = lastStoredCheckpoint;
-
-            if (lastCheckpoint === null) {
-              started('BEGINNING', null);
-              return 'BEGINNING';
-            }
-
-            started('checkpoint', lastCheckpoint);
-            return {
-              lastCheckpoint,
-            };
+            started('BEGINNING', null);
+            return 'BEGINNING';
           }, startOptions);
         },
         callerOptions.observabilityScope,
