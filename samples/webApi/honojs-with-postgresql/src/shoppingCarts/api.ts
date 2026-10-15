@@ -1,7 +1,5 @@
 import {
   assertNotEmptyString,
-  assertPositiveNumber,
-  CommandHandler,
   type EventsPublisher,
   type EventStore,
 } from '@event-driven-io/emmett';
@@ -16,23 +14,16 @@ import {
 import { type PongoDb } from '@event-driven-io/pongo';
 import type { Context, Hono } from 'hono';
 import {
-  addProductItem,
-  cancel,
-  confirm,
-  removeProductItem,
-  type AddProductItemToShoppingCart,
-  type CancelShoppingCart,
-  type ConfirmShoppingCart,
-  type RemoveProductItemFromShoppingCart,
-} from './businessLogic';
+  addProductItemToCurrentShoppingCart,
+  cancelCurrentShoppingCart,
+  confirmCurrentShoppingCart,
+  getShoppingCartId,
+  removeProductItemFromCurrentShoppingCart,
+} from './application';
 import { getClientShoppingSummary } from './getClientShoppingSummary';
 import { getDetailsById } from './getDetails';
-import { evolve, initialState } from './shoppingCart';
 
-export const getShoppingCartId = (clientId: string) =>
-  `shopping_cart:${assertNotEmptyString(clientId)}:current`;
-
-const handle = CommandHandler({ evolve, initialState });
+export { getShoppingCartId } from './application';
 
 export const shoppingCartApi =
   (
@@ -47,28 +38,16 @@ export const shoppingCartApi =
     router.post(
       '/clients/:clientId/shopping-carts/current/product-items',
       async (context: AddProductItemContext) => {
-        const clientId = assertNotEmptyString(context.req.param('clientId'));
-        const shoppingCartId = getShoppingCartId(clientId);
         const body = await context.req.json();
-        const productId = assertNotEmptyString(body.productId);
 
-        const command: AddProductItemToShoppingCart = {
-          type: 'AddProductItemToShoppingCart',
-          data: {
-            shoppingCartId,
-            clientId,
-            productItem: {
-              productId,
-              quantity: assertPositiveNumber(body.quantity),
-              unitPrice: await getUnitPrice(productId),
-            },
-          },
-          metadata: { clientId, now: getCurrentTime() },
-        };
-
-        await handle(eventStore, shoppingCartId, (state) =>
-          addProductItem(command, state),
-        );
+        await addProductItemToCurrentShoppingCart({
+          eventStore,
+          getUnitPrice,
+          getCurrentTime,
+          clientId: context.req.param('clientId'),
+          productId: body.productId,
+          quantity: body.quantity,
+        });
 
         return NoContent({ context });
       },
@@ -78,28 +57,18 @@ export const shoppingCartApi =
     router.delete(
       '/clients/:clientId/shopping-carts/current/product-items',
       async (context: Context) => {
-        const clientId = assertNotEmptyString(context.req.param('clientId'));
-        const shoppingCartId = getShoppingCartId(
-          assertNotEmptyString(context.req.param('clientId')),
-        );
         const query = context.req.query();
 
-        const command: RemoveProductItemFromShoppingCart = {
-          type: 'RemoveProductItemFromShoppingCart',
-          data: {
-            shoppingCartId,
-            productItem: {
-              productId: assertNotEmptyString(query.productId),
-              quantity: assertPositiveNumber(Number(query.quantity)),
-              unitPrice: assertPositiveNumber(Number(query.unitPrice)),
-            },
+        await removeProductItemFromCurrentShoppingCart({
+          eventStore,
+          getCurrentTime,
+          clientId: context.req.param('clientId'),
+          productItem: {
+            productId: query.productId,
+            quantity: Number(query.quantity),
+            unitPrice: Number(query.unitPrice),
           },
-          metadata: { clientId, now: getCurrentTime() },
-        };
-
-        await handle(eventStore, shoppingCartId, (state) =>
-          removeProductItem(command, state),
-        );
+        });
 
         return NoContent({ context });
       },
@@ -109,26 +78,12 @@ export const shoppingCartApi =
     router.post(
       '/clients/:clientId/shopping-carts/current/confirm',
       async (context: Context) => {
-        const clientId = assertNotEmptyString(context.req.param('clientId'));
-        const shoppingCartId = getShoppingCartId(
-          assertNotEmptyString(context.req.param('clientId')),
-        );
-
-        const command: ConfirmShoppingCart = {
-          type: 'ConfirmShoppingCart',
-          data: { shoppingCartId },
-          metadata: { clientId, now: getCurrentTime() },
-        };
-
-        const {
-          newEvents: [confirmed, ..._rest],
-        } = await handle(eventStore, shoppingCartId, (state) =>
-          confirm(command, state),
-        );
-
-        // This is just example, it'll run in-proc
-        // so don't do that if you care about delivery guarantees
-        await eventPublisher.publish(confirmed);
+        await confirmCurrentShoppingCart({
+          eventStore,
+          eventPublisher,
+          getCurrentTime,
+          clientId: context.req.param('clientId'),
+        });
 
         return NoContent({ context });
       },
@@ -138,20 +93,11 @@ export const shoppingCartApi =
     router.delete(
       '/clients/:clientId/shopping-carts/current',
       async (context: Context) => {
-        const clientId = assertNotEmptyString(context.req.param('clientId'));
-        const shoppingCartId = getShoppingCartId(
-          assertNotEmptyString(context.req.param('clientId')),
-        );
-
-        const command: CancelShoppingCart = {
-          type: 'CancelShoppingCart',
-          data: { shoppingCartId },
-          metadata: { clientId, now: getCurrentTime() },
-        };
-
-        await handle(eventStore, shoppingCartId, (state) =>
-          cancel(command, state),
-        );
+        await cancelCurrentShoppingCart({
+          eventStore,
+          getCurrentTime,
+          clientId: context.req.param('clientId'),
+        });
 
         return NoContent({ context });
       },

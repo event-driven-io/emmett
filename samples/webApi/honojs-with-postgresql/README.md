@@ -28,6 +28,12 @@ Just run
 npm run start
 ```
 
+## Full-stack UI with HTMX
+
+Open [http://localhost:3000/ui](http://localhost:3000/ui) to use the server-rendered shopping cart. The UI uses Hono JSX for rendering and HTMX to add or remove products, confirm the cart, cancel the cart, and replace the cart fragment without a full-page reload. Every action also works as a regular HTML form when JavaScript is unavailable.
+
+The existing JSON API remains available under the `/clients/:clientId` routes.
+
 ## Observability
 
 Emmett auto-instruments your application with zero configuration: every command execution, event store read/write, processor, consumer, and workflow emits spans, metrics, and structured logs via OpenTelemetry.
@@ -69,14 +75,15 @@ For sending requests you can use [.http](./.http) file.
 
 ### Endpoints
 
-| Service    | URL                   | What it shows                            |
-| ---------- | --------------------- | ---------------------------------------- |
-| App        | http://localhost:3000 | REST API                                 |
-| Grafana    | http://localhost:3001 | Dashboards, trace explorer, log explorer |
-| Prometheus | http://localhost:9090 | Raw metrics, PromQL                      |
-| Tempo      | http://localhost:3200 | Trace storage (query via Grafana)        |
-| Loki       | http://localhost:3100 | Log storage (query via Grafana)          |
-| pgAdmin    | http://localhost:5050 | PostgreSQL browser                       |
+| Service    | URL                      | What it shows                            |
+| ---------- | ------------------------ | ---------------------------------------- |
+| REST API   | http://localhost:3000    | Shopping cart JSON API                   |
+| HTMX UI    | http://localhost:3000/ui | Server-rendered shopping cart UI         |
+| Grafana    | http://localhost:3001    | Dashboards, trace explorer, log explorer |
+| Prometheus | http://localhost:9090    | Raw metrics, PromQL                      |
+| Tempo      | http://localhost:3200    | Trace storage (query via Grafana)        |
+| Loki       | http://localhost:3100    | Log storage (query via Grafana)          |
+| pgAdmin    | http://localhost:5050    | PostgreSQL browser                       |
 
 ### Traces — Tempo
 
