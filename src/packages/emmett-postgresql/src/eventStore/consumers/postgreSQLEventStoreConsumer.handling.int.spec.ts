@@ -1,7 +1,7 @@
+import { ObservabilitySpec } from '@event-driven-io/almanac';
 import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
 import type { EmmettError } from '@event-driven-io/emmett';
-import { ObservabilitySpec } from '@event-driven-io/almanac';
 import {
   assertEqual,
   assertThatArray,
@@ -15,6 +15,7 @@ import {
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, describe, it, vi } from 'vitest';
+import { pgEventStoreDriver } from '../../pg';
 import {
   isolatedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
@@ -34,7 +35,6 @@ import {
   type PostgreSQLProjectorOptions,
   type PostgreSQLReactorOptions,
 } from './postgreSQLProcessor';
-import { pgEventStoreDriver } from '../../pg';
 
 const withDeadline = { timeout: 30000 };
 
@@ -508,7 +508,7 @@ void describe('PostgreSQL event store started consumer', () => {
     );
 
     void it(
-      'restarted END consumer resumes from last checkpoint',
+      'restarted END consumer handles events appended while stopped',
       withDeadline,
       async () => {
         // Given
@@ -547,10 +547,11 @@ void describe('PostgreSQL event store started consumer', () => {
 
         await eventStore.appendToStream(streamName, firstBatch);
         await consumer.whenCaughtUp();
+        assertThatArray(result).containsOnlyElementsMatching(firstBatch);
         await consumer.stop();
         await firstConsumerPromise;
 
-        // Run 2: restart and process second batch only
+        // Run 2: process events appended while stopped
         result = [];
 
         const secondBatch: GuestStayEvent[] = [
@@ -560,16 +561,119 @@ void describe('PostgreSQL event store started consumer', () => {
 
         let secondConsumerPromise: Promise<void> | undefined;
         try {
+          await eventStore.appendToStream(streamName, secondBatch);
+
           secondConsumerPromise = consumer.start();
           await consumer.whenStarted();
-
-          await eventStore.appendToStream(streamName, secondBatch);
 
           await consumer.whenCaughtUp();
 
           assertThatArray(result).containsOnlyElementsMatching(secondBatch);
         } finally {
           await consumer.close();
+          await secondConsumerPromise;
+        }
+      },
+    );
+
+    void it.each([
+      { version: 1, lock: 'default' },
+      { version: 2, lock: 'default' },
+      { version: 1, lock: 'custom' },
+    ])(
+      'recreated END consumer handles events appended while stopped and after restart (version $version, $lock lock)',
+      withDeadline,
+      async ({ version, lock }) => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const thirdGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
+
+        const firstBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        let result: GuestStayEvent[] = [];
+
+        const reactorDefinition: PostgreSQLReactorOptions<GuestStayEvent> = {
+          processorId: uuid(),
+          startFrom: 'END',
+          version,
+          ...(lock === 'custom'
+            ? {
+                lock: {
+                  lock: {
+                    tryAcquire: () => Promise.resolve(true),
+                    release: () => Promise.resolve(),
+                  },
+                },
+              }
+            : {}),
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        };
+
+        const firstConsumer = postgreSQLEventStoreConsumer({
+          connectionString,
+        });
+        firstConsumer.reactor<GuestStayEvent>(reactorDefinition);
+
+        // Run 1: process first batch appended after END start
+        const firstConsumerPromise = firstConsumer.start();
+        try {
+          await firstConsumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, firstBatch);
+          await firstConsumer.whenCaughtUp();
+          assertThatArray(result).containsOnlyElementsMatching(firstBatch);
+        } finally {
+          await firstConsumer.close();
+          await firstConsumerPromise;
+        }
+
+        // Run 2: process events appended while stopped
+        const secondConsumer = postgreSQLEventStoreConsumer({
+          connectionString,
+        });
+        secondConsumer.reactor<GuestStayEvent>(reactorDefinition);
+        result = [];
+
+        const secondBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: thirdGuestId } },
+        ];
+
+        const liveGuestId = uuid();
+        const liveBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: liveGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: liveGuestId } },
+        ];
+
+        let secondConsumerPromise: Promise<void> | undefined;
+        try {
+          await eventStore.appendToStream(streamName, secondBatch);
+
+          secondConsumerPromise = secondConsumer.start();
+          await secondConsumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, liveBatch);
+          await secondConsumer.whenCaughtUp();
+
+          assertThatArray(result).containsOnlyElementsMatching([
+            ...secondBatch,
+            ...liveBatch,
+          ]);
+        } finally {
+          await secondConsumer.close();
           await secondConsumerPromise;
         }
       },
@@ -1442,7 +1546,7 @@ void describe('PostgreSQL event store started consumer', () => {
     );
 
     void it(
-      'new consumer with same processorId starts after previous consumer stops gracefully',
+      'new consumer with same processorId resumes despite startFrom BEGINNING after graceful stop',
       withDeadline,
       async () => {
         const processorId = uuid();
@@ -1468,17 +1572,27 @@ void describe('PostgreSQL event store started consumer', () => {
           await consumer1.close();
         }
 
+        const nextEvent: GuestStayEvent = {
+          type: 'GuestCheckedOut',
+          data: { guestId },
+        };
+        const { lastEventGlobalPosition: nextPosition } =
+          await eventStore.appendToStream(streamName, [nextEvent]);
+        const result: GuestStayEvent[] = [];
+
         const consumer2 = postgreSQLEventStoreConsumer({ connectionString });
         consumer2.reactor<GuestStayEvent>({
           processorId,
           startFrom: 'BEGINNING',
-          stopAfter: (event) =>
-            event.metadata.globalPosition === lastEventGlobalPosition,
-          eachMessage: () => {},
+          stopAfter: (event) => event.metadata.globalPosition === nextPosition,
+          eachMessage: (event) => {
+            result.push(event);
+          },
         });
 
         try {
           await consumer2.start();
+          assertThatArray(result).containsOnlyElementsMatching([nextEvent]);
         } finally {
           await consumer2.close();
         }

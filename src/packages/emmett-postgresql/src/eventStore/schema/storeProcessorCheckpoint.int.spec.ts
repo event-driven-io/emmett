@@ -5,6 +5,7 @@ import {
   assertEqual,
   assertIsNotNull,
   assertThrowsAsync,
+  assertTrue,
   defaultTag,
 } from '@event-driven-io/emmett';
 import { afterAll, beforeAll, describe, it, vi } from 'vitest';
@@ -13,6 +14,7 @@ import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
+import { tryAcquireProcessorLock } from '../projections/locks/tryAcquireProcessorLock';
 import { readProcessorCheckpoint } from './readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from './storeProcessorCheckpoint';
 
@@ -70,6 +72,60 @@ void describe('storeProcessorCheckpoint and readProcessorCheckpoint tests', () =
     assertDeepEqual(result, {
       success: true,
       newCheckpoint: checkpoint1,
+    });
+  });
+
+  void it('stores the first checkpoint when the processor lock created the processor row', async () => {
+    const processorId = 'processor-first-time-after-lock';
+
+    const lock = await tryAcquireProcessorLock(pool.execute, {
+      lockKey: processorId,
+      processorId,
+      version: 1,
+      partition: defaultTag,
+      processorInstanceId: 'instance-1',
+    });
+    assertTrue(lock.acquired);
+
+    const result = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      lastProcessedCheckpoint: null,
+      newCheckpoint: checkpoint1,
+      version: 1,
+    });
+
+    assertDeepEqual(result, {
+      success: true,
+      newCheckpoint: checkpoint1,
+    });
+
+    const stored = await readProcessorCheckpoint(pool.execute, {
+      processorId,
+    });
+
+    assertDeepEqual(stored, { lastProcessedCheckpoint: checkpoint1 });
+  });
+
+  void it('returns MISMATCH when storing without previous checkpoint over stored progress', async () => {
+    const processorId = 'processor-first-time-over-progress';
+
+    await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      lastProcessedCheckpoint: null,
+      newCheckpoint: checkpoint1,
+      version: 1,
+    });
+
+    const result = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      lastProcessedCheckpoint: null,
+      newCheckpoint: checkpoint2,
+      version: 1,
+    });
+
+    assertDeepEqual(result, {
+      success: false,
+      reason: 'MISMATCH',
     });
   });
 

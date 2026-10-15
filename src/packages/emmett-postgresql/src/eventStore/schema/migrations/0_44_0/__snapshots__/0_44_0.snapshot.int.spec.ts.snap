@@ -652,6 +652,24 @@ BEGIN
       RETURN 1;  -- Successfully inserted
   EXCEPTION WHEN unique_violation THEN
       -- If insertion failed, it means the row already exists
+      UPDATE ",
+        "__P__",
+        "
+      SET
+        "last_processed_checkpoint" = p_position,
+        "last_processed_transaction_id" = p_transaction_id,
+        "last_updated" = now()
+      WHERE "processor_id" = p_processor_id
+        AND "last_processed_checkpoint" = '",
+        "0000000000000000000",
+        "'
+        AND "partition" = p_partition
+        AND "version" = p_version;
+
+      IF FOUND THEN
+          RETURN 1;  -- Replaced the placeholder row created by the processor lock
+      END IF;
+
       SELECT "last_processed_checkpoint" INTO current_position
       FROM ",
         "__P__",
@@ -677,6 +695,12 @@ END $$;
 ",
       ],
       "sqlTokens": [
+        {
+          "SQL_TABLE_REFERENCE": true,
+          "databaseSchemaName": "dmb_default_schema",
+          "sqlTokenType": "SQL_TABLE_REFERENCE",
+          "tableName": "emt_processors",
+        },
         {
           "SQL_TABLE_REFERENCE": true,
           "databaseSchemaName": "dmb_default_schema",
@@ -1295,6 +1319,24 @@ BEGIN
       VALUES (p_processor_id, p_version, p_position, p_partition, p_transaction_id, now(), now());
       RETURN 1;
   EXCEPTION WHEN unique_violation THEN
+      UPDATE "",
+          "emt_processors",
+          ""
+      SET
+        "last_processed_checkpoint" = p_position,
+        "last_processed_transaction_id" = p_transaction_id,
+        "last_updated" = now()
+      WHERE "processor_id" = p_processor_id
+        AND "last_processed_checkpoint" = '",
+          "0000000000000000000",
+          "'
+        AND "partition" = p_partition
+        AND "version" = p_version;
+
+      IF FOUND THEN
+          RETURN 1;
+      END IF;
+
       SELECT "last_processed_checkpoint" INTO current_position
       FROM "",
           "emt_processors",

@@ -1,4 +1,5 @@
 import { SQL, sqlMigration, type SQLMigration } from '@event-driven-io/dumbo';
+import { bigInt } from '@event-driven-io/emmett';
 import {
   defaultTag,
   messagesTable,
@@ -215,6 +216,127 @@ export const migration_0_43_0_updateStoreProcessorCheckpoint: SQLMigration =
   sqlMigration(
     'emt:postgresql:eventstore:0.43.0:update-store-processor-checkpoint',
     [migration_0_43_0_updateStoreProcessorCheckpointSQL],
+  );
+
+// Updates store_processor_checkpoint so the first checkpoint stored without a previous
+// checkpoint replaces the placeholder row created by emt_try_acquire_processor_lock,
+// instead of failing with a mismatch.
+const migration_0_43_0_storeFirstCheckpointOverLockPlaceholderSQL = SQL`
+CREATE OR REPLACE FUNCTION store_processor_checkpoint(
+  p_processor_id           TEXT,
+  p_version                BIGINT,
+  p_position               TEXT,
+  p_check_position         TEXT,
+  p_transaction_id         xid8,
+  p_partition              TEXT DEFAULT '${SQL.plain(defaultTag)}',
+  p_processor_instance_id  TEXT DEFAULT '${SQL.plain(unknownTag)}'
+) RETURNS INT AS $spc$
+DECLARE
+  current_position TEXT;
+BEGIN
+  IF p_check_position IS NOT NULL THEN
+      UPDATE "${SQL.plain(processorsTable.name)}"
+      SET
+        "last_processed_checkpoint" = p_position,
+        "last_processed_transaction_id" = p_transaction_id,
+        "last_updated" = now()
+      WHERE "processor_id" = p_processor_id
+        AND "last_processed_checkpoint" = p_check_position
+        AND "partition" = p_partition
+        AND "version" = p_version;
+
+      IF FOUND THEN
+          RETURN 1;
+      END IF;
+
+      -- TODO: Remove once all deployments have run the 0.43.0 migration.
+      -- Handles mixed-format scenarios during blue-green deployment.
+      IF p_check_position LIKE '%:%' THEN
+          -- new code, stored value still in old format (plain globalpos)
+          UPDATE "${SQL.plain(processorsTable.name)}"
+          SET
+            "last_processed_checkpoint" = p_position,
+            "last_processed_transaction_id" = p_transaction_id,
+            "last_updated" = now()
+          WHERE "processor_id" = p_processor_id
+            AND "last_processed_checkpoint" = split_part(p_check_position, ':', 2)
+            AND "last_processed_checkpoint" NOT LIKE '%:%'
+            AND "partition" = p_partition
+            AND "version" = p_version;
+      ELSE
+          -- old code, stored value already migrated to new format (txid:globalpos)
+          UPDATE "${SQL.plain(processorsTable.name)}"
+          SET
+            "last_processed_checkpoint" = p_position,
+            "last_processed_transaction_id" = p_transaction_id,
+            "last_updated" = now()
+          WHERE "processor_id" = p_processor_id
+            AND split_part("last_processed_checkpoint", ':', 2) = p_check_position
+            AND "last_processed_checkpoint" LIKE '%:%'
+            AND "partition" = p_partition
+            AND "version" = p_version;
+      END IF;
+
+      IF FOUND THEN
+          RETURN 1;
+      END IF;
+
+      SELECT "last_processed_checkpoint" INTO current_position
+      FROM "${SQL.plain(processorsTable.name)}"
+      WHERE "processor_id" = p_processor_id
+        AND "partition" = p_partition
+        AND "version" = p_version;
+
+      IF current_position = p_position THEN
+          RETURN 0;
+      ELSIF current_position > p_position THEN
+          RETURN 3;
+      ELSE
+          RETURN 2;
+      END IF;
+  END IF;
+
+  BEGIN
+      INSERT INTO "${SQL.plain(processorsTable.name)}"("processor_id", "version", "last_processed_checkpoint", "partition", "last_processed_transaction_id", "created_at", "last_updated")
+      VALUES (p_processor_id, p_version, p_position, p_partition, p_transaction_id, now(), now());
+      RETURN 1;
+  EXCEPTION WHEN unique_violation THEN
+      UPDATE "${SQL.plain(processorsTable.name)}"
+      SET
+        "last_processed_checkpoint" = p_position,
+        "last_processed_transaction_id" = p_transaction_id,
+        "last_updated" = now()
+      WHERE "processor_id" = p_processor_id
+        AND "last_processed_checkpoint" = '${SQL.plain(bigInt.toNormalizedString(0n))}'
+        AND "partition" = p_partition
+        AND "version" = p_version;
+
+      IF FOUND THEN
+          RETURN 1;
+      END IF;
+
+      SELECT "last_processed_checkpoint" INTO current_position
+      FROM "${SQL.plain(processorsTable.name)}"
+      WHERE "processor_id" = p_processor_id
+        AND "partition" = p_partition
+        AND "version" = p_version;
+
+      IF current_position = p_position THEN
+          RETURN 0;
+      ELSIF current_position > p_position THEN
+          RETURN 3;
+      ELSE
+          RETURN 2;
+      END IF;
+  END;
+END;
+$spc$ LANGUAGE plpgsql;
+`;
+
+export const migration_0_43_0_storeFirstCheckpointOverLockPlaceholder: SQLMigration =
+  sqlMigration(
+    'emt:postgresql:eventstore:0.43.0:store-first-checkpoint-over-lock-placeholder',
+    [migration_0_43_0_storeFirstCheckpointOverLockPlaceholderSQL],
   );
 
 // Upgrades last_processed_checkpoint from plain globalPosition (e.g. "00000000000000000042")

@@ -23,8 +23,8 @@ import type {
   Message,
   MessageHandlerContext,
   MessageProcessingScope,
-  PartialHandlerContext,
   MessageProcessor,
+  PartialHandlerContext,
   ProcessorHooks,
   ProcessorLock,
   ProcessorLockOptions,
@@ -53,21 +53,6 @@ import {
 } from '@event-driven-io/emmett';
 import type pg from 'pg';
 import {
-  getPostgreSQLEventStore,
-  type PostgresEventStore,
-} from '../postgreSQLEventStore';
-import {
-  DefaultPostgreSQLProcessorLockPolicy,
-  postgreSQLProcessorLock,
-  type LockAcquisitionPolicy,
-  type PostgreSQLProcessorLock,
-} from '../projections';
-import {
-  readProcessorCheckpoint,
-  storeProcessorCheckpoint,
-  type EventStoreSchemaMigrationOptions,
-} from '../schema';
-import {
   pgEventStoreDriver,
   type PgEventStoreDriver,
   type PgEventStoreDriverOptions,
@@ -79,6 +64,22 @@ import type {
   InferPoolFromEventStoreDriver,
   InferTransactionFromEventStoreDriver,
 } from '../eventStoreDriver';
+import {
+  getPostgreSQLEventStore,
+  type PostgresEventStore,
+} from '../postgreSQLEventStore';
+import {
+  DefaultPostgreSQLProcessorLockPolicy,
+  postgreSQLProcessorLock,
+  type LockAcquisitionPolicy,
+  type PostgreSQLProcessorLock,
+} from '../projections';
+import {
+  PostgreSQLEventStoreCheckpoint,
+  readProcessorCheckpoint,
+  storeProcessorCheckpoint,
+  type EventStoreSchemaMigrationOptions,
+} from '../schema';
 
 export type PostgreSQLProcessorHandlerContext<
   Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
@@ -211,8 +212,17 @@ export const postgreSQLCheckpointer = <
       ...options,
       databaseSchemaName: context.migrationOptions?.databaseSchemaName,
     });
+    const lastCheckpoint = result.lastProcessedCheckpoint;
 
-    return { lastCheckpoint: result?.lastProcessedCheckpoint };
+    return {
+      lastCheckpoint:
+        lastCheckpoint ===
+        PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
+          PostgreSQLEventStoreCheckpoint.default,
+        )
+          ? null
+          : lastCheckpoint,
+    };
   },
   store: async (options, context) => {
     const newCheckpoint = getCheckpoint(options.message);

@@ -18,9 +18,11 @@ import {
   getPostgreSQLEventStore,
   type PostgresEventStore,
 } from '../../../postgreSQLEventStore';
+import { tryAcquireProcessorLock } from '../../../projections/locks/tryAcquireProcessorLock';
 import { PostgreSQLEventStoreCheckpoint } from '../../readMessagesBatch';
 import { readProcessorCheckpoint } from '../../readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from '../../storeProcessorCheckpoint';
+import { defaultTag } from '../../typing';
 import { migrations_0_36_0 } from '../0_36_0';
 import { migrations_0_38_7 } from '../0_38_7';
 import { migrations_0_42_0 } from '../0_42_0';
@@ -128,6 +130,54 @@ void describe('Schema migrations tests', () => {
     // Then
     assertThatArray(applied).isEmpty();
     assertDeepEqual(skipped, migrations_0_44_0);
+  });
+
+  void it('stores the first checkpoint over the processor lock placeholder after migrating from 0.43.0 schema', async () => {
+    // Given
+    await runSQLMigrations(pool, [
+      ...migrations_0_36_0,
+      ...migrations_0_38_7,
+      ...migrations_0_42_0,
+      ...migrations_0_43_0,
+    ]);
+    const result = await assertCanAppendAndRead();
+
+    // When
+    await runSQLMigrations(pool, migrations_0_44_0);
+
+    const processorId = `processor-lock-placeholder-${result.shoppingCart.streamId}`;
+    const lock = await tryAcquireProcessorLock(pool.execute, {
+      lockKey: processorId,
+      processorId,
+      version: 1,
+      partition: defaultTag,
+      processorInstanceId: processorId,
+    });
+    assertTrue(lock.acquired);
+
+    const storeResult = await storeProcessorCheckpoint(pool.execute, {
+      processorId,
+      partition: undefined,
+      version: 1,
+      newCheckpoint: result.shoppingCart.lastCheckpoint,
+      lastProcessedCheckpoint: null,
+      processorInstanceId: processorId,
+    });
+
+    // Then
+    assertDeepEqual(storeResult, {
+      success: true,
+      newCheckpoint: result.shoppingCart.lastCheckpoint,
+    });
+
+    const { lastProcessedCheckpoint } = await readProcessorCheckpoint(
+      pool.execute,
+      { processorId, partition: undefined },
+    );
+    assertDeepEqual(
+      lastProcessedCheckpoint,
+      result.shoppingCart.lastCheckpoint,
+    );
   });
 
   void it('checkpoints stored before 0.44.0 still work after migration', async () => {
