@@ -21,7 +21,10 @@ import {
   type MongoDBEventStore,
 } from '../mongoDBEventStore';
 import { mongoDBEventStoreConsumer } from './mongoDBEventStoreConsumer';
-import type { MongoDBProjectorOptions } from './mongoDBProcessor';
+import type {
+  MongoDBProcessorOptions,
+  MongoDBProjectorOptions,
+} from './mongoDBProcessor';
 
 const withDeadline = { timeout: 30000 };
 
@@ -726,6 +729,189 @@ void describe('MongoDB event store started consumer', () => {
       },
     );
 
+    void it(
+      'restarted END consumer handles events appended while stopped',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const thirdGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
+
+        const firstBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        let result: GuestStayEvent[] = [];
+
+        const consumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: 'END',
+          connectionOptions: {
+            connectionString,
+            clientOptions: { directConnection: true },
+          },
+          eachMessage: (event) => {
+            if (event.metadata.streamName === streamName) result.push(event);
+          },
+        });
+
+        // Run 1: process first batch appended after END start
+        const firstConsumerPromise = consumer.start();
+        await consumer.whenStarted();
+
+        await eventStore.appendToStream(streamName, firstBatch);
+        await consumer.whenCaughtUp();
+        assertThatArray(result).containsOnlyElementsMatching(firstBatch);
+        await consumer.stop();
+        await firstConsumerPromise;
+
+        // Run 2: process events appended while stopped
+        result = [];
+
+        const secondBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: thirdGuestId } },
+        ];
+
+        let secondConsumerPromise: Promise<void> | undefined;
+        try {
+          await eventStore.appendToStream(streamName, secondBatch);
+
+          secondConsumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await consumer.whenCaughtUp();
+
+          assertThatArray(result).containsOnlyElementsMatching(secondBatch);
+        } finally {
+          await consumer.close();
+          await secondConsumerPromise;
+        }
+      },
+    );
+
+    void it.each([
+      { version: 1, lock: 'default' },
+      { version: 2, lock: 'default' },
+      { version: 1, lock: 'custom' },
+    ])(
+      'recreated END consumer handles events appended while stopped and after restart (version $version, $lock lock)',
+      withDeadline,
+      async ({ version, lock }) => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const thirdGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
+
+        const firstBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        let result: GuestStayEvent[] = [];
+
+        const reactorDefinition: MongoDBProcessorOptions<GuestStayEvent> = {
+          processorId: uuid(),
+          startFrom: 'END',
+          version,
+          connectionOptions: {
+            connectionString,
+            clientOptions: { directConnection: true },
+          },
+          ...(lock === 'custom'
+            ? {
+                lock: {
+                  lock: {
+                    tryAcquire: () => Promise.resolve(true),
+                    release: () => Promise.resolve(),
+                  },
+                },
+              }
+            : {}),
+          eachMessage: (event) => {
+            if (event.metadata.streamName === streamName) result.push(event);
+          },
+        };
+
+        const firstConsumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+        });
+        firstConsumer.reactor<GuestStayEvent>(reactorDefinition);
+
+        // Run 1: process first batch appended after END start
+        const firstConsumerPromise = firstConsumer.start();
+        try {
+          await firstConsumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, firstBatch);
+          await firstConsumer.whenCaughtUp();
+          assertThatArray(result).containsOnlyElementsMatching(firstBatch);
+        } finally {
+          await firstConsumer.close();
+          await firstConsumerPromise;
+        }
+
+        // Run 2: process events appended while stopped
+        const secondConsumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+        });
+        secondConsumer.reactor<GuestStayEvent>(reactorDefinition);
+        result = [];
+
+        const secondBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: thirdGuestId } },
+        ];
+
+        const liveGuestId = uuid();
+        const liveBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: liveGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: liveGuestId } },
+        ];
+
+        let secondConsumerPromise: Promise<void> | undefined;
+        try {
+          await eventStore.appendToStream(streamName, secondBatch);
+
+          secondConsumerPromise = secondConsumer.start();
+          await secondConsumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, liveBatch);
+          await secondConsumer.whenCaughtUp();
+
+          assertThatArray(result).containsOnlyElementsMatching([
+            ...secondBatch,
+            ...liveBatch,
+          ]);
+        } finally {
+          await secondConsumer.close();
+          await secondConsumerPromise;
+        }
+      },
+    );
+
     (['BEGINNING', 'END'] as const).forEach((startFrom) => {
       void it(
         `does not persist a reactor checkpoint across recreation when checkpoints are DISABLED (startFrom ${startFrom})`,
@@ -1147,6 +1333,75 @@ void describe('MongoDB event store started consumer', () => {
           } finally {
             await Promise.all([firstConsumer.close(), secondConsumer.close()]);
             await Promise.all([firstConsumerPromise, secondConsumerPromise]);
+          }
+        },
+      );
+
+      void it(
+        'new consumer with same processorId resumes despite startFrom BEGINNING after graceful stop',
+        withDeadline,
+        async () => {
+          const processorId = uuid();
+          const guestId = uuid();
+          const streamName = `guestStay-${guestId}`;
+
+          await eventStore.appendToStream(streamName, [
+            { type: 'GuestCheckedIn', data: { guestId } },
+          ]);
+
+          const consumer1 = mongoDBEventStoreConsumer({
+            connectionString,
+            clientOptions: { directConnection: true },
+          });
+          consumer1.reactor<GuestStayEvent>({
+            processorId,
+            startFrom: 'BEGINNING',
+            connectionOptions: {
+              connectionString,
+              clientOptions: { directConnection: true },
+            },
+            stopAfter: (event) =>
+              event.metadata.streamName === streamName &&
+              event.metadata.streamPosition === 1n,
+            eachMessage: () => {},
+          });
+          try {
+            await consumer1.start();
+          } finally {
+            await consumer1.close();
+          }
+
+          const nextEvent: GuestStayEvent = {
+            type: 'GuestCheckedOut',
+            data: { guestId },
+          };
+          await eventStore.appendToStream(streamName, [nextEvent]);
+          const result: GuestStayEvent[] = [];
+
+          const consumer2 = mongoDBEventStoreConsumer({
+            connectionString,
+            clientOptions: { directConnection: true },
+          });
+          consumer2.reactor<GuestStayEvent>({
+            processorId,
+            startFrom: 'BEGINNING',
+            connectionOptions: {
+              connectionString,
+              clientOptions: { directConnection: true },
+            },
+            stopAfter: (event) =>
+              event.metadata.streamName === streamName &&
+              event.metadata.streamPosition === 2n,
+            eachMessage: (event) => {
+              if (event.metadata.streamName === streamName) result.push(event);
+            },
+          });
+
+          try {
+            await consumer2.start();
+            assertThatArray(result).containsOnlyElementsMatching([nextEvent]);
+          } finally {
+            await consumer2.close();
           }
         },
       );

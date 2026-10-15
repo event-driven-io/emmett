@@ -1361,6 +1361,231 @@ void describe('SQLite event store started consumer', () => {
     );
 
     void it(
+      'restarted END consumer handles events appended while stopped',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const thirdGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
+
+        const firstBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        let result: GuestStayEvent[] = [];
+
+        const consumer = sqliteEventStoreConsumer({
+          driver: sqlite3EventStoreDriver,
+          fileName,
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          startFrom: 'END',
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        // Run 1: process first batch appended after END start
+        const firstConsumerPromise = consumer.start();
+        await consumer.whenStarted();
+
+        await eventStore.appendToStream(streamName, firstBatch);
+        await consumer.whenCaughtUp();
+        assertThatArray(result).containsOnlyElementsMatching(firstBatch);
+        await consumer.stop();
+        await firstConsumerPromise;
+
+        // Run 2: process events appended while stopped
+        result = [];
+
+        const secondBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: thirdGuestId } },
+        ];
+
+        let secondConsumerPromise: Promise<void> | undefined;
+        try {
+          await eventStore.appendToStream(streamName, secondBatch);
+
+          secondConsumerPromise = consumer.start();
+          await consumer.whenStarted();
+
+          await consumer.whenCaughtUp();
+
+          assertThatArray(result).containsOnlyElementsMatching(secondBatch);
+        } finally {
+          await consumer.close();
+          await secondConsumerPromise;
+        }
+      },
+    );
+
+    void it.each([{ version: 1 }, { version: 2 }])(
+      'recreated END consumer handles events appended while stopped and after restart (version $version)',
+      withDeadline,
+      async ({ version }) => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const thirdGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const initialEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
+
+        const firstBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        let result: GuestStayEvent[] = [];
+
+        const reactorDefinition: SQLiteReactorOptions<
+          GuestStayEvent,
+          GuestStayEvent,
+          SQLite3EventStoreDriver
+        > = {
+          processorId: uuid(),
+          startFrom: 'END',
+          version,
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        };
+
+        const firstConsumer = sqliteEventStoreConsumer({
+          driver: sqlite3EventStoreDriver,
+          fileName,
+        });
+        firstConsumer.reactor<GuestStayEvent>(reactorDefinition);
+
+        // Run 1: process first batch appended after END start
+        const firstConsumerPromise = firstConsumer.start();
+        try {
+          await firstConsumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, firstBatch);
+          await firstConsumer.whenCaughtUp();
+          assertThatArray(result).containsOnlyElementsMatching(firstBatch);
+        } finally {
+          await firstConsumer.close();
+          await firstConsumerPromise;
+        }
+
+        // Run 2: process events appended while stopped
+        const secondConsumer = sqliteEventStoreConsumer({
+          driver: sqlite3EventStoreDriver,
+          fileName,
+        });
+        secondConsumer.reactor<GuestStayEvent>(reactorDefinition);
+        result = [];
+
+        const secondBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: thirdGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: thirdGuestId } },
+        ];
+
+        const liveGuestId = uuid();
+        const liveBatch: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: liveGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: liveGuestId } },
+        ];
+
+        let secondConsumerPromise: Promise<void> | undefined;
+        try {
+          await eventStore.appendToStream(streamName, secondBatch);
+
+          secondConsumerPromise = secondConsumer.start();
+          await secondConsumer.whenStarted();
+
+          await eventStore.appendToStream(streamName, liveBatch);
+          await secondConsumer.whenCaughtUp();
+
+          assertThatArray(result).containsOnlyElementsMatching([
+            ...secondBatch,
+            ...liveBatch,
+          ]);
+        } finally {
+          await secondConsumer.close();
+          await secondConsumerPromise;
+        }
+      },
+    );
+
+    void it(
+      'new consumer with same processorId resumes despite startFrom BEGINNING after graceful stop',
+      withDeadline,
+      async () => {
+        const processorId = uuid();
+        const guestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+
+        const { lastEventGlobalPosition } = await eventStore.appendToStream(
+          streamName,
+          [{ type: 'GuestCheckedIn', data: { guestId } }],
+        );
+
+        const consumer1 = sqliteEventStoreConsumer({
+          driver: sqlite3EventStoreDriver,
+          fileName,
+        });
+        consumer1.reactor<GuestStayEvent>({
+          processorId,
+          startFrom: 'BEGINNING',
+          stopAfter: (event) =>
+            event.metadata.globalPosition === lastEventGlobalPosition,
+          eachMessage: () => {},
+        });
+        try {
+          await consumer1.start();
+        } finally {
+          await consumer1.close();
+        }
+
+        const nextEvent: GuestStayEvent = {
+          type: 'GuestCheckedOut',
+          data: { guestId },
+        };
+        const { lastEventGlobalPosition: nextPosition } =
+          await eventStore.appendToStream(streamName, [nextEvent]);
+        const result: GuestStayEvent[] = [];
+
+        const consumer2 = sqliteEventStoreConsumer({
+          driver: sqlite3EventStoreDriver,
+          fileName,
+        });
+        consumer2.reactor<GuestStayEvent>({
+          processorId,
+          startFrom: 'BEGINNING',
+          stopAfter: (event) => event.metadata.globalPosition === nextPosition,
+          eachMessage: (event) => {
+            result.push(event);
+          },
+        });
+
+        try {
+          await consumer2.start();
+          assertThatArray(result).containsOnlyElementsMatching([nextEvent]);
+        } finally {
+          await consumer2.close();
+        }
+      },
+    );
+
+    void it(
       'handles concurrent writes with multiple processors without SQLITE_BUSY errors',
       { timeout: 60000 },
       async () => {
