@@ -425,7 +425,7 @@ export const getSQLiteEventStore = <
               appendResult.lastGlobalPosition,
             ),
             createdNewStream:
-              appendResult.nextStreamPosition >= BigInt(events.length),
+              appendResult.nextStreamPosition === BigInt(events.length),
           };
         },
         appendOptions?.observability,

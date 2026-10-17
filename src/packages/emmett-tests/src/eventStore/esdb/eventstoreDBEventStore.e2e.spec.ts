@@ -18,6 +18,7 @@ import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   testAggregateStream,
+  testAppendToStream,
   testStreamExists,
   type EventStoreFactory,
 } from '../features';
@@ -46,6 +47,8 @@ describe('EventStoreDBEventStore', () => {
     teardownHook,
     getInitialIndex: () => 0n,
   });
+
+  testAppendToStream(eventStoreFactory, { teardownHook });
 
   testStreamExists(eventStoreFactory, { teardownHook });
 
