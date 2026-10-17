@@ -33,7 +33,7 @@ import {
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
 
-describe('EventStoreDBEventStore', () => {
+describe('PostgreSQLEventStore', () => {
   let eventStore: PostgresEventStore;
   let pongo: PongoClient;
   const resources: {

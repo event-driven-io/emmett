@@ -42,7 +42,7 @@ import {
 import { postgreSQLProjection } from './projections';
 import { pongoSingleStreamProjection } from './projections/pongo/pongoProjections';
 
-void describe('EventStoreDBEventStore', () => {
+void describe('PostgreSQLEventStore', () => {
   const M = MessagingAttributes;
   const given = ObservabilitySpec.for();
   let database: PostgreSQLTestDatabase;
