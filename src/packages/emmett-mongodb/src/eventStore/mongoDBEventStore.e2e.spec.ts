@@ -6,6 +6,7 @@ import {
 import {
   assertDeepEqual,
   assertEqual,
+  assertFalse,
   assertIsNotNull,
   assertTrue,
   EmmettAttributes,
@@ -91,6 +92,42 @@ void describe('MongoDBEventStore', () => {
     assertEqual(streamType, stream.metadata.streamType);
     assertTrue(stream.metadata.createdAt instanceof Date);
     assertTrue(stream.metadata.updatedAt instanceof Date);
+  });
+
+  void it('should return createdNewStream true when appendToStream creates the stream', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const streamName = toStreamName('shopping_cart', uuid());
+
+    const result = await eventStore.appendToStream<ShoppingCartEvent>(
+      streamName,
+      [{ type: 'ProductItemAdded', data: { productItem } }],
+    );
+
+    assertTrue(result.createdNewStream);
+  });
+
+  void it('should return createdNewStream false when appendToStream appends to an existing stream', async () => {
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const streamName = toStreamName('shopping_cart', uuid());
+
+    await eventStore.appendToStream<ShoppingCartEvent>(streamName, [
+      { type: 'ProductItemAdded', data: { productItem } },
+    ]);
+
+    const result = await eventStore.appendToStream<ShoppingCartEvent>(
+      streamName,
+      [{ type: 'ProductItemAdded', data: { productItem } }],
+    );
+
+    assertFalse(result.createdNewStream);
   });
 
   void it('should append events correctly using appendEvent function', async () => {

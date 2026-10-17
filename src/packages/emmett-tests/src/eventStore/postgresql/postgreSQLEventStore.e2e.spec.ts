@@ -16,6 +16,7 @@ import { v4 as uuid } from 'uuid';
 import { afterAll, describe, it } from 'vitest';
 import {
   testAggregateStream,
+  testAppendToStream,
   testCommandHandling,
   testStreamExists,
   type EventStoreFactory,
@@ -84,6 +85,8 @@ describe('EventStoreDBEventStore', () => {
   testCommandHandling(eventStoreFactory, {
     getInitialIndex: () => 1n,
   });
+
+  testAppendToStream(eventStoreFactory);
 
   testStreamExists(eventStoreFactory);
 

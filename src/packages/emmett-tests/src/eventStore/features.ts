@@ -193,6 +193,55 @@ export function testCommandHandling(
   });
 }
 
+export function testAppendToStream(
+  eventStoreFactory: EventStoreFactory,
+  options?: { teardownHook?: () => Promise<void> },
+) {
+  describe('appendToStream', () => {
+    let eventStore: EventStore;
+    beforeAll(async () => {
+      eventStore = await eventStoreFactory();
+    });
+
+    afterAll(async () => {
+      const teardownHook = options?.teardownHook;
+      if (teardownHook) await teardownHook();
+    });
+
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+
+    it('Returns createdNewStream true when the append creates the stream', async () => {
+      const shoppingCartId = randomUUID();
+
+      const result = await eventStore.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [{ type: 'ProductItemAdded', data: { productItem } }],
+      );
+
+      assertTrue(result.createdNewStream);
+    });
+
+    it('Returns createdNewStream false when appending to an existing stream', async () => {
+      const shoppingCartId = randomUUID();
+
+      await eventStore.appendToStream<ShoppingCartEvent>(shoppingCartId, [
+        { type: 'ProductItemAdded', data: { productItem } },
+      ]);
+
+      const result = await eventStore.appendToStream<ShoppingCartEvent>(
+        shoppingCartId,
+        [{ type: 'ProductItemAdded', data: { productItem } }],
+      );
+
+      assertFalse(result.createdNewStream);
+    });
+  });
+}
+
 export function testStreamExists(
   eventStoreFactory: EventStoreFactory,
   options?: { teardownHook?: () => Promise<void> },
