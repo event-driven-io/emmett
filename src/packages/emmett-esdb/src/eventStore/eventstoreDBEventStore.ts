@@ -314,8 +314,8 @@ export const getEventStoreDBEventStore = (
                 appendResult.position!.commit,
               ),
               createdNewStream:
-                appendResult.nextExpectedRevision >=
-                BigInt(serializedEvents.length),
+                appendResult.nextExpectedRevision ===
+                BigInt(serializedEvents.length) - 1n,
             };
           } catch (error) {
             if (error instanceof WrongExpectedVersionError) {

@@ -697,7 +697,7 @@ export function getPostgreSQLEventStore(
                 appendResult.checkpoints[appendResult.checkpoints.length - 1]!,
               ),
             createdNewStream:
-              appendResult.nextStreamPosition >= BigInt(events.length),
+              appendResult.nextStreamPosition === BigInt(events.length),
           };
         },
         appendOptions?.observability,
