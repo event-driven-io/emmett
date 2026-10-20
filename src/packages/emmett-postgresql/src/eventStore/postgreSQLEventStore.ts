@@ -5,8 +5,10 @@ import {
   getFormatter,
   JSONSerializer,
   schemaComponentMigrator,
+  type AnySchemaComponent,
   type MigrationStyle,
   type RunSQLMigrationsResult,
+  type SQLMigration,
 } from '@event-driven-io/dumbo';
 import type {
   PgClientConnection,
@@ -41,6 +43,7 @@ import {
   type EventStoreSessionFactory,
   type JSONSerializationOptions,
   type Message,
+  type ProjectionHandlingType,
   type ProjectionRegistration,
   type BeforeEventStoreCommitHandler,
   type ReadEvent,
@@ -57,7 +60,9 @@ import {
 } from './consumers';
 import {
   handleProjections,
+  isPostgreSQLProjectionWithSchema,
   transactionToPostgreSQLProjectionHandlerContext,
+  type PostgreSQLProjectionEnsureMigratedOptions,
   type PostgreSQLProjectionHandlerContext,
 } from './projections';
 import {
@@ -101,8 +106,13 @@ export interface PostgresEventStore
     options?: PostgresStreamExistsOptions,
   ): Promise<StreamExistsResult>;
   schema: {
+    readonly component: AnySchemaComponent;
+    readonly migrations: ReadonlyArray<SQLMigration>;
     sql(): string;
     print(): void;
+    ensureMigrated(
+      options?: PostgreSQLProjectionEnsureMigratedOptions,
+    ): Promise<void>;
     migrate(
       options?: CreateEventStoreSchemaOptions,
     ): Promise<RunSQLMigrationsResult>;
@@ -191,7 +201,7 @@ export type PostgresEventStoreOptions<
 > = {
   driver: Driver;
   projections?: ProjectionRegistration<
-    'inline',
+    ProjectionHandlingType,
     PostgresReadEventMetadata,
     PostgreSQLProjectionHandlerContext<Driver>
   >[];
@@ -241,7 +251,7 @@ export type PostgresEventStoreDriverOptions<
  */
 export type PostgresEventStoreConnectionStringOptions = {
   projections?: ProjectionRegistration<
-    'inline',
+    ProjectionHandlingType,
     PostgresReadEventMetadata,
     PostgreSQLProjectionHandlerContext
   >[];
@@ -357,10 +367,20 @@ export function getPostgreSQLEventStore(
   const inlineProjections = (options.projections ?? [])
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
+  const projectionSchemaComponents = (
+    schemaOptions: EventStoreDatabaseSchemaOptions | undefined,
+  ): AnySchemaComponent[] =>
+    (options.projections ?? [])
+      .map(({ projection }) => projection)
+      .filter(isPostgreSQLProjectionWithSchema)
+      .map(({ schema }) => schema.component(schemaOptions));
   const databaseSchema = eventStoreDatabaseSchema(options.schema);
   const schemaMigrator = schemaComponentMigrator({
     pool,
-    component: eventStoreSchemaComponent(options.schema),
+    component: eventStoreSchemaComponent(
+      options.schema,
+      projectionSchemaComponents(options.schema),
+    ),
     migrationTable: databaseSchema.migrationTable,
   });
   const observability = eventStoreObservability(options);
@@ -407,6 +427,7 @@ export function getPostgreSQLEventStore(
           },
         },
         schema: schemaMigrationOptions,
+        components: projectionSchemaComponents(schemaMigrationOptions),
       });
 
       if (migrationOptions?.dryRun) {
@@ -494,14 +515,25 @@ export function getPostgreSQLEventStore(
 
   const eventStoreSchemaDescription = (): string =>
     getFormatter(fromDatabaseDriverType(pool.driverType).databaseType).describe(
-      eventStoreSchemaSQL(options.schema),
+      [
+        ...eventStoreSchemaSQL(options.schema),
+        ...projectionSchemaComponents(options.schema).flatMap((component) =>
+          component.migrations().flatMap(({ sqls }) => sqls),
+        ),
+      ],
       { serializer: JSONSerializer },
     );
 
   return {
     schema: {
+      component: schemaMigrator.component,
+      get migrations() {
+        return schemaMigrator.component.migrations();
+      },
       sql: eventStoreSchemaDescription,
       print: () => console.log(eventStoreSchemaDescription()),
+      ensureMigrated: (ensureOptions) =>
+        schemaMigrator.ensureMigrated(ensureOptions),
       migrate,
       dangerous: {
         truncate: (truncateOptions?: {
@@ -669,7 +701,13 @@ export function getPostgreSQLEventStore(
     ): PostgreSQLEventStoreConsumer<ConsumerMessageType> =>
       postgreSQLEventStoreConsumer<ConsumerMessageType>({
         ...consumerOptions,
-        schema: databaseSchema,
+        schema: {
+          ...consumerOptions?.schema,
+          autoMigration:
+            consumerOptions?.schema?.autoMigration ??
+            options.schema?.autoMigration,
+          ...databaseSchema,
+        },
         observability: mergeObservability(
           options.observability,
           consumerOptions?.observability,

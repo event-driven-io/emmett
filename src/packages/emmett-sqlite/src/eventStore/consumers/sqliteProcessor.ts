@@ -53,6 +53,7 @@ import type {
   InferPoolFromEventStoreDriver,
   InferTransactionFromEventStoreDriver,
 } from '../eventStoreDriver';
+import { isSQLiteProjectionWithSchema } from '../projections';
 import type { EventStoreSchemaMigrationOptions } from '../schema';
 import {
   getSQLiteEventStore,
@@ -241,8 +242,8 @@ const sqliteProcessingScope = <
               connection,
             }),
             schema: {
-              autoMigration: 'None',
               ...options.migrationOptions,
+              autoMigration: 'None',
             },
           }),
         },
@@ -404,8 +405,24 @@ export const sqliteProjector = <
   const hooks: ProcessorHooks<SQLiteProcessorHandlerContext<Driver>> = {
     ...(options.hooks ?? {}),
     onInit:
-      options.projection.init !== undefined || options.hooks?.onInit
+      options.projection.init !== undefined ||
+      isSQLiteProjectionWithSchema(options.projection) ||
+      options.hooks?.onInit
         ? async (context: SQLiteProcessorHandlerContext<Driver>) => {
+            const autoMigration =
+              options.migrationOptions?.autoMigration ?? 'CreateOrUpdate';
+            const projectionContext = {
+              ...context,
+              migrationOptions: options.migrationOptions,
+            };
+            if (isSQLiteProjectionWithSchema(options.projection)) {
+              if (autoMigration === 'EnsureMigrated')
+                await options.projection.schema.ensureMigrated(
+                  projectionContext,
+                );
+              else if (autoMigration === 'CreateOrUpdate')
+                await options.projection.schema.migrate(projectionContext);
+            }
             if (options.projection.init)
               await options.projection.init({
                 version: options.projection.version ?? version,

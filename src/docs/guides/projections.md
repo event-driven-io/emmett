@@ -39,7 +39,7 @@ You structure it with four parts:
 
 - `name` identifies the projection.
 - `canHandle` lists the event types it processes; the rest are ignored.
-- `init` runs once to create or migrate the table. Write it as `CREATE TABLE IF NOT EXISTS` so it stays safe to run again on restart.
+- `migrations`, `schema` or `init` describe the tables the projection needs. Pass `migrations` as a list of Dumbo `sqlMigration`s, `schema` as a Dumbo schema component when the projection uses more than one table, or `init` as a function that returns the `CREATE TABLE` SQL. Emmett records each applied migration, so it runs only once.
 - `evolve` returns the SQL to run for each event. That can be an `INSERT` for the first event and an `UPDATE` or `DELETE` for later ones, or a single upsert (`INSERT ... ON CONFLICT ... DO UPDATE`) keyed on the row id when you'd rather not branch on whether the row exists yet.
 
 Build the statements with the `SQL` tagged template: wrap table and column names in `SQL.identifier(...)`, and interpolate values as `${value}` so they bind as parameters rather than concatenate into the string. Derive the row id from the event, the same way a Pongo projection derives its document id:
@@ -61,6 +61,20 @@ Be careful with inline multi-stream projections under high write load. When mult
 Use async when you need faster appends, when you're projecting to external systems, or when you have multi-stream projections that would suffer from concurrent write conflicts. Async projections process events in a background process, decoupled from the append. The tradeoff is eventual consistency: your read model may lag behind by a short window.
 
 <<< ./projections/projectionSetup.snippet.ts#async-projection-setup
+
+### Create Projection Tables {#migrations}
+
+Pongo and raw SQL projections declare the tables they need. The event store creates them together with its own tables when you call `eventStore.schema.migrate()`. That includes all projections registered in the event store, inline and async.
+
+`autoMigration` decides what happens without an explicit call:
+
+- `CreateOrUpdate` (default) creates or updates the tables on the first operation. A consumer does the same for its projectors when it starts.
+- `EnsureMigrated` only checks that all migrations are applied, and throws `PendingMigrationsError` if any are pending.
+- `None` runs no migration and no check.
+
+Use `None` or `EnsureMigrated` when your runtime database role cannot create tables. Then migrate the schema in a separate step with a role that can:
+
+<<< ./projections/projectionSetup.snippet.ts#projection-migrations-setup
 
 ## Common Patterns {#patterns}
 

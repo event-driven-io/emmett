@@ -2,6 +2,7 @@ import type { MigrationStyle, SQL } from '@event-driven-io/dumbo';
 import { dumbo, type Dumbo, type QueryResultRow } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
+  projections,
   assertFails,
   AssertionError,
   assertThatArray,
@@ -112,31 +113,17 @@ export const SQLiteProjectionSpec = {
       };
       let wasInitialized = false;
 
-      const initialize = async (
-        connection: AnySQLiteConnection,
-      ): Promise<void> => {
+      const initialize = async (): Promise<void> => {
         if (wasInitialized) return;
 
         wasInitialized = true;
 
-        const eventStore = getSQLiteEventStore({ ...options, pool });
+        const eventStore = getSQLiteEventStore({
+          ...options,
+          pool,
+          projections: projections.inline([projection]),
+        });
         await eventStore.schema.migrate();
-
-        if (projection.init)
-          await connection.withTransaction(async (transaction) => {
-            await projection.init!({
-              registrationType: 'async',
-              status: 'active',
-              context: {
-                ...transactionToSQLiteProjectionHandlerContext(
-                  session,
-                  transaction,
-                ),
-                migrationOptions,
-              },
-              version: projection.version ?? 1,
-            });
-          });
       };
 
       return (givenEvents: SQLiteProjectionSpecEvent<EventType>[]) => {
@@ -180,7 +167,7 @@ export const SQLiteProjectionSpec = {
                 });
               }
 
-              await initialize(connection);
+              await initialize();
 
               await connection.withTransaction((transaction) =>
                 handleProjections({

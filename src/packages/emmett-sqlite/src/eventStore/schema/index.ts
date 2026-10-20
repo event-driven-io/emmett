@@ -1,8 +1,10 @@
 import {
   runSQLMigrations,
   schemaComponent,
+  type AnySchemaComponent,
   type Dumbo,
   type MigrationDryRun,
+  type MigrationStyle,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
 import type {
@@ -41,13 +43,17 @@ export type CreateEventStoreSchemaOptions = {
 
 export const eventStoreSchemaComponent = (
   options?: EventStoreDatabaseSchemaOptions,
+  components?: ReadonlyArray<AnySchemaComponent>,
 ) =>
   schemaComponent('emt:eventStore', {
     migrations: () => eventStoreSchemaMigrationsFor(options),
+    components,
   });
 
 export type EventStoreSchemaMigrationOptions = {
-  migrationOptions?: CreateEventStoreSchemaOptions;
+  migrationOptions?: CreateEventStoreSchemaOptions & {
+    autoMigration?: MigrationStyle | undefined;
+  };
 };
 
 export const createEventStoreSchema = <
@@ -55,6 +61,7 @@ export const createEventStoreSchema = <
 >({
   hooks,
   schema: options,
+  components,
   ...session
 }: {
   pool: Dumbo;
@@ -62,12 +69,17 @@ export const createEventStoreSchema = <
   connectionOptions?: InferDumboOptionsFromEventStoreDriver<Driver>;
   hooks?: SQLiteEventStoreOptions['hooks'];
   schema?: CreateEventStoreSchemaOptions;
+  components?: ReadonlyArray<AnySchemaComponent>;
 }): Promise<RunSQLMigrationsResult> => {
   const { pool } = session;
   const databaseSchema = eventStoreDatabaseSchema(options);
+  const migrations = eventStoreSchemaComponent(
+    options,
+    components,
+  ).migrations();
 
   if (options?.dryRun === 'diff')
-    return runSQLMigrations(pool, eventStoreSchemaMigrationsFor(options), {
+    return runSQLMigrations(pool, migrations, {
       ...options,
       migrationTable: databaseSchema.migrationTable,
     });
@@ -85,15 +97,11 @@ export const createEventStoreSchema = <
       await hooks.onBeforeSchemaCreated(schemaContext);
     }
 
-    const result = await runSQLMigrations(
-      pool,
-      eventStoreSchemaMigrationsFor(options),
-      {
-        ...options,
-        migrationTable: databaseSchema.migrationTable,
-        execute: tx.execute,
-      },
-    );
+    const result = await runSQLMigrations(pool, migrations, {
+      ...options,
+      migrationTable: databaseSchema.migrationTable,
+      execute: tx.execute,
+    });
 
     if (hooks?.onAfterSchemaCreated) {
       await hooks.onAfterSchemaCreated(schemaContext);

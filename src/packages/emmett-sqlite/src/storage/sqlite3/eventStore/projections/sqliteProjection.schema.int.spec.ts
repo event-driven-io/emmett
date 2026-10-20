@@ -1,0 +1,319 @@
+import {
+  mapRows,
+  PendingMigrationsError,
+  SQL,
+  sqlMigration,
+} from '@event-driven-io/dumbo';
+import {
+  sqlite3Pool,
+  tableExists,
+  type SQLite3Connection,
+  type SQLitePool,
+} from '@event-driven-io/dumbo/sqlite3';
+import {
+  assertFalse,
+  assertRejects,
+  assertTrue,
+  type Event,
+} from '@event-driven-io/emmett';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { v4 as uuid } from 'uuid';
+import { afterEach, beforeEach, describe, it } from 'vitest';
+import { sqlite3EventStoreDriver } from '../../../../sqlite3';
+import { deleteSQLiteDatabaseFiles } from '../../testing/sqliteTestDatabase';
+import {
+  getSQLiteEventStore,
+  type SQLiteEventStoreOptions,
+} from '../../../../eventStore/SQLiteEventStore';
+import { sqliteRawSQLProjection } from '../../../../eventStore/projections/sqliteProjection';
+import { pongoSingleStreamProjection } from '../../../../eventStore/projections/pongo/pongoProjections';
+
+const withDeadline = { timeout: 30000 };
+
+void describe('SQLite projection schema', () => {
+  const fileName = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    'projection-schema.db',
+  );
+  const collectionName = 'shopping_cart_summary';
+
+  let pool: SQLitePool<SQLite3Connection>;
+
+  beforeEach(() => {
+    pool = sqlite3Pool({ fileName });
+  });
+
+  afterEach(async () => {
+    await pool.close();
+    deleteSQLiteDatabaseFiles(fileName);
+  });
+
+  const eventStore = (
+    options: Pick<
+      SQLiteEventStoreOptions<typeof sqlite3EventStoreDriver>,
+      'schema' | 'projections'
+    >,
+  ) =>
+    getSQLiteEventStore({
+      driver: sqlite3EventStoreDriver,
+      fileName,
+      ...options,
+    });
+
+  void it(
+    'creates the Pongo collection of an async projection when the user migrates the event store schema',
+    withDeadline,
+    async () => {
+      const store = eventStore({
+        schema: { autoMigration: 'None' },
+        projections: [
+          { type: 'async', projection: shoppingCartProjection(collectionName) },
+        ],
+      });
+
+      try {
+        await store.schema.migrate();
+      } finally {
+        await store.close();
+      }
+
+      assertTrue(await tableExists(pool.execute, collectionName));
+    },
+  );
+
+  void it(
+    'creates the raw SQL projection table from the migrations the user provided',
+    withDeadline,
+    async () => {
+      const tableName = 'product_sales';
+      const migrationName = `test:${tableName}:create`;
+      const store = eventStore({
+        schema: { autoMigration: 'None' },
+        projections: [
+          {
+            type: 'inline',
+            projection: sqliteRawSQLProjection<ProductItemAdded>({
+              name: tableName,
+              canHandle: ['ProductItemAdded'],
+              migrations: [
+                sqlMigration(migrationName, [
+                  SQL`CREATE TABLE ${SQL.identifier(tableName)} (id TEXT PRIMARY KEY)`,
+                ]),
+              ],
+              evolve: () => SQL`SELECT 1;`,
+            }),
+          },
+        ],
+      });
+
+      try {
+        await store.schema.migrate();
+      } finally {
+        await store.close();
+      }
+
+      assertTrue(await tableExists(pool.execute, tableName));
+      assertTrue((await migrationNames()).includes(migrationName));
+    },
+  );
+
+  void it(
+    'rejects migrating when the user changes the SQL returned by init after it was applied',
+    withDeadline,
+    async () => {
+      const tableName = 'product_sales';
+      const storeWith = (columns: SQL) =>
+        eventStore({
+          schema: { autoMigration: 'None' },
+          projections: [
+            {
+              type: 'inline',
+              projection: sqliteRawSQLProjection<ProductItemAdded>({
+                name: tableName,
+                canHandle: ['ProductItemAdded'],
+                init: () =>
+                  SQL`CREATE TABLE IF NOT EXISTS ${SQL.identifier(tableName)} (${columns})`,
+                evolve: () => SQL`SELECT 1;`,
+              }),
+            },
+          ],
+        });
+
+      const migrated = storeWith(SQL`id TEXT PRIMARY KEY`);
+      try {
+        await migrated.schema.migrate();
+      } finally {
+        await migrated.close();
+      }
+
+      const changed = storeWith(SQL`id TEXT PRIMARY KEY, total INTEGER`);
+      try {
+        await assertRejects(changed.schema.migrate(), (error: Error) =>
+          error.message.includes('Migration hash mismatch'),
+        );
+      } finally {
+        await changed.close();
+      }
+    },
+  );
+
+  void it(
+    'rejects appending events when projection migrations are pending and the store ensures migrations',
+    withDeadline,
+    async () => {
+      const provisioning = eventStore({ schema: { autoMigration: 'None' } });
+      try {
+        await provisioning.schema.migrate();
+      } finally {
+        await provisioning.close();
+      }
+
+      const store = eventStore({
+        schema: { autoMigration: 'EnsureMigrated' },
+        projections: [
+          {
+            type: 'inline',
+            projection: shoppingCartProjection(collectionName),
+          },
+        ],
+      });
+
+      try {
+        await assertRejects(
+          store.appendToStream(`shopping_cart-${uuid()}`, [
+            { type: 'ProductItemAdded', data: { quantity: 1 } },
+          ]),
+          isPendingMigrationOf(collectionName),
+        );
+      } finally {
+        await store.close();
+      }
+
+      assertFalse(await tableExists(pool.execute, collectionName));
+    },
+  );
+
+  void it(
+    'creates no projection tables in projector initialization when the consumer skips migrations',
+    withDeadline,
+    async () => {
+      const store = eventStore({ schema: { autoMigration: 'None' } });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+          schema: { autoMigration: 'None' },
+        });
+        consumer.projector({
+          processorId: `processor:${uuid()}`,
+          projection: shoppingCartProjection(collectionName),
+        });
+
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+      } finally {
+        await store.close();
+      }
+
+      assertFalse(await tableExists(pool.execute, collectionName));
+    },
+  );
+
+  void it(
+    'creates no projection tables in projector initialization when the event store skips migrations',
+    withDeadline,
+    async () => {
+      const store = eventStore({ schema: { autoMigration: 'None' } });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+        });
+        consumer.projector({
+          processorId: `processor:${uuid()}`,
+          projection: shoppingCartProjection(collectionName),
+        });
+
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+      } finally {
+        await store.close();
+      }
+
+      assertFalse(await tableExists(pool.execute, collectionName));
+    },
+  );
+
+  void it(
+    'fails to start the consumer when projection migrations are pending and the consumer ensures migrations',
+    withDeadline,
+    async () => {
+      const store = eventStore({ schema: { autoMigration: 'None' } });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+          schema: { autoMigration: 'EnsureMigrated' },
+        });
+        consumer.projector({
+          processorId: `processor:${uuid()}`,
+          projection: shoppingCartProjection(collectionName),
+        });
+
+        try {
+          await assertRejects(
+            consumer.start(),
+            isPendingMigrationOf(collectionName),
+          );
+        } finally {
+          await consumer.close();
+        }
+      } finally {
+        await store.close();
+      }
+
+      assertFalse(await tableExists(pool.execute, collectionName));
+    },
+  );
+
+  const migrationNames = (): Promise<string[]> =>
+    mapRows(
+      pool.execute.query<{ name: string }>(
+        SQL`SELECT name FROM dmb_migrations`,
+      ),
+      ({ name }) => name,
+    );
+});
+
+type ProductItemAdded = Event<'ProductItemAdded', { quantity: number }>;
+
+type ShoppingCartSummary = {
+  productItemsCount: number;
+};
+
+const shoppingCartProjection = (collectionName: string) =>
+  pongoSingleStreamProjection<ShoppingCartSummary, ProductItemAdded>({
+    collectionName,
+    canHandle: ['ProductItemAdded'],
+    evolve: (document: ShoppingCartSummary, event: ProductItemAdded) => ({
+      productItemsCount: document.productItemsCount + event.data.quantity,
+    }),
+    initialState: () => ({ productItemsCount: 0 }),
+  });
+
+const isPendingMigrationOf = (collectionName: string) => (error: unknown) =>
+  error instanceof PendingMigrationsError &&
+  error.pendingMigrations.some(({ name }) => name.includes(collectionName));

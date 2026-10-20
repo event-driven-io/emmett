@@ -4,10 +4,12 @@ import {
   getFormatter,
   schemaComponentMigrator,
   type AnyDatabaseTransaction,
+  type AnySchemaComponent,
   type DatabaseTransactionOptions,
   type Dumbo,
   type MigrationStyle,
   type RunSQLMigrationsResult,
+  type SQLMigration,
 } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
@@ -34,6 +36,7 @@ import {
   type EventStoreSessionFactory,
   type JSONSerializationOptions,
   type Message,
+  type ProjectionHandlingType,
   type ProjectionRegistration,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
@@ -53,7 +56,9 @@ import type {
 } from './eventStoreDriver';
 import {
   handleProjections,
+  isSQLiteProjectionWithSchema,
   transactionToSQLiteProjectionHandlerContext,
+  type SQLiteProjectionEnsureMigratedOptions,
   type SQLiteProjectionHandlerContext,
 } from './projections';
 import {
@@ -98,8 +103,13 @@ export interface SQLiteEventStore
   ): Promise<StreamExistsResult>;
   close(): Promise<void>;
   schema: {
+    readonly component: AnySchemaComponent;
+    readonly migrations: ReadonlyArray<SQLMigration>;
     sql(): string;
     print(): void;
+    ensureMigrated(
+      options?: SQLiteProjectionEnsureMigratedOptions,
+    ): Promise<void>;
     migrate(
       options?: CreateEventStoreSchemaOptions,
     ): Promise<RunSQLMigrationsResult>;
@@ -122,7 +132,7 @@ export type SQLiteEventStoreOptions<
 > = {
   driver: EventStoreDriver;
   projections?: ProjectionRegistration<
-    'inline',
+    ProjectionHandlingType,
     SQLiteReadEventMetadata,
     SQLiteProjectionHandlerContext<EventStoreDriver>
   >[];
@@ -182,9 +192,19 @@ export const getSQLiteEventStore = <
     connectionOptions: dumboOptions,
   };
   let migrateSchema: Promise<RunSQLMigrationsResult> | undefined = undefined;
+  const projectionSchemaComponents = (
+    schemaOptions: EventStoreDatabaseSchemaOptions | undefined,
+  ): AnySchemaComponent[] =>
+    (options.projections ?? [])
+      .map(({ projection }) => projection)
+      .filter(isSQLiteProjectionWithSchema)
+      .map(({ schema }) => schema.component(schemaOptions));
   const schemaMigrator = schemaComponentMigrator({
     pool,
-    component: eventStoreSchemaComponent(options.schema),
+    component: eventStoreSchemaComponent(
+      options.schema,
+      projectionSchemaComponents(options.schema),
+    ),
     migrationTable: databaseSchema.migrationTable,
   });
 
@@ -247,6 +267,7 @@ export const getSQLiteEventStore = <
           },
         },
         schema: schemaMigrationOptions,
+        components: projectionSchemaComponents(schemaMigrationOptions),
       });
 
       if (migrationOptions?.dryRun) {
@@ -263,7 +284,12 @@ export const getSQLiteEventStore = <
 
   const eventStoreSchemaDescription = (): string =>
     getFormatter(fromDatabaseDriverType(pool.driverType).databaseType).describe(
-      eventStoreSchemaSQL(options.schema),
+      [
+        ...eventStoreSchemaSQL(options.schema),
+        ...projectionSchemaComponents(options.schema).flatMap((component) =>
+          component.migrations().flatMap(({ sqls }) => sqls),
+        ),
+      ],
       { serializer },
     );
 
@@ -459,7 +485,13 @@ export const getSQLiteEventStore = <
       sqliteEventStoreConsumer<ConsumerMessageType, Driver>({
         ...(options ?? {}),
         ...consumerOptions,
-        schema: databaseSchema,
+        schema: {
+          ...consumerOptions?.schema,
+          autoMigration:
+            consumerOptions?.schema?.autoMigration ??
+            options.schema?.autoMigration,
+          ...databaseSchema,
+        },
         observability: mergeObservability(
           options.observability,
           consumerOptions?.observability,
@@ -501,8 +533,14 @@ export const getSQLiteEventStore = <
 
     close: () => pool.close(),
     schema: {
+      component: schemaMigrator.component,
+      get migrations() {
+        return schemaMigrator.component.migrations();
+      },
       sql: eventStoreSchemaDescription,
       print: () => console.log(eventStoreSchemaDescription()),
+      ensureMigrated: (ensureOptions) =>
+        schemaMigrator.ensureMigrated(ensureOptions),
       migrate,
       dangerous: {
         truncate: (truncateOptions?: {

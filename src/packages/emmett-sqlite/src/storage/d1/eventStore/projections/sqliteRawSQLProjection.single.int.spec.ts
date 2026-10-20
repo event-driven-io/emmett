@@ -158,9 +158,7 @@ void describe('SQLite Projections', () => {
     const databaseSchemaName = 'events';
     const projectionsDatabaseSchemaName = 'read_models';
     const migrationSchemaName = 'infrastructure';
-    let initProjectionsDatabaseSchemaName: string | undefined;
     let evolveProjectionsDatabaseSchemaName: string | undefined;
-    let initMigrationTableSchemaName: string | undefined;
     let evolveMigrationTableSchemaName: string | undefined;
 
     const givenConfigured = SQLiteProjectionSpec.for({
@@ -178,13 +176,6 @@ void describe('SQLite Projections', () => {
       projection: sqliteRawSQLProjection<ProductItemAdded>({
         name: 'raw_product_sales',
         canHandle: ['ProductItemAdded'],
-        init: ({ context }) => {
-          initProjectionsDatabaseSchemaName =
-            context.migrationOptions?.projectionsDatabaseSchemaName;
-          initMigrationTableSchemaName =
-            context.migrationOptions?.migrationTable?.schemaName;
-          return SQL`SELECT 1;`;
-        },
         evolve: (_event, context) => {
           evolveProjectionsDatabaseSchemaName =
             context.migrationOptions?.projectionsDatabaseSchemaName;
@@ -207,14 +198,9 @@ void describe('SQLite Projections', () => {
       ])
       .then(() => {
         assertEqual(
-          initProjectionsDatabaseSchemaName,
-          projectionsDatabaseSchemaName,
-        );
-        assertEqual(
           evolveProjectionsDatabaseSchemaName,
           projectionsDatabaseSchemaName,
         );
-        assertEqual(initMigrationTableSchemaName, migrationSchemaName);
         assertEqual(evolveMigrationTableSchemaName, migrationSchemaName);
         return Promise.resolve();
       });
