@@ -1,6 +1,7 @@
 import {
   describeSQL,
   getFormatter,
+  isSchemaComponent,
   JSONSerializer,
   schemaComponent,
   schemaComponentMigrator,
@@ -39,11 +40,7 @@ import type {
 } from '../eventStoreDriver';
 import type { PostgresReadEventMetadata } from '../postgreSQLEventStore';
 import type { EventStoreSchemaMigrationOptions } from '../schema';
-import {
-  eventStoreDatabaseSchema,
-  type EventStoreDatabaseSchema,
-  type EventStoreDatabaseSchemaOptions,
-} from '../schema/eventStoreDatabaseSchema';
+import { eventStoreDatabaseSchema } from '../schema/eventStoreDatabaseSchema';
 import { defaultTag } from '../schema/typing';
 import { postgreSQLProjectionLock } from './locks';
 import { registerProjection } from './management';
@@ -209,12 +206,13 @@ export type PostgreSQLProjectionSchemaContext = {
 } & EventStoreSchemaMigrationOptions;
 
 export type PostgreSQLProjectionSchema = {
-  component(options?: EventStoreDatabaseSchemaOptions): AnySchemaComponent;
-  migrations(
-    options?: EventStoreDatabaseSchemaOptions,
-  ): ReadonlyArray<SQLMigration>;
-  sql(options?: EventStoreDatabaseSchemaOptions): string;
-  print(options?: EventStoreDatabaseSchemaOptions): void;
+  readonly component: AnySchemaComponent;
+  readonly migrations: ReadonlyArray<SQLMigration>;
+  sql(): string;
+  print(): void;
+  withDatabaseSchemaName(
+    databaseSchemaName: string | undefined,
+  ): PostgreSQLProjectionSchema;
   migrate(
     context: PostgreSQLProjectionSchemaContext,
     options?: SchemaComponentMigrateOptions,
@@ -240,40 +238,67 @@ export const isPostgreSQLProjectionWithSchema = <Projection extends object>(
   typeof projection.schema === 'object' &&
   projection.schema !== null &&
   'component' in projection.schema &&
-  typeof projection.schema.component === 'function';
+  isSchemaComponent(projection.schema.component);
+
+const hasDefaultSchemaName = (
+  component: AnySchemaComponent,
+): component is AnySchemaComponent & {
+  withDefaultSchemaName: (
+    defaultSchemaName: string | undefined,
+  ) => AnySchemaComponent;
+} =>
+  'withDefaultSchemaName' in component &&
+  typeof component.withDefaultSchemaName === 'function';
+
+const withDefaultSchemaName = (
+  component: AnySchemaComponent,
+  databaseSchemaName: string | undefined,
+): AnySchemaComponent =>
+  databaseSchemaName !== undefined && hasDefaultSchemaName(component)
+    ? component.withDefaultSchemaName(databaseSchemaName)
+    : component;
 
 export const postgreSQLProjectionSchema = (
-  componentFor: (schema: EventStoreDatabaseSchema) => AnySchemaComponent,
+  component: AnySchemaComponent,
 ): PostgreSQLProjectionSchema => {
-  const component = (options?: EventStoreDatabaseSchemaOptions) =>
-    componentFor(eventStoreDatabaseSchema(options));
-
-  const sql = (options?: EventStoreDatabaseSchemaOptions) =>
+  const sql = () =>
     describeSQL(
-      component(options)
-        .migrations()
-        .flatMap(({ sqls }) => sqls),
+      component.migrations().flatMap(({ sqls }) => sqls),
       getFormatter('PostgreSQL'),
       JSONSerializer,
     );
 
-  const migrator = (context: PostgreSQLProjectionSchemaContext) =>
-    schemaComponentMigrator({
+  const withDatabaseSchemaName = (databaseSchemaName: string | undefined) =>
+    postgreSQLProjectionSchema(
+      withDefaultSchemaName(component, databaseSchemaName),
+    );
+
+  const migrator = (context: PostgreSQLProjectionSchemaContext) => {
+    const { projectionsDatabaseSchemaName, migrationTable } =
+      eventStoreDatabaseSchema(context.migrationOptions);
+
+    return schemaComponentMigrator({
       pool: context.session.pool,
-      component: component(context.migrationOptions),
-      migrationTable: eventStoreDatabaseSchema(context.migrationOptions)
-        .migrationTable,
+      component: withDefaultSchemaName(
+        component,
+        projectionsDatabaseSchemaName,
+      ),
+      migrationTable,
       ignoreMigrationHashMismatch:
         context.migrationOptions?.ignoreMigrationHashMismatch,
       migrationTimeoutMS: context.migrationOptions?.migrationTimeoutMS,
       execute: context.execute,
     });
+  };
 
   return {
     component,
-    migrations: (options) => component(options).migrations(),
+    get migrations() {
+      return component.migrations();
+    },
     sql,
-    print: (options) => console.log(sql(options)),
+    print: () => console.log(sql()),
+    withDatabaseSchemaName,
     migrate: (context, options) => migrator(context).migrate(options),
     ensureMigrated: (context, options) =>
       migrator(context).ensureMigrated(options),
@@ -364,7 +389,7 @@ export const postgreSQLRawBatchSQLProjection = <
     EventPayloadType
   > = {
     ...definition,
-    schema: postgreSQLProjectionSchema(() => component),
+    schema: postgreSQLProjectionSchema(component),
   };
 
   return withSchema;

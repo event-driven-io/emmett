@@ -358,6 +358,19 @@ void describe('SQLite projection schema', () => {
     },
   );
 
+  void it('describes the projection tables in the given database schema', () => {
+    const projection = shoppingCartProjection(collectionName);
+
+    assertTrue(projection.schema.sql().includes(collectionName));
+    assertFalse(projection.schema.sql().includes('read_models'));
+    assertTrue(
+      projection.schema
+        .withDatabaseSchemaName('read_models')
+        .sql()
+        .includes('read_models'),
+    );
+  });
+
   const migrationNames = (): Promise<string[]> =>
     mapRows(
       pool.execute.query<{ name: string }>(

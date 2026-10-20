@@ -303,20 +303,18 @@ export const pongoMultiStreamProjection = <
 
   return {
     ...projection,
-    schema: sqliteProjectionSchema(({ projectionsDatabaseSchemaName }) => {
-      const defaultSchemaName =
-        projectionsDatabaseSchemaName ?? DefaultDatabaseSchemaName;
-
-      return databaseComponent({ defaultSchemaName }).withTable(
+    schema: sqliteProjectionSchema(
+      databaseComponent({}).withTable(
         {
           [collectionNameWithVersion]:
             options.collectionOptions?.definition?.withTableName(
               collectionNameWithVersion,
             ) ?? pongoSchema.collection(collectionNameWithVersion),
         },
-        options.collectionOptions?.databaseSchemaName ?? defaultSchemaName,
-      );
-    }),
+        options.collectionOptions?.databaseSchemaName ??
+          DefaultDatabaseSchemaName,
+      ),
+    ),
   };
 };
 

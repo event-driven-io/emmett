@@ -378,7 +378,13 @@ export function getPostgreSQLEventStore(
     (options.projections ?? [])
       .map(({ projection }) => projection)
       .filter(isPostgreSQLProjectionWithSchema)
-      .map(({ schema }) => schema.component(schemaOptions));
+      .map(
+        ({ schema }) =>
+          schema.withDatabaseSchemaName(
+            eventStoreDatabaseSchema(schemaOptions)
+              .projectionsDatabaseSchemaName,
+          ).component,
+      );
   const databaseSchema = eventStoreDatabaseSchema(options.schema);
   const schemaMigrator = schemaComponentMigrator({
     pool,

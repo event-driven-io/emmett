@@ -200,7 +200,13 @@ export const getSQLiteEventStore = <
     (options.projections ?? [])
       .map(({ projection }) => projection)
       .filter(isSQLiteProjectionWithSchema)
-      .map(({ schema }) => schema.component(schemaOptions));
+      .map(
+        ({ schema }) =>
+          schema.withDatabaseSchemaName(
+            eventStoreDatabaseSchema(schemaOptions)
+              .projectionsDatabaseSchemaName,
+          ).component,
+      );
   const schemaMigrator = schemaComponentMigrator({
     pool,
     component: eventStoreSchemaComponent(
