@@ -366,31 +366,48 @@ export function getPostgreSQLEventStore(
     options.schema?.autoMigration === undefined ||
     options.schema?.autoMigration !== 'None';
 
-  const inlineProjections = (options.projections ?? [])
+  const databaseSchema = eventStoreDatabaseSchema(options.schema);
+  const withProjectionsDatabaseSchemaName = (
+    registrations: NonNullable<typeof options.projections>,
+    projectionsDatabaseSchemaName: string | undefined,
+  ): NonNullable<typeof options.projections> =>
+    projectionsDatabaseSchemaName === undefined
+      ? registrations
+      : registrations.map((registration) =>
+          isPostgreSQLProjectionWithSchema(registration.projection)
+            ? {
+                ...registration,
+                projection: {
+                  ...registration.projection,
+                  schema: registration.projection.schema.withDatabaseSchemaName(
+                    projectionsDatabaseSchemaName,
+                  ),
+                },
+              }
+            : registration,
+        );
+  const projections = withProjectionsDatabaseSchemaName(
+    options.projections ?? [],
+    databaseSchema.projectionsDatabaseSchemaName,
+  );
+  const inlineProjections = projections
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
-  const asyncProjections = (options.projections ?? [])
+  const asyncProjections = projections
     .filter(({ type }) => type === 'async')
     .map(({ projection }) => projection);
   const projectionSchemaComponents = (
-    schemaOptions: EventStoreDatabaseSchemaOptions | undefined,
+    registrations: NonNullable<typeof options.projections>,
   ): AnySchemaComponent[] =>
-    (options.projections ?? [])
+    registrations
       .map(({ projection }) => projection)
       .filter(isPostgreSQLProjectionWithSchema)
-      .map(
-        ({ schema }) =>
-          schema.withDatabaseSchemaName(
-            eventStoreDatabaseSchema(schemaOptions)
-              .projectionsDatabaseSchemaName,
-          ).component,
-      );
-  const databaseSchema = eventStoreDatabaseSchema(options.schema);
+      .map(({ schema }) => schema.component);
   const schemaMigrator = schemaComponentMigrator({
     pool,
     component: eventStoreSchemaComponent(
       options.schema,
-      projectionSchemaComponents(options.schema),
+      projectionSchemaComponents(projections),
     ),
     migrationTable: databaseSchema.migrationTable,
   });
@@ -438,7 +455,15 @@ export function getPostgreSQLEventStore(
           },
         },
         schema: schemaMigrationOptions,
-        components: projectionSchemaComponents(schemaMigrationOptions),
+        components: projectionSchemaComponents(
+          schemaMigrationOptions.projectionsDatabaseSchemaName ===
+            databaseSchema.projectionsDatabaseSchemaName
+            ? projections
+            : withProjectionsDatabaseSchemaName(
+                projections,
+                schemaMigrationOptions.projectionsDatabaseSchemaName,
+              ),
+        ),
       });
 
       if (migrationOptions?.dryRun) {
@@ -528,7 +553,7 @@ export function getPostgreSQLEventStore(
     getFormatter(fromDatabaseDriverType(pool.driverType).databaseType).describe(
       [
         ...eventStoreSchemaSQL(options.schema),
-        ...projectionSchemaComponents(options.schema).flatMap((component) =>
+        ...projectionSchemaComponents(projections).flatMap((component) =>
           component.migrations().flatMap(({ sqls }) => sqls),
         ),
       ],

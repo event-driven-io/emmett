@@ -39,7 +39,6 @@ import type {
   InferTransactionFromEventStoreDriver,
 } from '../eventStoreDriver';
 import type { EventStoreSchemaMigrationOptions } from '../schema';
-import { eventStoreDatabaseSchema } from '../schema/eventStoreDatabaseSchema';
 import type { SQLiteReadEventMetadata } from '../SQLiteEventStore';
 
 export type SQLiteProjectionHandlerContext<
@@ -174,9 +173,7 @@ export type SQLiteProjectionSchema = {
   readonly migrations: ReadonlyArray<SQLMigration>;
   sql(): string;
   print(): void;
-  withDatabaseSchemaName(
-    databaseSchemaName: string | undefined,
-  ): SQLiteProjectionSchema;
+  withDatabaseSchemaName(databaseSchemaName: string): SQLiteProjectionSchema;
   migrate(
     context: SQLiteProjectionSchemaContext,
     options?: SchemaComponentMigrateOptions,
@@ -214,14 +211,6 @@ const hasDefaultSchemaName = (
   'withDefaultSchemaName' in component &&
   typeof component.withDefaultSchemaName === 'function';
 
-const withDefaultSchemaName = (
-  component: AnySchemaComponent,
-  databaseSchemaName: string | undefined,
-): AnySchemaComponent =>
-  databaseSchemaName !== undefined && hasDefaultSchemaName(component)
-    ? component.withDefaultSchemaName(databaseSchemaName)
-    : component;
-
 export const sqliteProjectionSchema = (
   component: AnySchemaComponent,
 ): SQLiteProjectionSchema => {
@@ -232,41 +221,37 @@ export const sqliteProjectionSchema = (
       JSONSerializer,
     );
 
-  const withDatabaseSchemaName = (databaseSchemaName: string | undefined) =>
-    sqliteProjectionSchema(
-      withDefaultSchemaName(component, databaseSchemaName),
-    );
-
-  const migrator = (context: SQLiteProjectionSchemaContext) => {
-    const { projectionsDatabaseSchemaName, migrationTable } =
-      eventStoreDatabaseSchema(context.migrationOptions);
-
-    return schemaComponentMigrator({
+  const migrator = (context: SQLiteProjectionSchemaContext) =>
+    schemaComponentMigrator({
       pool: context.session.pool,
-      component: withDefaultSchemaName(
-        component,
-        projectionsDatabaseSchemaName,
-      ),
-      migrationTable,
+      component,
+      migrationTable: context.migrationOptions?.migrationTable,
       ignoreMigrationHashMismatch:
         context.migrationOptions?.ignoreMigrationHashMismatch,
       migrationTimeoutMS: context.migrationOptions?.migrationTimeoutMS,
       execute: context.execute,
     });
-  };
 
-  return {
+  const schema: SQLiteProjectionSchema = {
     component,
     get migrations() {
       return component.migrations();
     },
     sql,
     print: () => console.log(sql()),
-    withDatabaseSchemaName,
+    withDatabaseSchemaName: (databaseSchemaName) => {
+      if (!hasDefaultSchemaName(component)) return schema;
+
+      const mapped = component.withDefaultSchemaName(databaseSchemaName);
+
+      return mapped === component ? schema : sqliteProjectionSchema(mapped);
+    },
     migrate: (context, options) => migrator(context).migrate(options),
     ensureMigrated: (context, options) =>
       migrator(context).ensureMigrated(options),
   };
+
+  return schema;
 };
 
 export type SQLiteRawSQLProjectionSchemaOptions =

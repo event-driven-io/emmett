@@ -194,32 +194,49 @@ export const getSQLiteEventStore = <
     connectionOptions: dumboOptions,
   };
   let migrateSchema: Promise<RunSQLMigrationsResult> | undefined = undefined;
+  const withProjectionsDatabaseSchemaName = (
+    registrations: NonNullable<typeof options.projections>,
+    projectionsDatabaseSchemaName: string | undefined,
+  ): NonNullable<typeof options.projections> =>
+    projectionsDatabaseSchemaName === undefined
+      ? registrations
+      : registrations.map((registration) =>
+          isSQLiteProjectionWithSchema(registration.projection)
+            ? {
+                ...registration,
+                projection: {
+                  ...registration.projection,
+                  schema: registration.projection.schema.withDatabaseSchemaName(
+                    projectionsDatabaseSchemaName,
+                  ),
+                },
+              }
+            : registration,
+        );
+  const projections = withProjectionsDatabaseSchemaName(
+    options.projections ?? [],
+    databaseSchema.projectionsDatabaseSchemaName,
+  );
   const projectionSchemaComponents = (
-    schemaOptions: EventStoreDatabaseSchemaOptions | undefined,
+    registrations: NonNullable<typeof options.projections>,
   ): AnySchemaComponent[] =>
-    (options.projections ?? [])
+    registrations
       .map(({ projection }) => projection)
       .filter(isSQLiteProjectionWithSchema)
-      .map(
-        ({ schema }) =>
-          schema.withDatabaseSchemaName(
-            eventStoreDatabaseSchema(schemaOptions)
-              .projectionsDatabaseSchemaName,
-          ).component,
-      );
+      .map(({ schema }) => schema.component);
   const schemaMigrator = schemaComponentMigrator({
     pool,
     component: eventStoreSchemaComponent(
       options.schema,
-      projectionSchemaComponents(options.schema),
+      projectionSchemaComponents(projections),
     ),
     migrationTable: databaseSchema.migrationTable,
   });
 
-  const inlineProjections = (options.projections ?? [])
+  const inlineProjections = projections
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
-  const asyncProjections = (options.projections ?? [])
+  const asyncProjections = projections
     .filter(({ type }) => type === 'async')
     .map(({ projection }) => projection);
   const observability = eventStoreObservability(options);
@@ -278,7 +295,15 @@ export const getSQLiteEventStore = <
           },
         },
         schema: schemaMigrationOptions,
-        components: projectionSchemaComponents(schemaMigrationOptions),
+        components: projectionSchemaComponents(
+          schemaMigrationOptions.projectionsDatabaseSchemaName ===
+            databaseSchema.projectionsDatabaseSchemaName
+            ? projections
+            : withProjectionsDatabaseSchemaName(
+                projections,
+                schemaMigrationOptions.projectionsDatabaseSchemaName,
+              ),
+        ),
       });
 
       if (migrationOptions?.dryRun) {
@@ -297,7 +322,7 @@ export const getSQLiteEventStore = <
     getFormatter(fromDatabaseDriverType(pool.driverType).databaseType).describe(
       [
         ...eventStoreSchemaSQL(options.schema),
-        ...projectionSchemaComponents(options.schema).flatMap((component) =>
+        ...projectionSchemaComponents(projections).flatMap((component) =>
           component.migrations().flatMap(({ sqls }) => sqls),
         ),
       ],

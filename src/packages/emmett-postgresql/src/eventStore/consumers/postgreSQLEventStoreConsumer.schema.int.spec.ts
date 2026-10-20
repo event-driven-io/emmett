@@ -1,6 +1,7 @@
 import {
   count,
   dumbo,
+  mapRows,
   PendingMigrationsError,
   SQL,
   SQLTableReference,
@@ -11,6 +12,7 @@ import {
   assertFalse,
   assertIsNotNull,
   assertRejects,
+  assertTrue,
   assertThrows,
   EmmettError,
   type Event,
@@ -476,6 +478,50 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
   );
 
   void it(
+    'records projector migrations in the event-store schema when the projector sets its own schema names',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const projectionSchemaName = schemaName('read_models');
+      const collectionName = schemaName('shopping_cart_summary');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+        });
+        consumer.projector({
+          processorId: `processor:${uuid()}`,
+          projection: shoppingCartSummaryProjection(collectionName),
+          migrationOptions: {
+            databaseSchemaName: eventSchemaName,
+            projectionsDatabaseSchemaName: projectionSchemaName,
+          },
+        });
+
+        await consumer.start();
+
+        assertTrue(
+          await tableExists(pool.execute, collectionName, projectionSchemaName),
+        );
+        assertTrue(
+          (await migrationNames(eventSchemaName)).some((name) =>
+            name.includes(collectionName),
+          ),
+        );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
     'creates no projection tables in projector initialization when the consumer skips migrations',
     withDeadline,
     async () => {
@@ -676,6 +722,14 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
           WHERE stream_id = ${streamName}
         `,
       ),
+    );
+
+  const migrationNames = (databaseSchemaName: string): Promise<string[]> =>
+    mapRows(
+      pool.execute.query<{ name: string }>(
+        SQL`SELECT name FROM ${SQLTableReference.from({ databaseSchemaName, tableName: 'dmb_migrations' })}`,
+      ),
+      ({ name }) => name,
     );
 
   const rowsInTable = (

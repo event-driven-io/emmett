@@ -8,10 +8,6 @@ import {
   type TruncateProjection,
 } from '@event-driven-io/emmett';
 import {
-  databaseComponent,
-  DefaultDatabaseSchemaName,
-} from '@event-driven-io/dumbo';
-import {
   pongoClient,
   pongoSchema,
   type PongoClient,
@@ -311,19 +307,27 @@ export const pongoMultiStreamProjection = <
     },
   });
 
+  const collections = {
+    [collectionNameWithVersion]:
+      options.collectionOptions?.definition?.withTableName(
+        collectionNameWithVersion,
+      ) ?? pongoSchema.collection(collectionNameWithVersion),
+  };
+  const collectionSchemaName = options.collectionOptions?.databaseSchemaName;
+
   return {
     ...projection,
     schema: postgreSQLProjectionSchema(
-      databaseComponent({}).withTable(
-        {
-          [collectionNameWithVersion]:
-            options.collectionOptions?.definition?.withTableName(
-              collectionNameWithVersion,
-            ) ?? pongoSchema.collection(collectionNameWithVersion),
-        },
-        options.collectionOptions?.databaseSchemaName ??
-          DefaultDatabaseSchemaName,
-      ),
+      collectionSchemaName === undefined
+        ? pongoSchema.db({ collections })
+        : pongoSchema.db({
+            schemas: {
+              [collectionSchemaName]: pongoSchema.schema(
+                collectionSchemaName,
+                collections,
+              ),
+            },
+          }),
     ),
   };
 };
