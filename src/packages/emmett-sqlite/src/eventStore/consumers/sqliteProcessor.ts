@@ -54,7 +54,10 @@ import type {
   InferTransactionFromEventStoreDriver,
 } from '../eventStoreDriver';
 import { isSQLiteProjectionWithSchema } from '../projections';
-import type { EventStoreSchemaMigrationOptions } from '../schema';
+import {
+  eventStoreDatabaseSchema,
+  type EventStoreSchemaMigrationOptions,
+} from '../schema';
 import {
   getSQLiteEventStore,
   type SQLiteEventStore,
@@ -402,26 +405,33 @@ export const sqliteProjector = <
     partition = defaultProcessorPartition,
   } = options;
 
+  const migrationOptions = {
+    ...options.migrationOptions,
+    ...eventStoreDatabaseSchema(options.migrationOptions),
+  };
+  const projectionSchema = isSQLiteProjectionWithSchema(options.projection)
+    ? migrationOptions.projectionsDatabaseSchemaName !== undefined
+      ? options.projection.schema.withDatabaseSchemaName(
+          migrationOptions.projectionsDatabaseSchemaName,
+        )
+      : options.projection.schema
+    : undefined;
+
   const hooks: ProcessorHooks<SQLiteProcessorHandlerContext<Driver>> = {
     ...(options.hooks ?? {}),
     onInit:
       options.projection.init !== undefined ||
-      isSQLiteProjectionWithSchema(options.projection) ||
+      projectionSchema ||
       options.hooks?.onInit
         ? async (context: SQLiteProcessorHandlerContext<Driver>) => {
             const autoMigration =
               options.migrationOptions?.autoMigration ?? 'CreateOrUpdate';
-            const projectionContext = {
-              ...context,
-              migrationOptions: options.migrationOptions,
-            };
-            if (isSQLiteProjectionWithSchema(options.projection)) {
+            const projectionContext = { ...context, migrationOptions };
+            if (projectionSchema) {
               if (autoMigration === 'EnsureMigrated')
-                await options.projection.schema.ensureMigrated(
-                  projectionContext,
-                );
+                await projectionSchema.ensureMigrated(projectionContext);
               else if (autoMigration === 'CreateOrUpdate')
-                await options.projection.schema.migrate(projectionContext);
+                await projectionSchema.migrate(projectionContext);
             }
             if (options.projection.init)
               await options.projection.init({

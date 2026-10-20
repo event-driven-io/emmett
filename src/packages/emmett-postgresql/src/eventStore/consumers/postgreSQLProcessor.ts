@@ -76,6 +76,7 @@ import {
   type PostgreSQLProcessorLock,
 } from '../projections';
 import {
+  eventStoreDatabaseSchema,
   PostgreSQLEventStoreCheckpoint,
   readProcessorCheckpoint,
   storeProcessorCheckpoint,
@@ -470,26 +471,33 @@ export const postgreSQLProjector = <
     lockTimeoutSeconds: lock?.timeoutSeconds,
   });
 
+  const migrationOptions = {
+    ...options.migrationOptions,
+    ...eventStoreDatabaseSchema(options.migrationOptions),
+  };
+  const projectionSchema = isPostgreSQLProjectionWithSchema(options.projection)
+    ? migrationOptions.projectionsDatabaseSchemaName !== undefined
+      ? options.projection.schema.withDatabaseSchemaName(
+          migrationOptions.projectionsDatabaseSchemaName,
+        )
+      : options.projection.schema
+    : undefined;
+
   const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext<Driver>> = {
     ...(options.hooks ?? {}),
     onInit:
       options.projection.init !== undefined ||
-      isPostgreSQLProjectionWithSchema(options.projection) ||
+      projectionSchema ||
       options.hooks?.onInit
         ? async (context) => {
             const autoMigration =
               options.migrationOptions?.autoMigration ?? 'CreateOrUpdate';
-            const projectionContext = {
-              ...context,
-              migrationOptions: options.migrationOptions,
-            };
-            if (isPostgreSQLProjectionWithSchema(options.projection)) {
+            const projectionContext = { ...context, migrationOptions };
+            if (projectionSchema) {
               if (autoMigration === 'EnsureMigrated')
-                await options.projection.schema.ensureMigrated(
-                  projectionContext,
-                );
+                await projectionSchema.ensureMigrated(projectionContext);
               else if (autoMigration === 'CreateOrUpdate')
-                await options.projection.schema.migrate(projectionContext);
+                await projectionSchema.migrate(projectionContext);
             }
             if (options.projection.init)
               await options.projection.init({
