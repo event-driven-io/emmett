@@ -1,16 +1,24 @@
 import { single, SQL, type QueryResultRow } from '@event-driven-io/dumbo';
 import {
   InMemorySQLiteDatabase,
+  sqlite3Pool,
+  tableExists,
   type AnySQLiteConnection,
 } from '@event-driven-io/dumbo/sqlite3';
 import {
   assertDeepEqual,
   assertEqual,
+  assertFalse,
+  assertRejects,
   JSONSerializer,
 } from '@event-driven-io/emmett';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
 import { beforeEach, describe, it } from 'vitest';
 import { sqlite3EventStoreDriver } from '../../../../sqlite3';
+import { deleteSQLiteDatabaseFiles } from '../../testing/sqliteTestDatabase';
+import { getSQLiteEventStore } from '../../../../eventStore/SQLiteEventStore';
 import type {
   DiscountApplied,
   ProductItemAdded,
@@ -141,6 +149,95 @@ void describe('SQLite Projections', () => {
             },
           }),
       );
+  });
+
+  for (const dryRun of ['transactional', 'diff'] as const) {
+    void it(`creates no raw SQL projection table when the user runs a ${dryRun} dry run`, async () => {
+      const fileName = path.resolve(
+        path.dirname(fileURLToPath(import.meta.url)),
+        `raw-sql-dry-run-${uuid()}.db`,
+      );
+      const eventStore = getSQLiteEventStore({
+        driver: sqlite3EventStoreDriver,
+        fileName,
+        schema: { autoMigration: 'None' },
+        projections: [
+          {
+            type: 'inline',
+            projection: sqliteRawSQLProjection<ProductItemAdded>({
+              name: 'dry_run_projection',
+              canHandle: ['ProductItemAdded'],
+              init: () =>
+                SQL`CREATE TABLE IF NOT EXISTS ${identifier('dry_run_projection')} (id TEXT)`,
+              evolve: () => SQL`SELECT 1;`,
+            }),
+          },
+        ],
+      });
+      const pool = sqlite3Pool({ fileName });
+
+      try {
+        await eventStore.schema.migrate({ dryRun });
+
+        assertFalse(await tableExists(pool.execute, 'dry_run_projection'));
+      } finally {
+        await eventStore.close();
+        await pool.close();
+        deleteSQLiteDatabaseFiles(fileName);
+      }
+    });
+  }
+
+  void it('reverts the raw SQL projection table and the event store schema when another projection fails during migration', async () => {
+    const fileName = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      `raw-sql-reverted-${uuid()}.db`,
+    );
+    const eventStore = getSQLiteEventStore({
+      driver: sqlite3EventStoreDriver,
+      fileName,
+      schema: { autoMigration: 'None' },
+      projections: [
+        {
+          type: 'inline',
+          projection: sqliteRawSQLProjection<ProductItemAdded>({
+            name: 'reverted_projection',
+            canHandle: ['ProductItemAdded'],
+            init: () =>
+              SQL`CREATE TABLE IF NOT EXISTS ${identifier('reverted_projection')} (id TEXT)`,
+            evolve: () => SQL`SELECT 1;`,
+          }),
+        },
+        {
+          type: 'inline',
+          projection: sqliteRawSQLProjection<ProductItemAdded>({
+            name: 'failing_init',
+            canHandle: ['ProductItemAdded'],
+            init: () => {
+              throw new Error('projection init failed on purpose');
+            },
+            evolve: () => SQL`SELECT 1;`,
+          }),
+        },
+      ],
+    });
+    const pool = sqlite3Pool({ fileName });
+
+    try {
+      await assertRejects(
+        eventStore.schema.migrate(),
+        (error) =>
+          error instanceof Error &&
+          error.message === 'projection init failed on purpose',
+      );
+
+      assertFalse(await tableExists(pool.execute, 'reverted_projection'));
+      assertFalse(await tableExists(pool.execute, 'emt_streams'));
+    } finally {
+      await eventStore.close();
+      await pool.close();
+      deleteSQLiteDatabaseFiles(fileName);
+    }
   });
 
   void it('passes the configured schema names to raw SQL projection handlers', async () => {

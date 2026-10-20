@@ -206,7 +206,7 @@ const eventStore = getPostgreSQLEventStore(connectionString, {
 
   // Schema migration
   schema: {
-    autoMigration: 'CreateOrUpdate', // or 'None'
+    autoMigration: 'CreateOrUpdate', // or 'EnsureMigrated', or 'None'
     databaseSchemaName: 'events',
     projectionsDatabaseSchemaName: 'read_models',
     migrationTable: {

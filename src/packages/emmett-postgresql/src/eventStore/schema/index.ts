@@ -1,6 +1,8 @@
 import {
   runSQLMigrations,
+  schemaComponent,
   type Dumbo,
+  type MigrationDryRun,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
 import type { JSONSerializationOptions } from '@event-driven-io/emmett';
@@ -38,11 +40,18 @@ export * from './tables';
 export { schemaSQL };
 
 export type CreateEventStoreSchemaOptions = {
-  dryRun?: boolean | undefined;
+  dryRun?: MigrationDryRun | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
-  migrationTimeoutMs?: number | undefined;
+  migrationTimeoutMS?: number | undefined;
 } & JSONSerializationOptions &
   EventStoreDatabaseSchemaOptions;
+
+export const eventStoreSchemaComponent = (
+  options?: EventStoreDatabaseSchemaOptions,
+) =>
+  schemaComponent('emt:eventStore', {
+    migrations: () => eventStoreSchemaMigrationsFor(options),
+  });
 
 export type EventStoreSchemaMigrationOptions = {
   migrationOptions?: CreateEventStoreSchemaOptions;
@@ -60,10 +69,17 @@ export const createEventStoreSchema = <
   connectionOptions?: InferDumboOptionsFromEventStoreDriver<Driver>;
   hooks?: PostgresEventStoreOptions<Driver>['hooks'];
   schema?: CreateEventStoreSchemaOptions;
-}): Promise<RunSQLMigrationsResult> =>
-  session.pool.withTransaction<RunSQLMigrationsResult>(async (tx) => {
-    const { pool } = session;
-    const databaseSchema = eventStoreDatabaseSchema(options);
+}): Promise<RunSQLMigrationsResult> => {
+  const { pool } = session;
+  const databaseSchema = eventStoreDatabaseSchema(options);
+
+  if (options?.dryRun === 'diff')
+    return runSQLMigrations(pool, eventStoreSchemaMigrationsFor(options), {
+      ...options,
+      migrationTable: databaseSchema.migrationTable,
+    });
+
+  return pool.withTransaction<RunSQLMigrationsResult>(async (tx) => {
     const schemaContext: PostgreSQLProjectionHandlerContext<Driver> = {
       ...transactionToPostgreSQLProjectionHandlerContext(session, tx),
       migrationOptions: {
@@ -90,5 +106,6 @@ export const createEventStoreSchema = <
       await hooks.onAfterSchemaCreated(schemaContext);
     }
 
-    return result;
+    return options?.dryRun ? { success: false, result } : result;
   });
+};

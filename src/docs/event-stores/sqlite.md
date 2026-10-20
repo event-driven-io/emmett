@@ -231,9 +231,17 @@ const eventStore = getSQLiteEventStore('./events.db', {
 const sql = eventStore.schema.sql();
 console.log(sql);
 
+// Check pending migrations without running any SQL
+const { applied } = await eventStore.schema.migrate({ dryRun: 'diff' });
+
+// Run migrations and roll them back (not supported on D1)
+await eventStore.schema.migrate({ dryRun: 'transactional' });
+
 // Manually migrate
 await eventStore.schema.migrate();
 ```
+
+Set `autoMigration: 'EnsureMigrated'` to keep the event store from changing the schema. On the first operation, it checks that all migrations are applied, and it throws `PendingMigrationsError` if any are pending.
 
 ## Database Schema
 
@@ -257,7 +265,7 @@ const eventStore = getSQLiteEventStore({
 
   // Schema migration
   schema: {
-    autoMigration: 'CreateOrUpdate', // or 'None'
+    autoMigration: 'CreateOrUpdate', // or 'EnsureMigrated', or 'None'
     databaseSchemaName: 'events',
     projectionsDatabaseSchemaName: 'read_models',
     migrationTable: {

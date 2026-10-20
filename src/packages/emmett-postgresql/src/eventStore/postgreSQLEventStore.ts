@@ -4,6 +4,7 @@ import {
   fromDatabaseDriverType,
   getFormatter,
   JSONSerializer,
+  schemaComponentMigrator,
   type MigrationStyle,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
@@ -63,6 +64,7 @@ import {
   appendToStream,
   createEventStoreSchema,
   eventStoreDatabaseSchema,
+  eventStoreSchemaComponent,
   eventStoreSchemaSQL,
   PostgreSQLEventStoreCheckpoint,
   readStream,
@@ -356,6 +358,11 @@ export function getPostgreSQLEventStore(
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
   const databaseSchema = eventStoreDatabaseSchema(options.schema);
+  const schemaMigrator = schemaComponentMigrator({
+    pool,
+    component: eventStoreSchemaComponent(options.schema),
+    migrationTable: databaseSchema.migrationTable,
+  });
   const observability = eventStoreObservability(options);
   const collector = eventStoreCollector(observability);
 
@@ -416,6 +423,9 @@ export function getPostgreSQLEventStore(
 
   const ensureSchemaExists = () => {
     if (!autoGenerateSchema) return Promise.resolve();
+
+    if (options.schema?.autoMigration === 'EnsureMigrated')
+      return schemaMigrator.ensureMigrated();
 
     return migrate();
   };

@@ -2,9 +2,11 @@ import {
   dumbo,
   fromDatabaseDriverType,
   getFormatter,
+  schemaComponentMigrator,
   type AnyDatabaseTransaction,
   type DatabaseTransactionOptions,
   type Dumbo,
+  type MigrationStyle,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
@@ -58,6 +60,7 @@ import {
   appendToStream,
   createEventStoreSchema,
   eventStoreDatabaseSchema,
+  eventStoreSchemaComponent,
   eventStoreSchemaSQL,
   readStream,
   streamExists,
@@ -125,7 +128,7 @@ export type SQLiteEventStoreOptions<
   >[];
   observability?: EmmettObservabilityConfig;
   schema?: {
-    autoMigration?: 'None' | 'CreateOrUpdate';
+    autoMigration?: MigrationStyle;
   } & EventStoreDatabaseSchemaOptions;
   hooks?: {
     /**
@@ -179,6 +182,11 @@ export const getSQLiteEventStore = <
     connectionOptions: dumboOptions,
   };
   let migrateSchema: Promise<RunSQLMigrationsResult> | undefined = undefined;
+  const schemaMigrator = schemaComponentMigrator({
+    pool,
+    component: eventStoreSchemaComponent(options.schema),
+    migrationTable: databaseSchema.migrationTable,
+  });
 
   const inlineProjections = (options.projections ?? [])
     .filter(({ type }) => type === 'inline')
@@ -261,6 +269,9 @@ export const getSQLiteEventStore = <
 
   const ensureSchemaExists = (): Promise<unknown> => {
     if (!autoGenerateSchema) return Promise.resolve();
+
+    if (options.schema?.autoMigration === 'EnsureMigrated')
+      return schemaMigrator.ensureMigrated();
 
     return migrate();
   };

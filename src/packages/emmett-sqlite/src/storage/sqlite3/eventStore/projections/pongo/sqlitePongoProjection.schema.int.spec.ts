@@ -25,6 +25,7 @@ import { afterEach, beforeEach, describe, it } from 'vitest';
 import { sqlite3EventStoreDriver } from '../../../../../sqlite3';
 import { deleteSQLiteDatabaseFiles } from '../../../testing/sqliteTestDatabase';
 import { getSQLiteEventStore } from '../../../../../eventStore/SQLiteEventStore';
+import { sqliteRawSQLProjection } from '../../../../../eventStore/projections/sqliteProjection';
 import { SQLiteProjectionSpec } from '../../../../../eventStore/projections/sqliteProjectionSpec';
 import {
   pongoClient,
@@ -114,6 +115,106 @@ void describe('SQLite Pongo projection schema configuration', () => {
       assertTrue(
         (await migrationNames(migrationSchemaName, migrationTableName)).some(
           (name) => name.includes(collectionName),
+        ),
+      );
+    },
+  );
+
+  for (const dryRun of ['transactional', 'diff'] as const) {
+    void it(
+      `creates no Pongo projection collection when the user runs a ${dryRun} dry run`,
+      withDeadline,
+      async () => {
+        const eventStore = getSQLiteEventStore({
+          driver: sqlite3EventStoreDriver,
+          fileName,
+          schema: {
+            autoMigration: 'None',
+            databaseSchemaName,
+            projectionsDatabaseSchemaName,
+          },
+          projections: [
+            {
+              type: 'inline',
+              projection: shoppingCartProjection(collectionName),
+            },
+          ],
+        });
+
+        try {
+          await eventStore.schema.migrate({ dryRun });
+        } finally {
+          await eventStore.close();
+        }
+
+        assertFalse(
+          await tableExists(
+            pool.execute,
+            sqliteTableName({
+              databaseSchemaName: projectionsDatabaseSchemaName,
+              tableName: collectionName,
+            }),
+          ),
+        );
+      },
+    );
+  }
+
+  void it(
+    'reverts the Pongo projection collection and the event store schema when another projection fails during migration',
+    withDeadline,
+    async () => {
+      const eventStore = getSQLiteEventStore({
+        driver: sqlite3EventStoreDriver,
+        fileName,
+        schema: {
+          autoMigration: 'None',
+          databaseSchemaName,
+          projectionsDatabaseSchemaName,
+        },
+        projections: [
+          {
+            type: 'inline',
+            projection: shoppingCartProjection(collectionName),
+          },
+          {
+            type: 'inline',
+            projection: sqliteRawSQLProjection<ProductItemAdded>({
+              name: 'failing_init',
+              canHandle: ['ProductItemAdded'],
+              init: () => {
+                throw new Error('projection init failed on purpose');
+              },
+              evolve: () => SQL`SELECT 1;`,
+            }),
+          },
+        ],
+      });
+
+      try {
+        await assertRejects(
+          eventStore.schema.migrate(),
+          (error) =>
+            error instanceof Error &&
+            error.message === 'projection init failed on purpose',
+        );
+      } finally {
+        await eventStore.close();
+      }
+
+      assertFalse(
+        await tableExists(
+          pool.execute,
+          sqliteTableName({
+            databaseSchemaName: projectionsDatabaseSchemaName,
+            tableName: collectionName,
+          }),
+        ),
+      );
+      assertFalse(
+        await tableExists(
+          pool.execute,
+          sqliteTableName({ databaseSchemaName, tableName: 'emt_streams' }),
         ),
       );
     },
@@ -443,7 +544,6 @@ void describe('SQLite Pongo projection schema configuration', () => {
           pool.execute,
           sqliteIndexName({
             databaseSchemaName: projectionsDatabaseSchemaName,
-            tableName: collectionName,
             indexName,
           }),
         ),

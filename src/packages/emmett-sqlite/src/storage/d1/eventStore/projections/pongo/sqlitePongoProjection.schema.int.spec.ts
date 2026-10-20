@@ -446,7 +446,6 @@ void describe('SQLite Pongo projection schema configuration', () => {
           pool.execute,
           sqliteIndexName({
             databaseSchemaName: projectionsDatabaseSchemaName,
-            tableName: collectionName,
             indexName,
           }),
         ),
