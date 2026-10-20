@@ -291,6 +291,12 @@ void describe('SQLite event store consumer schema configuration', () => {
           databaseSchemaName,
           projectionsDatabaseSchemaName,
         },
+        projections: [
+          {
+            type: 'async',
+            projection: guestStaySummaryProjection(collectionName),
+          },
+        ],
       });
 
       try {
@@ -301,10 +307,6 @@ void describe('SQLite event store consumer schema configuration', () => {
 
         const consumer = eventStore.consumer<GuestStayEvent>({
           stopWhen: { noMessagesLeft: true },
-        });
-        consumer.projector({
-          processorId: `processor:${uuid()}`,
-          projection: guestStaySummaryProjection(collectionName),
         });
 
         try {

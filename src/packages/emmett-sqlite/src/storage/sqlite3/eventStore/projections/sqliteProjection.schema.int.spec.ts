@@ -1,4 +1,5 @@
 import {
+  count,
   mapRows,
   PendingMigrationsError,
   SQL,
@@ -11,9 +12,12 @@ import {
   type SQLitePool,
 } from '@event-driven-io/dumbo/sqlite3';
 import {
+  assertEqual,
   assertFalse,
   assertRejects,
+  assertThrows,
   assertTrue,
+  EmmettError,
   type Event,
 } from '@event-driven-io/emmett';
 import path from 'path';
@@ -286,6 +290,70 @@ void describe('SQLite projection schema', () => {
       }
 
       assertFalse(await tableExists(pool.execute, collectionName));
+    },
+  );
+
+  void it(
+    'projects events with the async projections registered on the event store',
+    withDeadline,
+    async () => {
+      const store = eventStore({
+        schema: { autoMigration: 'None' },
+        projections: [
+          { type: 'async', projection: shoppingCartProjection(collectionName) },
+        ],
+      });
+
+      try {
+        await store.schema.migrate();
+        await store.appendToStream(`shopping_cart-${uuid()}`, [
+          { type: 'ProductItemAdded', data: { quantity: 1 } },
+        ]);
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+        });
+
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+      } finally {
+        await store.close();
+      }
+
+      assertEqual(
+        1,
+        await count(
+          pool.execute.query<{ count: number }>(
+            SQL`SELECT COUNT(*) AS count FROM ${SQL.identifier(collectionName)}`,
+          ),
+        ),
+      );
+    },
+  );
+
+  void it(
+    'rejects registering a projector for a projection that the event store already runs as async',
+    withDeadline,
+    async () => {
+      const projection = shoppingCartProjection(collectionName);
+      const store = eventStore({
+        schema: { autoMigration: 'None' },
+        projections: [{ type: 'async', projection }],
+      });
+
+      try {
+        const consumer = store.consumer<ProductItemAdded>();
+
+        assertThrows(
+          () => consumer.projector({ projection }),
+          (error) => error instanceof EmmettError,
+        );
+      } finally {
+        await store.close();
+      }
     },
   );
 
