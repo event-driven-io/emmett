@@ -17,6 +17,7 @@ import {
 } from '../../../testing/postgreSQLTestDatabase';
 import { tableExists } from '../../../testing/schemaObjects';
 import { getPostgreSQLEventStore } from '../../postgreSQLEventStore';
+import { postgreSQLRawSQLProjection } from '../postgreSQLProjection';
 import { PostgreSQLProjectionSpec } from '../postgresProjectionSpec';
 import { pongoSingleStreamProjection } from './pongoProjections';
 import { expectPongoDocuments } from './pongoProjectionSpec';
@@ -98,6 +99,100 @@ void describe('PostgreSQL Pongo projection schema configuration', () => {
           (await migrationRows(migrationSchemaName, migrationTableName)).some(
             (name) => name.includes(collectionName),
           ),
+        );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  for (const dryRun of ['transactional', 'diff'] as const) {
+    void it(
+      `creates no Pongo projection collection when the user runs a ${dryRun} dry run`,
+      withDeadline,
+      async () => {
+        const projectionSchemaName = schemaName('read_models');
+        const collectionName = schemaName('shopping_cart_summary');
+        const store = getPostgreSQLEventStore({
+          driver: pgEventStoreDriver,
+          connectionString: connectionString,
+          schema: {
+            autoMigration: 'None',
+            databaseSchemaName: schemaName('events'),
+            projectionsDatabaseSchemaName: projectionSchemaName,
+          },
+          projections: [
+            {
+              type: 'inline',
+              projection: shoppingCartProjection(collectionName),
+            },
+          ],
+        });
+
+        try {
+          await store.schema.migrate({ dryRun });
+
+          assertFalse(
+            await tableExists(
+              pool.execute,
+              collectionName,
+              projectionSchemaName,
+            ),
+          );
+        } finally {
+          await store.close();
+        }
+      },
+    );
+  }
+
+  void it(
+    'reverts the Pongo projection collection and the event store schema when another projection fails during migration',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const projectionSchemaName = schemaName('read_models');
+      const collectionName = schemaName('shopping_cart_summary');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: {
+          autoMigration: 'None',
+          databaseSchemaName: eventSchemaName,
+          projectionsDatabaseSchemaName: projectionSchemaName,
+        },
+        projections: [
+          {
+            type: 'inline',
+            projection: shoppingCartProjection(collectionName),
+          },
+          {
+            type: 'inline',
+            projection: postgreSQLRawSQLProjection<ProductItemAdded>({
+              name: schemaName('failing_init'),
+              canHandle: ['ProductItemAdded'],
+              init: () => {
+                throw new Error('projection init failed on purpose');
+              },
+              evolve: () => SQL`SELECT 1;`,
+            }),
+          },
+        ],
+      });
+
+      try {
+        await assertRejects(
+          store.schema.migrate(),
+          (error) =>
+            error instanceof Error &&
+            error.message === 'projection init failed on purpose',
+        );
+
+        assertFalse(
+          await tableExists(pool.execute, collectionName, projectionSchemaName),
+        );
+        assertFalse(
+          await tableExists(pool.execute, 'emt_streams', eventSchemaName),
         );
       } finally {
         await store.close();

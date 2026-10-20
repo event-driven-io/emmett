@@ -1,12 +1,21 @@
-import { SQL } from '@event-driven-io/dumbo';
-import { tableExists } from '@event-driven-io/dumbo/pg';
-import { assertEqual, assertTrue, type Event } from '@event-driven-io/emmett';
+import { dumbo, SQL } from '@event-driven-io/dumbo';
+import { pgDumboDriver, tableExists } from '@event-driven-io/dumbo/pg';
+import {
+  assertEqual,
+  assertFalse,
+  assertRejects,
+  assertTrue,
+  type Event,
+} from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
+import { schemaExists } from '../../testing/schemaObjects';
+import { pgEventStoreDriver } from '../../pg';
+import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
 import { postgreSQLRawSQLProjection } from './postgreSQLProjection';
 import { expectSQL, PostgreSQLProjectionSpec } from './postgresProjectionSpec';
 
@@ -100,6 +109,88 @@ void describe('PostgreSQL Projections', () => {
 
         assertTrue(result);
       });
+  });
+
+  for (const dryRun of ['transactional', 'diff'] as const) {
+    void it(`creates no raw SQL projection table when the user runs a ${dryRun} dry run`, async () => {
+      const tableName = schemaName('dry_run_projection');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString,
+        schema: { autoMigration: 'None' },
+        projections: [
+          {
+            type: 'inline',
+            projection: postgreSQLRawSQLProjection<ProductItemAdded>({
+              name: tableName,
+              canHandle: ['ProductItemAdded'],
+              init: () =>
+                SQL`CREATE TABLE IF NOT EXISTS ${SQL.identifier(tableName)} (id TEXT)`,
+              evolve: () => SQL`SELECT 1;`,
+            }),
+          },
+        ],
+      });
+      const pool = dumbo({ driver: pgDumboDriver, connectionString });
+
+      try {
+        await store.schema.migrate({ dryRun });
+
+        assertFalse(await tableExists(pool.execute, tableName));
+      } finally {
+        await store.close();
+        await pool.close();
+      }
+    });
+  }
+
+  void it('reverts the raw SQL projection table and the event store schema when another projection fails during migration', async () => {
+    const eventSchemaName = schemaName('events');
+    const tableName = schemaName('reverted_projection');
+    const store = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString,
+      schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+      projections: [
+        {
+          type: 'inline',
+          projection: postgreSQLRawSQLProjection<ProductItemAdded>({
+            name: tableName,
+            canHandle: ['ProductItemAdded'],
+            init: () =>
+              SQL`CREATE TABLE IF NOT EXISTS ${SQL.identifier(tableName)} (id TEXT)`,
+            evolve: () => SQL`SELECT 1;`,
+          }),
+        },
+        {
+          type: 'inline',
+          projection: postgreSQLRawSQLProjection<ProductItemAdded>({
+            name: schemaName('failing_init'),
+            canHandle: ['ProductItemAdded'],
+            init: () => {
+              throw new Error('projection init failed on purpose');
+            },
+            evolve: () => SQL`SELECT 1;`,
+          }),
+        },
+      ],
+    });
+    const pool = dumbo({ driver: pgDumboDriver, connectionString });
+
+    try {
+      await assertRejects(
+        store.schema.migrate(),
+        (error) =>
+          error instanceof Error &&
+          error.message === 'projection init failed on purpose',
+      );
+
+      assertFalse(await tableExists(pool.execute, tableName));
+      assertFalse(await schemaExists(pool.execute, eventSchemaName));
+    } finally {
+      await store.close();
+      await pool.close();
+    }
   });
 
   void it('sums product sales into a table', () => {

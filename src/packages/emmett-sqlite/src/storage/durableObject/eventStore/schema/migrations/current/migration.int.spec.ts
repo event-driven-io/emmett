@@ -191,35 +191,37 @@ void describe('Schema migrations tests', () => {
     assertDeepEqual(skipped, [sameMigrationChangedSQL]);
   });
 
-  void it('applies the migration after the user dry-runs it first', async () => {
-    // Given
-    const dryRun = await eventStore.schema.migrate({ dryRun: true });
+  for (const dryRun of ['transactional', 'diff'] as const) {
+    void it(`applies the migration after the user dry-runs it first with ${dryRun} dry run`, async () => {
+      // Given
+      const dryRunResult = await eventStore.schema.migrate({ dryRun });
 
-    assertDeepEqual(dryRun.applied, [
-      ...migrations_0_42_0,
-      ...migrations_0_43_0,
-      schemaMigration,
-    ]);
-    assertFalse(await tableExists(connection.execute, 'dmb_migrations'));
-    assertFalse(await tableExists(connection.execute, 'emt_streams'));
+      assertDeepEqual(dryRunResult.applied, [
+        ...migrations_0_42_0,
+        ...migrations_0_43_0,
+        schemaMigration,
+      ]);
+      assertFalse(await tableExists(connection.execute, 'dmb_migrations'));
+      assertFalse(await tableExists(connection.execute, 'emt_streams'));
 
-    // When
-    const { applied, skipped } = await eventStore.schema.migrate();
+      // When
+      const { applied, skipped } = await eventStore.schema.migrate();
 
-    // Then
-    assertDeepEqual(applied, [
-      ...migrations_0_42_0,
-      ...migrations_0_43_0,
-      schemaMigration,
-    ]);
-    assertThatArray(skipped).isEmpty();
+      // Then
+      assertDeepEqual(applied, [
+        ...migrations_0_42_0,
+        ...migrations_0_43_0,
+        schemaMigration,
+      ]);
+      assertThatArray(skipped).isEmpty();
 
-    assertTrue(await tableExists(connection.execute, 'dmb_migrations'));
+      assertTrue(await tableExists(connection.execute, 'dmb_migrations'));
 
-    const result = await assertCanAppendAndRead(eventStore);
-    await assertCanStoreAndReadCheckpoints(connection.execute, result);
-    await assertProjectionsTableExists(connection.execute);
-  });
+      const result = await assertCanAppendAndRead(eventStore);
+      await assertCanStoreAndReadCheckpoints(connection.execute, result);
+      await assertProjectionsTableExists(connection.execute);
+    });
+  }
 
   const assertCanAppendAndRead = async (eventStore: SQLiteEventStore) => {
     const shoppingCartId = 'cart-123';

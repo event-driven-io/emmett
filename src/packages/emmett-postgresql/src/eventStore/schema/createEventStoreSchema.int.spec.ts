@@ -1,9 +1,16 @@
-import { count, dumbo, SQL, SQLTableReference } from '@event-driven-io/dumbo';
+import {
+  count,
+  dumbo,
+  PendingMigrationsError,
+  SQL,
+  SQLTableReference,
+} from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   assertEqual,
   assertFalse,
+  assertThrowsAsync,
   assertTrue,
   type Event,
 } from '@event-driven-io/emmett';
@@ -288,60 +295,168 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     assertFalse(await tableExists(pool.execute, 'emmett_migrations', 'public'));
   });
 
-  void it('applies the configured migration after the user dry-runs it first', async () => {
-    const schemaOptions = {
-      databaseSchemaName: schemaName('events'),
-      migrationTable: {
-        schemaName: schemaName('infrastructure'),
-        tableName: schemaName('emmett_migrations'),
+  for (const dryRun of ['transactional', 'diff'] as const) {
+    void it(`applies the configured migration after the user dry-runs it first with ${dryRun} dry run`, async () => {
+      const schemaOptions = {
+        databaseSchemaName: schemaName('events'),
+        migrationTable: {
+          schemaName: schemaName('infrastructure'),
+          tableName: schemaName('emmett_migrations'),
+        },
+      } satisfies EventStoreDatabaseSchemaOptions;
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: {
+          autoMigration: 'None',
+          ...schemaOptions,
+        },
+      });
+
+      try {
+        const dryRunResult = await store.schema.migrate({ dryRun });
+
+        assertDeepEqual(dryRunResult.applied, [
+          schemaMigrationFor(schemaOptions),
+        ]);
+        assertFalse(
+          await schemaExists(pool.execute, schemaOptions.databaseSchemaName),
+        );
+        assertFalse(
+          await schemaExists(
+            pool.execute,
+            schemaOptions.migrationTable.schemaName,
+          ),
+        );
+
+        const actualMigration = await store.schema.migrate();
+
+        assertDeepEqual(actualMigration.applied, [
+          schemaMigrationFor(schemaOptions),
+        ]);
+        assertTrue(
+          await schemaExists(pool.execute, schemaOptions.databaseSchemaName),
+        );
+        assertEqual(
+          1,
+          await migrationRows({
+            schemaName: schemaOptions.migrationTable.schemaName,
+            tableName: schemaOptions.migrationTable.tableName,
+            migrationName: schemaMigrationFor(schemaOptions).name,
+          }),
+        );
+      } finally {
+        await store.close();
+      }
+    });
+  }
+
+  void it('rolls back changes made by schema hooks when the user runs a transactional dry run', async () => {
+    const eventSchemaName = schemaName('events');
+    const beforeHookTable = schemaName('before_hook_table');
+    const afterHookTable = schemaName('after_hook_table');
+    const store = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
+      schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+      hooks: {
+        onBeforeSchemaCreated: async (context) => {
+          await context.execute.command(
+            SQL`CREATE TABLE ${SQL.identifier(beforeHookTable)} (id INTEGER)`,
+          );
+        },
+        onAfterSchemaCreated: async (context) => {
+          await context.execute.command(
+            SQL`CREATE TABLE ${SQL.identifier(afterHookTable)} (id INTEGER)`,
+          );
+        },
       },
-    } satisfies EventStoreDatabaseSchemaOptions;
+    });
+
+    try {
+      await store.schema.migrate({ dryRun: 'transactional' });
+
+      assertFalse(await tableExists(pool.execute, beforeHookTable));
+      assertFalse(await tableExists(pool.execute, afterHookTable));
+      assertFalse(await schemaExists(pool.execute, eventSchemaName));
+    } finally {
+      await store.close();
+    }
+  });
+
+  void it('does not run schema hooks when the user runs a diff dry run', async () => {
+    let hookCalls = 0;
     const store = getPostgreSQLEventStore({
       driver: pgEventStoreDriver,
       connectionString: connectionString,
       schema: {
         autoMigration: 'None',
-        ...schemaOptions,
+        databaseSchemaName: schemaName('events'),
+      },
+      hooks: {
+        onBeforeSchemaCreated: () => {
+          hookCalls++;
+        },
+        onAfterSchemaCreated: () => {
+          hookCalls++;
+        },
       },
     });
 
     try {
-      const dryRun = await store.schema.migrate({ dryRun: true });
+      await store.schema.migrate({ dryRun: 'diff' });
 
-      assertDeepEqual(dryRun.applied, [schemaMigrationFor(schemaOptions)]);
-      assertTrue(
-        await tableExists(
-          pool.execute,
-          schemaOptions.migrationTable.tableName,
-          schemaOptions.migrationTable.schemaName,
-        ),
+      assertEqual(hookCalls, 0);
+    } finally {
+      await store.close();
+    }
+  });
+
+  void it('rejects operations when the user requires an already migrated schema and it is not migrated', async () => {
+    const eventSchemaName = schemaName('events');
+    const store = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
+      schema: {
+        autoMigration: 'EnsureMigrated',
+        databaseSchemaName: eventSchemaName,
+      },
+    });
+
+    try {
+      await assertThrowsAsync(
+        () => store.readStream(`shopping_cart-${uuid()}`),
+        (error) => error instanceof PendingMigrationsError,
       );
+      assertFalse(await schemaExists(pool.execute, eventSchemaName));
+    } finally {
+      await store.close();
+    }
+  });
 
-      await dropSchema(schemaOptions.databaseSchemaName);
-      await dropSchema(schemaOptions.migrationTable.schemaName);
+  void it('stores and reads events when the user requires an already migrated schema and migrated it first', async () => {
+    const streamName = `shopping_cart-${uuid()}`;
+    const store = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString: connectionString,
+      schema: {
+        autoMigration: 'EnsureMigrated',
+        databaseSchemaName: schemaName('events'),
+      },
+    });
 
-      const actualMigration = await store.schema.migrate();
+    try {
+      await store.schema.migrate();
 
-      assertDeepEqual(actualMigration.applied, [
-        schemaMigrationFor(schemaOptions),
+      await store.appendToStream<ProductItemAdded>(streamName, [
+        {
+          type: 'ProductItemAdded',
+          data: { productItem: { productId: 'sku-1', quantity: 1, price: 10 } },
+        },
       ]);
-      assertTrue(
-        await schemaExists(pool.execute, schemaOptions.databaseSchemaName),
-      );
-      assertTrue(
-        await schemaExists(
-          pool.execute,
-          schemaOptions.migrationTable.schemaName,
-        ),
-      );
-      assertEqual(
-        1,
-        await migrationRows({
-          schemaName: schemaOptions.migrationTable.schemaName,
-          tableName: schemaOptions.migrationTable.tableName,
-          migrationName: schemaMigrationFor(schemaOptions).name,
-        }),
-      );
+      const readResult = await store.readStream<ProductItemAdded>(streamName);
+
+      assertEqual(readResult.events.length, 1);
     } finally {
       await store.close();
     }
@@ -569,11 +684,6 @@ void describe('createEventStoreSchema with configured database schemas', () => {
         WHERE name = ${migrationName}`),
     );
   };
-
-  const dropSchema = (schemaName: string): Promise<unknown> =>
-    pool.execute.command(SQL`
-      DROP SCHEMA IF EXISTS ${SQL.identifier(schemaName)} CASCADE
-    `);
 });
 
 void describe('createEventStoreSchema sharing a database with a configured schema', () => {

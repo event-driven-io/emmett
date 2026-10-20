@@ -128,6 +128,17 @@ void describe('Pongo projection sharing the event store transaction', () => {
   void it('rejects a nested transaction and rolls back when the caller disallows nesting', async () => {
     const collectionName = uniqueCollectionName();
     const streamName = `shopping_cart:${uuid()}`;
+
+    const migratingStore = storeWith(collectionName, []);
+    try {
+      await migratingStore.appendToStream<ProductItemAdded>(
+        `shopping_cart:${uuid()}`,
+        [{ type: 'ProductItemAdded', data: { quantity: 1 } }],
+      );
+    } finally {
+      await migratingStore.close();
+    }
+
     const store = storeWith(
       collectionName,
       [nestedConnectionTransactionProjection()],

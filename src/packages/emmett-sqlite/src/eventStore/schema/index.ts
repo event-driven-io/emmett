@@ -1,6 +1,8 @@
 import {
   runSQLMigrations,
+  schemaComponent,
   type Dumbo,
+  type MigrationDryRun,
   type RunSQLMigrationsResult,
 } from '@event-driven-io/dumbo';
 import type {
@@ -32,10 +34,17 @@ export * from './tables';
 export * from './typing';
 
 export type CreateEventStoreSchemaOptions = {
-  dryRun?: boolean | undefined;
+  dryRun?: MigrationDryRun | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
-  migrationTimeoutMs?: number | undefined;
+  migrationTimeoutMS?: number | undefined;
 } & EventStoreDatabaseSchemaOptions;
+
+export const eventStoreSchemaComponent = (
+  options?: EventStoreDatabaseSchemaOptions,
+) =>
+  schemaComponent('emt:eventStore', {
+    migrations: () => eventStoreSchemaMigrationsFor(options),
+  });
 
 export type EventStoreSchemaMigrationOptions = {
   migrationOptions?: CreateEventStoreSchemaOptions;
@@ -53,10 +62,17 @@ export const createEventStoreSchema = <
   connectionOptions?: InferDumboOptionsFromEventStoreDriver<Driver>;
   hooks?: SQLiteEventStoreOptions['hooks'];
   schema?: CreateEventStoreSchemaOptions;
-}): Promise<RunSQLMigrationsResult> =>
-  session.pool.withTransaction<RunSQLMigrationsResult>(async (tx) => {
-    const { pool } = session;
-    const databaseSchema = eventStoreDatabaseSchema(options);
+}): Promise<RunSQLMigrationsResult> => {
+  const { pool } = session;
+  const databaseSchema = eventStoreDatabaseSchema(options);
+
+  if (options?.dryRun === 'diff')
+    return runSQLMigrations(pool, eventStoreSchemaMigrationsFor(options), {
+      ...options,
+      migrationTable: databaseSchema.migrationTable,
+    });
+
+  return pool.withTransaction<RunSQLMigrationsResult>(async (tx) => {
     const schemaContext: SQLiteProjectionHandlerContext<Driver> = {
       ...transactionToSQLiteProjectionHandlerContext(session, tx),
       migrationOptions: {
@@ -85,3 +101,4 @@ export const createEventStoreSchema = <
 
     return options?.dryRun ? { success: false, result } : result;
   });
+};

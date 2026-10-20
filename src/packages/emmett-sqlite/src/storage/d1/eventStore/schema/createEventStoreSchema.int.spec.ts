@@ -1,5 +1,11 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { count, SQL, SQLTableReference } from '@event-driven-io/dumbo';
+import {
+  count,
+  InvalidOperationError,
+  PendingMigrationsError,
+  SQL,
+  SQLTableReference,
+} from '@event-driven-io/dumbo';
 import {
   d1Pool,
   tableExists,
@@ -10,7 +16,7 @@ import {
   assertDeepEqual,
   assertEqual,
   assertFalse,
-  assertThatArray,
+  assertThrowsAsync,
   assertTrue,
 } from '@event-driven-io/emmett';
 import assert from 'assert';
@@ -154,7 +160,7 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     );
   });
 
-  void it('applies the configured migration already when the user dry-runs it, as the dry run is NOT rolled back', async () => {
+  void it('applies the configured migration after the user dry-runs it first with diff dry run', async () => {
     const schemaOptions = {
       databaseSchemaName: 'events',
       migrationTable: {
@@ -172,18 +178,17 @@ void describe('createEventStoreSchema with configured database schemas', () => {
       },
     });
 
-    const dryRun = await eventStore.schema.migrate({ dryRun: true });
+    const dryRun = await eventStore.schema.migrate({ dryRun: 'diff' });
 
     assertDeepEqual(dryRun.applied, [schemaMigrationFor(schemaOptions)]);
-    assertTrue(await configuredTableExists('events', 'emt_streams'));
-    assertTrue(
+    assertFalse(await configuredTableExists('events', 'emt_streams'));
+    assertFalse(
       await configuredTableExists('infrastructure', 'emmett_migrations'),
     );
 
-    const { applied, skipped } = await eventStore.schema.migrate();
+    const { applied } = await eventStore.schema.migrate();
 
-    assertThatArray(applied).isEmpty();
-    assertDeepEqual(skipped, [schemaMigrationFor(schemaOptions)]);
+    assertDeepEqual(applied, [schemaMigrationFor(schemaOptions)]);
     assertTrue(await configuredTableExists('events', 'emt_streams'));
     assertDeepEqual(
       await migrationNames({
@@ -192,6 +197,59 @@ void describe('createEventStoreSchema with configured database schemas', () => {
       }),
       [schemaMigrationFor(schemaOptions).name],
     );
+  });
+
+  void it('rejects a transactional dry run, as D1 does not support transactions', async () => {
+    const eventStore = getSQLiteEventStore({
+      driver: d1EventStoreDriver,
+      database,
+      pool,
+      schema: { autoMigration: 'None', databaseSchemaName: 'events' },
+    });
+
+    await assertThrowsAsync(
+      () => eventStore.schema.migrate({ dryRun: 'transactional' }),
+      (error) => error instanceof InvalidOperationError,
+    );
+    assertFalse(await configuredTableExists('events', 'emt_streams'));
+  });
+
+  void it('rejects operations when the user requires an already migrated schema and it is not migrated', async () => {
+    const eventStore = getSQLiteEventStore({
+      driver: d1EventStoreDriver,
+      database,
+      pool,
+      schema: { autoMigration: 'EnsureMigrated', databaseSchemaName: 'events' },
+    });
+
+    await assertThrowsAsync(
+      () => eventStore.readStream(`shopping_cart-${uuid()}`),
+      (error) => error instanceof PendingMigrationsError,
+    );
+    assertFalse(await configuredTableExists('events', 'emt_streams'));
+  });
+
+  void it('stores and reads events when the user requires an already migrated schema and migrated it first', async () => {
+    const streamName = `shopping_cart-${uuid()}`;
+    const eventStore = getSQLiteEventStore({
+      driver: d1EventStoreDriver,
+      database,
+      pool,
+      schema: { autoMigration: 'EnsureMigrated', databaseSchemaName: 'events' },
+    });
+
+    await eventStore.schema.migrate();
+
+    await eventStore.appendToStream<ProductItemAdded>(streamName, [
+      {
+        type: 'ProductItemAdded',
+        data: { productItem: { productId: 'sku-1', quantity: 1, price: 10 } },
+      },
+    ]);
+    const readResult =
+      await eventStore.readStream<ProductItemAdded>(streamName);
+
+    assertEqual(readResult.events.length, 1);
   });
 
   void it('passes the configured schema names to schema creation hooks', async () => {

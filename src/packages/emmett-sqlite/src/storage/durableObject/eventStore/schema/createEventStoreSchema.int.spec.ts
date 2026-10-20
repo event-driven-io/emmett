@@ -1,5 +1,10 @@
 import type { DurableObjectStorage } from '@cloudflare/workers-types';
-import { count, SQL, SQLTableReference } from '@event-driven-io/dumbo';
+import {
+  count,
+  PendingMigrationsError,
+  SQL,
+  SQLTableReference,
+} from '@event-driven-io/dumbo';
 import {
   cloudflareDurableObjectSQLitePool,
   tableExists,
@@ -10,6 +15,7 @@ import {
   assertDeepEqual,
   assertEqual,
   assertFalse,
+  assertThrowsAsync,
   assertTrue,
 } from '@event-driven-io/emmett';
 import assert from 'assert';
@@ -140,43 +146,85 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     );
   });
 
-  void it('applies the configured migration after the user dry-runs it first', async () => {
-    const schemaOptions = {
-      databaseSchemaName: 'events',
-      migrationTable: {
-        schemaName: 'infrastructure',
-        tableName: 'emmett_migrations',
-      },
-    };
+  for (const dryRun of ['transactional', 'diff'] as const) {
+    void it(`applies the configured migration after the user dry-runs it first with ${dryRun} dry run`, async () => {
+      const schemaOptions = {
+        databaseSchemaName: 'events',
+        migrationTable: {
+          schemaName: 'infrastructure',
+          tableName: 'emmett_migrations',
+        },
+      };
+      const eventStore = getSQLiteEventStore({
+        driver: durableObjectEventStoreDriver,
+        storage,
+        pool,
+        schema: {
+          autoMigration: 'None',
+          ...schemaOptions,
+        },
+      });
+
+      const dryRunResult = await eventStore.schema.migrate({ dryRun });
+
+      assertDeepEqual(dryRunResult.applied, [
+        schemaMigrationFor(schemaOptions),
+      ]);
+      assertFalse(await configuredTableExists('events', 'emt_streams'));
+      assertFalse(
+        await configuredTableExists('infrastructure', 'emmett_migrations'),
+      );
+
+      const { applied } = await eventStore.schema.migrate();
+
+      assertDeepEqual(applied, [schemaMigrationFor(schemaOptions)]);
+      assertTrue(await configuredTableExists('events', 'emt_streams'));
+      assertDeepEqual(
+        await migrationNames({
+          databaseSchemaName: 'infrastructure',
+          tableName: 'emmett_migrations',
+        }),
+        [schemaMigrationFor(schemaOptions).name],
+      );
+    });
+  }
+
+  void it('rejects operations when the user requires an already migrated schema and it is not migrated', async () => {
     const eventStore = getSQLiteEventStore({
       driver: durableObjectEventStoreDriver,
       storage,
       pool,
-      schema: {
-        autoMigration: 'None',
-        ...schemaOptions,
-      },
+      schema: { autoMigration: 'EnsureMigrated', databaseSchemaName: 'events' },
     });
 
-    const dryRun = await eventStore.schema.migrate({ dryRun: true });
-
-    assertDeepEqual(dryRun.applied, [schemaMigrationFor(schemaOptions)]);
+    await assertThrowsAsync(
+      () => eventStore.readStream(`shopping_cart-${uuid()}`),
+      (error) => error instanceof PendingMigrationsError,
+    );
     assertFalse(await configuredTableExists('events', 'emt_streams'));
-    assertFalse(
-      await configuredTableExists('infrastructure', 'emmett_migrations'),
-    );
+  });
 
-    const { applied } = await eventStore.schema.migrate();
+  void it('stores and reads events when the user requires an already migrated schema and migrated it first', async () => {
+    const streamName = `shopping_cart-${uuid()}`;
+    const eventStore = getSQLiteEventStore({
+      driver: durableObjectEventStoreDriver,
+      storage,
+      pool,
+      schema: { autoMigration: 'EnsureMigrated', databaseSchemaName: 'events' },
+    });
 
-    assertDeepEqual(applied, [schemaMigrationFor(schemaOptions)]);
-    assertTrue(await configuredTableExists('events', 'emt_streams'));
-    assertDeepEqual(
-      await migrationNames({
-        databaseSchemaName: 'infrastructure',
-        tableName: 'emmett_migrations',
-      }),
-      [schemaMigrationFor(schemaOptions).name],
-    );
+    await eventStore.schema.migrate();
+
+    await eventStore.appendToStream<ProductItemAdded>(streamName, [
+      {
+        type: 'ProductItemAdded',
+        data: { productItem: { productId: 'sku-1', quantity: 1, price: 10 } },
+      },
+    ]);
+    const readResult =
+      await eventStore.readStream<ProductItemAdded>(streamName);
+
+    assertEqual(readResult.events.length, 1);
   });
 
   void it('passes the configured schema names to schema creation hooks', async () => {
