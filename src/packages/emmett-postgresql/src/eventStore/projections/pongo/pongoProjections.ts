@@ -8,15 +8,22 @@ import {
   type TruncateProjection,
 } from '@event-driven-io/emmett';
 import {
+  databaseComponent,
+  DefaultDatabaseSchemaName,
+} from '@event-driven-io/dumbo';
+import {
   pongoClient,
+  pongoSchema,
   type PongoClient,
   type PongoDBCollectionOptions,
   type PongoDocument,
 } from '@event-driven-io/pongo';
 import {
   postgreSQLProjection,
+  postgreSQLProjectionSchema,
   type PostgreSQLProjectionDefinition,
   type PostgreSQLProjectionHandlerContext,
+  type PostgreSQLProjectionWithSchema,
 } from '..';
 import type { PostgresReadEventMetadata } from '../../postgreSQLEventStore';
 import { pongoDriverOf } from '../../eventStoreDriver';
@@ -226,14 +233,14 @@ export const pongoMultiStreamProjection = <
     EventPayloadType,
     DocumentPayload
   >,
-): PostgreSQLProjectionDefinition<EventType, EventPayloadType> => {
+): PostgreSQLProjectionWithSchema<EventType, EventPayloadType> => {
   const { collectionName, getDocumentId, getDocumentIds, canHandle } = options;
   const collectionNameWithVersion =
     options.version && options.version > 0
       ? `${collectionName}_v${options.version}`
       : collectionName;
 
-  return pongoProjection({
+  const projection = pongoProjection<EventType, EventPayloadType>({
     name: collectionNameWithVersion,
     version: options.version,
     kind: options.kind ?? 'emt:projections:postgresql:pongo:multi_stream',
@@ -302,16 +309,25 @@ export const pongoMultiStreamProjection = <
         await pongo.close();
       }
     },
-    init: async (context) => {
-      await context.pongo
-        .db()
-        .collection<Document, DocumentPayload>(
-          collectionNameWithVersion,
-          options.collectionOptions,
-        )
-        .schema.migrate(context.migrationOptions);
-    },
   });
+
+  return {
+    ...projection,
+    schema: postgreSQLProjectionSchema(({ projectionsDatabaseSchemaName }) => {
+      const defaultSchemaName =
+        projectionsDatabaseSchemaName ?? DefaultDatabaseSchemaName;
+
+      return databaseComponent({ defaultSchemaName }).withTable(
+        {
+          [collectionNameWithVersion]:
+            options.collectionOptions?.definition?.withTableName(
+              collectionNameWithVersion,
+            ) ?? pongoSchema.collection(collectionNameWithVersion),
+        },
+        options.collectionOptions?.databaseSchemaName ?? defaultSchemaName,
+      );
+    }),
+  };
 };
 
 export type PongoSingleStreamProjectionOptions<
@@ -379,7 +395,7 @@ export const pongoSingleStreamProjection = <
   EventMetaDataType,
   EventPayloadType,
   DocumentPayload
->): PostgreSQLProjectionDefinition<EventType, EventPayloadType> => {
+>): PostgreSQLProjectionWithSchema<EventType, EventPayloadType> => {
   return pongoMultiStreamProjection<
     Document,
     EventType,

@@ -154,9 +154,9 @@ export const asyncProjections = <
     ReadEventMetadataType,
     HandlerContext
   >[],
-): ProjectionRegistration<'inline', ReadEventMetadataType, HandlerContext>[] =>
+): ProjectionRegistration<'async', ReadEventMetadataType, HandlerContext>[] =>
   definitions.map((definition) => ({
-    type: 'inline',
+    type: 'async',
     projection: definition,
   }));
 

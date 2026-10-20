@@ -70,6 +70,7 @@ import {
 } from '../postgreSQLEventStore';
 import {
   DefaultPostgreSQLProcessorLockPolicy,
+  isPostgreSQLProjectionWithSchema,
   postgreSQLProcessorLock,
   type LockAcquisitionPolicy,
   type PostgreSQLProcessorLock,
@@ -367,8 +368,8 @@ const postgreSQLProcessingScope = <
               connection: connection as unknown as PgPoolClientConnection,
             },
             schema: {
-              autoMigration: 'None',
               ...options.migrationOptions,
+              autoMigration: 'None',
             },
           }),
         },
@@ -472,8 +473,24 @@ export const postgreSQLProjector = <
   const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext<Driver>> = {
     ...(options.hooks ?? {}),
     onInit:
-      options.projection.init !== undefined || options.hooks?.onInit
+      options.projection.init !== undefined ||
+      isPostgreSQLProjectionWithSchema(options.projection) ||
+      options.hooks?.onInit
         ? async (context) => {
+            const autoMigration =
+              options.migrationOptions?.autoMigration ?? 'CreateOrUpdate';
+            const projectionContext = {
+              ...context,
+              migrationOptions: options.migrationOptions,
+            };
+            if (isPostgreSQLProjectionWithSchema(options.projection)) {
+              if (autoMigration === 'EnsureMigrated')
+                await options.projection.schema.ensureMigrated(
+                  projectionContext,
+                );
+              else if (autoMigration === 'CreateOrUpdate')
+                await options.projection.schema.migrate(projectionContext);
+            }
             if (options.projection.init)
               await options.projection.init({
                 version: options.projection.version ?? version,

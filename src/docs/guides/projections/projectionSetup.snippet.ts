@@ -104,3 +104,24 @@ consumer.projector({ projection: clientSummaryProjection });
 // start consuming events and projecting
 await consumer.start();
 // #endregion async-projection-setup
+
+// #region projection-migrations-setup
+// provision the schema with a role that can create tables
+const provisioningStore = getPostgreSQLEventStore(connectionString, {
+  schema: { autoMigration: 'None' },
+  projections: [{ type: 'async', projection: cartSummaryProjection }],
+});
+
+// creates event store tables and tables of all registered projections
+await provisioningStore.schema.migrate();
+
+// at runtime, only check that the schema is migrated
+const runtimeStore = getPostgreSQLEventStore(connectionString, {
+  schema: { autoMigration: 'EnsureMigrated' },
+});
+
+const runtimeConsumer = runtimeStore.consumer({
+  schema: { autoMigration: 'EnsureMigrated' },
+});
+runtimeConsumer.projector({ projection: cartSummaryProjection });
+// #endregion projection-migrations-setup

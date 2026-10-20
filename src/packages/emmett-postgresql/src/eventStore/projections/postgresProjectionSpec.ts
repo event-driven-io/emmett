@@ -8,6 +8,7 @@ import {
 import type { PgPool, PgPoolOptions } from '@event-driven-io/dumbo/pg';
 import { pgEventStoreDriver, type PgEventStoreDriver } from '../../pg';
 import {
+  projections,
   assertFails,
   AssertionError,
   assertThatArray,
@@ -102,6 +103,7 @@ export const PostgreSQLProjectionSpec = {
           // TODO: This will need to change when we support other drivers
           connectionOptions: { dumbo: pool as PgPool },
           schema: options.schema,
+          projections: projections.inline([projection]),
         });
 
         if (wasInitialised) return;
@@ -109,25 +111,6 @@ export const PostgreSQLProjectionSpec = {
         wasInitialised = true;
 
         await eventStore.schema.migrate();
-        if (projection.init)
-          await pool.withTransaction(async (transaction) => {
-            await projection.init!({
-              registrationType: 'async',
-              version: projection.version ?? 1,
-              status: 'active',
-              context: {
-                ...transactionToPostgreSQLProjectionHandlerContext(
-                  {
-                    pool,
-                    driver: pgEventStoreDriver,
-                    connectionOptions: dumboOptions,
-                  },
-                  transaction,
-                ),
-                migrationOptions,
-              },
-            });
-          });
       };
 
       return (givenEvents: PostgreSQLProjectionSpecEvent<EventType>[]) => {

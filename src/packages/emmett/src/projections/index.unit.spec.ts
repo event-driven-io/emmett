@@ -1,6 +1,7 @@
 import { describe, it } from 'vitest';
 import {
   filterProjections,
+  projections,
   type ProjectionHandlingType,
   type ProjectionRegistration,
 } from '.';
@@ -146,5 +147,25 @@ void describe('filterProjections', () => {
       // Expect both, since '' != undefined
       assertThatArray(result).hasSize(2);
     });
+  });
+});
+
+void describe('projections', () => {
+  const projection = {
+    name: 'test',
+    canHandle: ['test'],
+    handle: () => Promise.resolve(),
+  };
+
+  void it('registers inline projections as inline', () => {
+    assertDeepEqual(projections.inline([projection]), [
+      { type: 'inline', projection },
+    ]);
+  });
+
+  void it('registers async projections as async', () => {
+    assertDeepEqual(projections.async([projection]), [
+      { type: 'async', projection },
+    ]);
   });
 });

@@ -1,10 +1,21 @@
-import type {
-  AnyConnection,
-  AnyDatabaseTransaction,
-  DatabaseDriverType,
-  Dumbo,
-  SQL,
-  SQLExecutor,
+import {
+  describeSQL,
+  getFormatter,
+  JSONSerializer,
+  schemaComponent,
+  schemaComponentMigrator,
+  sqlMigration,
+  type AnyConnection,
+  type AnyDatabaseTransaction,
+  type AnySchemaComponent,
+  type DatabaseDriverType,
+  type Dumbo,
+  type MigratorOptions,
+  type RunSQLMigrationsResult,
+  type SchemaComponentMigrateOptions,
+  type SQL,
+  type SQLExecutor,
+  type SQLMigration,
 } from '@event-driven-io/dumbo';
 
 import {
@@ -17,7 +28,6 @@ import {
   type ProjectionDefinition,
   type ProjectionHandler,
   type ProjectionHandlerContext,
-  type ProjectionInitOptions,
   type ReadEvent,
 } from '@event-driven-io/emmett';
 import type {
@@ -28,6 +38,11 @@ import type {
   InferTransactionFromEventStoreDriver,
 } from '../eventStoreDriver';
 import type { EventStoreSchemaMigrationOptions } from '../schema';
+import {
+  eventStoreDatabaseSchema,
+  type EventStoreDatabaseSchema,
+  type EventStoreDatabaseSchemaOptions,
+} from '../schema/eventStoreDatabaseSchema';
 import type { SQLiteReadEventMetadata } from '../SQLiteEventStore';
 
 export type SQLiteProjectionHandlerContext<
@@ -147,6 +162,112 @@ export const sqliteProjection = <
     EventPayloadType
   >(definition);
 
+export type SQLiteProjectionEnsureMigratedOptions = Pick<
+  MigratorOptions,
+  'dryRun' | 'ignoreMigrationHashMismatch' | 'migrationTimeoutMS'
+>;
+
+export type SQLiteProjectionSchemaContext = {
+  execute: SQLExecutor;
+  session: { pool: Dumbo };
+} & EventStoreSchemaMigrationOptions;
+
+export type SQLiteProjectionSchema = {
+  component(options?: EventStoreDatabaseSchemaOptions): AnySchemaComponent;
+  migrations(
+    options?: EventStoreDatabaseSchemaOptions,
+  ): ReadonlyArray<SQLMigration>;
+  sql(options?: EventStoreDatabaseSchemaOptions): string;
+  print(options?: EventStoreDatabaseSchemaOptions): void;
+  migrate(
+    context: SQLiteProjectionSchemaContext,
+    options?: SchemaComponentMigrateOptions,
+  ): Promise<RunSQLMigrationsResult>;
+  ensureMigrated(
+    context: SQLiteProjectionSchemaContext,
+    options?: SQLiteProjectionEnsureMigratedOptions,
+  ): Promise<void>;
+};
+
+export type SQLiteProjectionWithSchema<
+  EventType extends Event = Event,
+  EventPayloadType extends Event = EventType,
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+> = SQLiteProjectionDefinition<EventType, EventPayloadType, Driver> & {
+  schema: SQLiteProjectionSchema;
+};
+
+export const isSQLiteProjectionWithSchema = <Projection extends object>(
+  projection: Projection,
+): projection is Projection & { schema: SQLiteProjectionSchema } =>
+  'schema' in projection &&
+  typeof projection.schema === 'object' &&
+  projection.schema !== null &&
+  'component' in projection.schema &&
+  typeof projection.schema.component === 'function';
+
+export const sqliteProjectionSchema = (
+  componentFor: (schema: EventStoreDatabaseSchema) => AnySchemaComponent,
+): SQLiteProjectionSchema => {
+  const component = (options?: EventStoreDatabaseSchemaOptions) =>
+    componentFor(eventStoreDatabaseSchema(options));
+
+  const sql = (options?: EventStoreDatabaseSchemaOptions) =>
+    describeSQL(
+      component(options)
+        .migrations()
+        .flatMap(({ sqls }) => sqls),
+      getFormatter('SQLite'),
+      JSONSerializer,
+    );
+
+  const migrator = (context: SQLiteProjectionSchemaContext) =>
+    schemaComponentMigrator({
+      pool: context.session.pool,
+      component: component(context.migrationOptions),
+      migrationTable: eventStoreDatabaseSchema(context.migrationOptions)
+        .migrationTable,
+      ignoreMigrationHashMismatch:
+        context.migrationOptions?.ignoreMigrationHashMismatch,
+      migrationTimeoutMS: context.migrationOptions?.migrationTimeoutMS,
+      execute: context.execute,
+    });
+
+  return {
+    component,
+    migrations: (options) => component(options).migrations(),
+    sql,
+    print: (options) => console.log(sql(options)),
+    migrate: (context, options) => migrator(context).migrate(options),
+    ensureMigrated: (context, options) =>
+      migrator(context).ensureMigrated(options),
+  };
+};
+
+export type SQLiteRawSQLProjectionSchemaOptions =
+  | { schema?: AnySchemaComponent; migrations?: never; init?: never }
+  | { schema?: never; migrations?: SQLMigration[]; init?: never }
+  | {
+      schema?: never;
+      migrations?: never;
+      /**
+       * @deprecated Use `migrations` or `schema` instead.
+       *
+       * The returned SQL runs once, as the migration named
+       * `emt:projections:<projection name>:init`. If you change the SQL later,
+       * migrating fails with a migration hash mismatch. Add the change as a new
+       * migration in `migrations` instead.
+       *
+       * @example
+       * migrations: [
+       *   sqlMigration('product_sales:create', [
+       *     SQL`CREATE TABLE IF NOT EXISTS product_sales (id TEXT PRIMARY KEY)`,
+       *   ]),
+       * ],
+       */
+      init?: () => SQL | SQL[];
+    };
+
 export type SQLiteRawBatchSQLProjection<
   EventType extends Event,
   EventPayloadType extends Event = EventType,
@@ -160,13 +281,11 @@ export type SQLiteRawBatchSQLProjection<
     context: SQLiteProjectionHandlerContext<Driver>,
   ) => Promise<SQL[]> | SQL[];
   canHandle: CanHandle<EventType>;
-  init?: (
-    context: ProjectionInitOptions<SQLiteProjectionHandlerContext<Driver>>,
-  ) => void | Promise<void> | SQL | Promise<SQL> | Promise<SQL[]> | SQL[];
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
-} & JSONSerializationOptions;
+} & SQLiteRawSQLProjectionSchemaOptions &
+  JSONSerializationOptions;
 
 export const sqliteRawBatchSQLProjection = <
   EventType extends Event,
@@ -174,8 +293,8 @@ export const sqliteRawBatchSQLProjection = <
   Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 >(
   options: SQLiteRawBatchSQLProjection<EventType, EventPayloadType, Driver>,
-): SQLiteProjectionDefinition<EventType, EventPayloadType, Driver> =>
-  sqliteProjection<EventType, EventPayloadType, Driver>({
+): SQLiteProjectionDefinition<EventType, EventPayloadType, Driver> => {
+  const definition = sqliteProjection<EventType, EventPayloadType, Driver>({
     name: options.name,
     kind: options.kind ?? 'emt:projections:sqlite:raw_sql:batch',
     version: options.version,
@@ -186,20 +305,37 @@ export const sqliteRawBatchSQLProjection = <
 
       await context.execute.batchCommand(sqls);
     },
-    init: async (initOptions) => {
-      const initSQL = options.init
-        ? await options.init(initOptions)
-        : undefined;
-
-      if (initSQL) {
-        if (Array.isArray(initSQL)) {
-          await initOptions.context.execute.batchCommand(initSQL);
-        } else {
-          await initOptions.context.execute.command(initSQL);
-        }
-      }
-    },
   });
+
+  const { init, migrations } = options;
+  const migrationsOf = migrations
+    ? () => migrations
+    : init
+      ? () => [
+          sqlMigration(`emt:projections:${options.name}:init`, [init()].flat()),
+        ]
+      : undefined;
+  const component =
+    options.schema ??
+    (migrationsOf
+      ? schemaComponent('emt:projections:sqlite:raw_sql', {
+          migrations: migrationsOf,
+        })
+      : undefined);
+
+  if (!component) return definition;
+
+  const withSchema: SQLiteProjectionWithSchema<
+    EventType,
+    EventPayloadType,
+    Driver
+  > = {
+    ...definition,
+    schema: sqliteProjectionSchema(() => component),
+  };
+
+  return withSchema;
+};
 
 export type SQLiteRawSQLProjection<
   EventType extends Event,
@@ -214,13 +350,11 @@ export type SQLiteRawSQLProjection<
     context: SQLiteProjectionHandlerContext<Driver>,
   ) => Promise<SQL[]> | SQL[] | Promise<SQL> | SQL;
   canHandle: CanHandle<EventType>;
-  init?: (
-    context: ProjectionInitOptions<SQLiteProjectionHandlerContext<Driver>>,
-  ) => void | Promise<void> | SQL | Promise<SQL> | Promise<SQL[]> | SQL[];
   eventsOptions?: {
     schema?: EventStoreReadSchemaOptions<EventType, EventPayloadType>;
   };
-} & JSONSerializationOptions;
+} & SQLiteRawSQLProjectionSchemaOptions &
+  JSONSerializationOptions;
 
 export const sqliteRawSQLProjection = <
   EventType extends Event,

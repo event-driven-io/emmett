@@ -1,4 +1,4 @@
-import { dumbo } from '@event-driven-io/dumbo';
+import { dumbo, type MigrationStyle } from '@event-driven-io/dumbo';
 import {
   consumer,
   type AnyCommand,
@@ -47,7 +47,9 @@ export type SQLiteEventStoreConsumerConfig<
     batchDeadlineInMs?: number;
     pullingFrequencyInMs?: number;
   };
-  schema?: EventStoreDatabaseSchemaOptions;
+  schema?: {
+    autoMigration?: MigrationStyle | undefined;
+  } & EventStoreDatabaseSchemaOptions;
 } & JSONSerializationOptions;
 
 export type SQLiteEventStoreConsumerConnectionOptions<

@@ -1,9 +1,16 @@
-import { count, dumbo, SQL, SQLTableReference } from '@event-driven-io/dumbo';
+import {
+  count,
+  dumbo,
+  PendingMigrationsError,
+  SQL,
+  SQLTableReference,
+} from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertEqual,
   assertFalse,
   assertIsNotNull,
+  assertRejects,
   type Event,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
@@ -424,6 +431,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       const projectionSchemaName = schemaName('read_models');
       const collectionName = schemaName('shopping_cart_summary');
       const streamName = `shopping_cart-${uuid()}`;
+      const projection = shoppingCartSummaryProjection(collectionName);
       const store = getPostgreSQLEventStore({
         driver: pgEventStoreDriver,
         connectionString: connectionString,
@@ -432,6 +440,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
           databaseSchemaName: eventSchemaName,
           projectionsDatabaseSchemaName: projectionSchemaName,
         },
+        projections: [{ type: 'async', projection }],
       });
 
       try {
@@ -440,23 +449,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
         const consumer = store.consumer<ProductItemAdded>();
         consumer.projector({
           processorId: `processor:${uuid()}`,
-          projection: pongoSingleStreamProjection<
-            ShoppingCartSummary,
-            ProductItemAdded
-          >({
-            collectionName,
-            canHandle: ['ProductItemAdded'],
-            evolve: (
-              document: ShoppingCartSummary,
-              event: ProductItemAdded,
-            ): ShoppingCartSummary => ({
-              productItemsCount:
-                document.productItemsCount + event.data.productItem.quantity,
-            }),
-            initialState: () => ({
-              productItemsCount: 0,
-            }),
-          }),
+          projection,
         });
 
         void consumer.start();
@@ -478,6 +471,169 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
           await tableExists(pool.execute, collectionName, eventSchemaName),
         );
         assertFalse(await tableExists(pool.execute, collectionName));
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'creates no projection tables in projector initialization when the consumer skips migrations',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+          schema: { autoMigration: 'None' },
+        });
+        consumer.projector({
+          processorId: `processor:${uuid()}`,
+          projection: shoppingCartSummaryProjection(collectionName),
+        });
+
+        await consumer.start();
+
+        assertFalse(
+          await tableExists(pool.execute, collectionName, eventSchemaName),
+        );
+        assertIsNotNull(
+          await readProjectionInfo(pool.execute, {
+            databaseSchemaName: eventSchemaName,
+            name: collectionName,
+            partition: 'emt:default',
+            version: 1,
+          }),
+        );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'creates no projection tables in projector initialization when the event store skips migrations',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+        });
+        consumer.projector({
+          processorId: `processor:${uuid()}`,
+          projection: shoppingCartSummaryProjection(collectionName),
+        });
+
+        await consumer.start();
+
+        assertFalse(
+          await tableExists(pool.execute, collectionName, eventSchemaName),
+        );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'fails to start the consumer when projection migrations are pending and the consumer ensures migrations',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+          schema: { autoMigration: 'EnsureMigrated' },
+        });
+        consumer.projector({
+          processorId: `processor:${uuid()}`,
+          projection: shoppingCartSummaryProjection(collectionName),
+        });
+
+        await assertRejects(
+          consumer.start(),
+          (error) =>
+            error instanceof PendingMigrationsError &&
+            error.pendingMigrations.some(({ name }) =>
+              name.includes(collectionName),
+            ),
+        );
+        assertFalse(
+          await tableExists(pool.execute, collectionName, eventSchemaName),
+        );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'projects events when the user migrated the projection and the consumer ensures migrations',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const projection = shoppingCartSummaryProjection(collectionName);
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+        projections: [{ type: 'async', projection }],
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          schema: { autoMigration: 'EnsureMigrated' },
+        });
+        consumer.projector({
+          processorId: `processor:${uuid()}`,
+          projection,
+        });
+
+        void consumer.start();
+        try {
+          await consumer.whenStarted();
+
+          await store.appendToStream(`shopping_cart-${uuid()}`, [
+            { type: 'ProductItemAdded', data: { productItem } },
+          ]);
+
+          await consumer.whenCaughtUp();
+        } finally {
+          await consumer.close();
+        }
+
+        assertEqual(1, await rowsInTable(eventSchemaName, collectionName));
       } finally {
         await store.close();
       }
@@ -521,6 +677,20 @@ type GuestStayEvent = GuestCheckedIn | GuestCheckedOut;
 type ShoppingCartSummary = {
   productItemsCount: number;
 };
+
+const shoppingCartSummaryProjection = (collectionName: string) =>
+  pongoSingleStreamProjection<ShoppingCartSummary, ProductItemAdded>({
+    collectionName,
+    canHandle: ['ProductItemAdded'],
+    evolve: (
+      document: ShoppingCartSummary,
+      event: ProductItemAdded,
+    ): ShoppingCartSummary => ({
+      productItemsCount:
+        document.productItemsCount + event.data.productItem.quantity,
+    }),
+    initialState: () => ({ productItemsCount: 0 }),
+  });
 
 const schemaName = (prefix: string): string =>
   `${prefix}_${uuid().replaceAll('-', '_')}`;

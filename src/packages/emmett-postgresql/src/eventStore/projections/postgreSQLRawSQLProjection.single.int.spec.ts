@@ -52,6 +52,7 @@ void describe('PostgreSQL Projections', () => {
         canHandle: ['ProductItemAdded'],
         init: () => {
           wasInitCalled = true;
+          return SQL`SELECT 1;`;
         },
       }),
     });
@@ -83,7 +84,7 @@ void describe('PostgreSQL Projections', () => {
     const given = PostgreSQLProjectionSpec.for({
       connectionString,
       projection: postgreSQLRawSQLProjection({
-        name: 'test',
+        name: projection,
         evolve: () => SQL`SELECT 1;`,
         canHandle: ['ProductItemAdded'],
         init: () =>
@@ -237,9 +238,7 @@ void describe('PostgreSQL Projections', () => {
     const projectionSchemaName = schemaName('read_models');
     const migrationSchemaName = schemaName('infrastructure');
     const migrationTableName = 'emmett_migrations';
-    let initProjectionSchemaName: string | undefined;
     let evolveProjectionSchemaName: string | undefined;
-    let initMigrationTableSchemaName: string | undefined;
     let evolveMigrationTableSchemaName: string | undefined;
 
     const given = PostgreSQLProjectionSpec.for({
@@ -256,13 +255,6 @@ void describe('PostgreSQL Projections', () => {
       projection: postgreSQLRawSQLProjection<ProductItemAdded>({
         name: schemaName('raw_product_sales'),
         canHandle: ['ProductItemAdded'],
-        init: ({ context }) => {
-          initProjectionSchemaName =
-            context.migrationOptions?.projectionsDatabaseSchemaName;
-          initMigrationTableSchemaName =
-            context.migrationOptions?.migrationTable?.schemaName;
-          return SQL`SELECT 1;`;
-        },
         evolve: (_event, context) => {
           evolveProjectionSchemaName =
             context.migrationOptions?.projectionsDatabaseSchemaName;
@@ -283,9 +275,7 @@ void describe('PostgreSQL Projections', () => {
         },
       ])
       .then(async () => {
-        assertEqual(initProjectionSchemaName, projectionSchemaName);
         assertEqual(evolveProjectionSchemaName, projectionSchemaName);
-        assertEqual(initMigrationTableSchemaName, migrationSchemaName);
         assertEqual(evolveMigrationTableSchemaName, migrationSchemaName);
         await Promise.resolve();
       });

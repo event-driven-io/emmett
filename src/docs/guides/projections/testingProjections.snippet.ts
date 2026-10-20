@@ -215,7 +215,7 @@ void describe('Shopping Cart Short Info Projection idempotency', () => {
 });
 
 // #region raw-sql-projection
-import { SQL } from '@event-driven-io/dumbo';
+import { SQL, sqlMigration } from '@event-driven-io/dumbo';
 import { postgreSQLRawSQLProjection } from '@event-driven-io/emmett-postgresql';
 
 const productSalesTable = 'product_sales';
@@ -223,11 +223,14 @@ const productSalesTable = 'product_sales';
 const productSalesProjection = postgreSQLRawSQLProjection<ProductItemAdded>({
   name: 'productSales',
   canHandle: ['ProductItemAdded'],
-  init: () =>
-    SQL`CREATE TABLE IF NOT EXISTS ${SQL.identifier(productSalesTable)} (
-      product_id TEXT PRIMARY KEY,
-      total_amount INT NOT NULL
-    )`,
+  migrations: [
+    sqlMigration('product_sales:create', [
+      SQL`CREATE TABLE IF NOT EXISTS ${SQL.identifier(productSalesTable)} (
+        product_id TEXT PRIMARY KEY,
+        total_amount INT NOT NULL
+      )`,
+    ]),
+  ],
   evolve: ({ data: { productItem } }) =>
     SQL`INSERT INTO ${SQL.identifier(productSalesTable)} (product_id, total_amount)
         VALUES (${productItem.productId}, ${productItem.price * productItem.quantity})
