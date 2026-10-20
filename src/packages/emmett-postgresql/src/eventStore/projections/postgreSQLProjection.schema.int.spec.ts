@@ -185,6 +185,60 @@ void describe('PostgreSQL projection schema', () => {
   );
 
   void it(
+    'creates the raw SQL projection tables in the projections schema when the user provides a database component',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const projectionSchemaName = schemaName('read_models');
+      const salesTableName = schemaName('product_sales');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString,
+        schema: {
+          autoMigration: 'None',
+          databaseSchemaName: eventSchemaName,
+          projectionsDatabaseSchemaName: projectionSchemaName,
+        },
+        projections: [
+          {
+            type: 'inline',
+            projection: postgreSQLRawSQLProjection<ProductItemAdded>({
+              name: salesTableName,
+              canHandle: ['ProductItemAdded'],
+              schema: dumboSchema.database({
+                tables: {
+                  sales: table(salesTableName, {
+                    columns: {
+                      productId: column('product_id', Text, {
+                        primaryKey: true,
+                        notNull: true,
+                      }),
+                    },
+                  }),
+                },
+              }),
+              evolve: () => SQL`SELECT 1;`,
+            }),
+          },
+        ],
+      });
+
+      try {
+        await store.schema.migrate();
+
+        assertTrue(
+          await tableExists(pool.execute, salesTableName, projectionSchemaName),
+        );
+        assertFalse(
+          await tableExists(pool.execute, salesTableName, eventSchemaName),
+        );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
     'rejects migrating when the user changes the SQL returned by init after it was applied',
     withDeadline,
     async () => {
@@ -298,10 +352,13 @@ void describe('PostgreSQL projection schema', () => {
 
       try {
         assertTrue(isPostgreSQLProjectionWithSchema(projection));
+        assertTrue(projection.schema.sql().includes(collectionName));
+        assertFalse(projection.schema.sql().includes(eventSchemaName));
         assertTrue(
           projection.schema
-            .sql({ databaseSchemaName: eventSchemaName })
-            .includes(collectionName),
+            .withDatabaseSchemaName(eventSchemaName)
+            .sql()
+            .includes(eventSchemaName),
         );
         assertTrue(store.schema.sql().includes(collectionName));
         assertTrue(store.schema.sql().includes('emt_messages'));
