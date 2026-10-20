@@ -118,10 +118,10 @@ await provisioningStore.schema.migrate();
 // at runtime, only check that the schema is migrated
 const runtimeStore = getPostgreSQLEventStore(connectionString, {
   schema: { autoMigration: 'EnsureMigrated' },
+  projections: [{ type: 'async', projection: cartSummaryProjection }],
 });
 
-const runtimeConsumer = runtimeStore.consumer({
-  schema: { autoMigration: 'EnsureMigrated' },
-});
-runtimeConsumer.projector({ projection: cartSummaryProjection });
+// runs the async projections registered in the event store
+const runtimeConsumer = runtimeStore.consumer();
+await runtimeConsumer.start();
 // #endregion projection-migrations-setup

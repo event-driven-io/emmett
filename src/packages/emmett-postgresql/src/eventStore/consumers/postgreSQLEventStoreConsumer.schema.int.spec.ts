@@ -11,6 +11,8 @@ import {
   assertFalse,
   assertIsNotNull,
   assertRejects,
+  assertThrows,
+  EmmettError,
   type Event,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
@@ -447,10 +449,6 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
         await store.schema.migrate();
 
         const consumer = store.consumer<ProductItemAdded>();
-        consumer.projector({
-          processorId: `processor:${uuid()}`,
-          projection,
-        });
 
         void consumer.start();
         try {
@@ -615,10 +613,6 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
         const consumer = store.consumer<ProductItemAdded>({
           schema: { autoMigration: 'EnsureMigrated' },
         });
-        consumer.projector({
-          processorId: `processor:${uuid()}`,
-          projection,
-        });
 
         void consumer.start();
         try {
@@ -634,6 +628,36 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
         }
 
         assertEqual(1, await rowsInTable(eventSchemaName, collectionName));
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'rejects registering a projector for a projection that the event store already runs as async',
+    withDeadline,
+    async () => {
+      const projection = shoppingCartSummaryProjection(
+        schemaName('shopping_cart_summary'),
+      );
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: {
+          autoMigration: 'None',
+          databaseSchemaName: schemaName('events'),
+        },
+        projections: [{ type: 'async', projection }],
+      });
+
+      try {
+        const consumer = store.consumer<ProductItemAdded>();
+
+        assertThrows(
+          () => consumer.projector({ projection }),
+          (error) => error instanceof EmmettError,
+        );
       } finally {
         await store.close();
       }

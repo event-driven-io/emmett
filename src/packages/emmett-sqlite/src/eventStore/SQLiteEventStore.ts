@@ -25,6 +25,7 @@ import {
   withOperationScope,
   type AggregateStreamOptions,
   type AggregateStreamResult,
+  type AnyEvent,
   type AnyMessage,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
@@ -58,6 +59,7 @@ import {
   handleProjections,
   isSQLiteProjectionWithSchema,
   transactionToSQLiteProjectionHandlerContext,
+  type SQLiteProjectionDefinition,
   type SQLiteProjectionEnsureMigratedOptions,
   type SQLiteProjectionHandlerContext,
 } from './projections';
@@ -210,6 +212,9 @@ export const getSQLiteEventStore = <
 
   const inlineProjections = (options.projections ?? [])
     .filter(({ type }) => type === 'inline')
+    .map(({ projection }) => projection);
+  const asyncProjections = (options.projections ?? [])
+    .filter(({ type }) => type === 'async')
     .map(({ projection }) => projection);
   const observability = eventStoreObservability(options);
   const collector = eventStoreCollector(observability);
@@ -481,8 +486,8 @@ export const getSQLiteEventStore = <
 
     consumer: <ConsumerMessageType extends Message = AnyMessage>(
       consumerOptions?: SQLiteEventStoreConsumerConfig<ConsumerMessageType>,
-    ): SQLiteEventStoreConsumer<ConsumerMessageType> =>
-      sqliteEventStoreConsumer<ConsumerMessageType, Driver>({
+    ): SQLiteEventStoreConsumer<ConsumerMessageType> => {
+      const consumer = sqliteEventStoreConsumer<ConsumerMessageType, Driver>({
         ...(options ?? {}),
         ...consumerOptions,
         schema: {
@@ -497,7 +502,19 @@ export const getSQLiteEventStore = <
           consumerOptions?.observability,
         ),
         pool,
-      }),
+      });
+
+      if (!consumerOptions?.processors?.length)
+        for (const projection of asyncProjections)
+          consumer.projector({
+            // TODO: Fix this cast when projection registrations are typed with the consumer message type
+            projection: projection as unknown as SQLiteProjectionDefinition<
+              ConsumerMessageType & AnyEvent
+            >,
+          });
+
+      return consumer;
+    },
 
     async withSession<T = unknown>(
       callback: (session: EventStoreSession<SQLiteEventStore>) => Promise<T>,

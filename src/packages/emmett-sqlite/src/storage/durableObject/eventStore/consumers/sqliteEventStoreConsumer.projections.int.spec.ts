@@ -369,7 +369,9 @@ void describe('SQLite event store started consumer', () => {
           { type: 'ShoppingCartConfirmed', data: { confirmedAt } },
         ] as ShoppingCartSummaryEvent[]);
 
-        const consumer = eventStore.consumer();
+        const consumer = eventStore.consumer({
+          schema: { autoMigration: 'CreateOrUpdate' },
+        });
         consumer.projector<ShoppingCartSummaryEvent>({
           processorId: uuid(),
           projection: shoppingCartsSummaryProjection,

@@ -252,7 +252,14 @@ export const consumer = <
   const register: RegisterMessageProcessor<ConsumerMessageType> = (
     processor,
   ) => {
-    if (!processors.includes(processor)) processors.push(processor);
+    if (processors.includes(processor)) return processor;
+
+    if (processors.some(({ id }) => id === processor.id))
+      throw new EmmettError(
+        `Processor with id '${processor.id}' is already registered in this consumer. Ensure that each processor has a unique id.`,
+      );
+
+    processors.push(processor);
 
     return processor;
   };

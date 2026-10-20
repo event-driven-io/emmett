@@ -72,6 +72,8 @@ Pongo and raw SQL projections declare the tables they need. The event store crea
 - `EnsureMigrated` only checks that all migrations are applied, and throws `PendingMigrationsError` if any are pending.
 - `None` runs no migration and no check.
 
+A consumer created with `eventStore.consumer()` uses the event store's `autoMigration`, unless you set its own in `schema.autoMigration`. If you don't pass `processors` to it, it runs all projections registered in the event store as async.
+
 Use `None` or `EnsureMigrated` when your runtime database role cannot create tables. Then migrate the schema in a separate step with a role that can:
 
 <<< ./projections/projectionSetup.snippet.ts#projection-migrations-setup

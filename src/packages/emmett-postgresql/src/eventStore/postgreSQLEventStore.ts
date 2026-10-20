@@ -33,6 +33,7 @@ import {
   withOperationScope,
   type AggregateStreamOptions,
   type AggregateStreamResult,
+  type AnyEvent,
   type AnyMessage,
   type AppendToStreamOptions,
   type AppendToStreamResultWithGlobalPosition,
@@ -63,6 +64,7 @@ import {
   isPostgreSQLProjectionWithSchema,
   transactionToPostgreSQLProjectionHandlerContext,
   type PostgreSQLProjectionEnsureMigratedOptions,
+  type PostgreSQLProjectionDefinition,
   type PostgreSQLProjectionHandlerContext,
 } from './projections';
 import {
@@ -366,6 +368,9 @@ export function getPostgreSQLEventStore(
 
   const inlineProjections = (options.projections ?? [])
     .filter(({ type }) => type === 'inline')
+    .map(({ projection }) => projection);
+  const asyncProjections = (options.projections ?? [])
+    .filter(({ type }) => type === 'async')
     .map(({ projection }) => projection);
   const projectionSchemaComponents = (
     schemaOptions: EventStoreDatabaseSchemaOptions | undefined,
@@ -698,8 +703,8 @@ export function getPostgreSQLEventStore(
 
     consumer: <ConsumerMessageType extends Message = AnyMessage>(
       consumerOptions?: PostgreSQLEventStoreConsumerConfig<ConsumerMessageType>,
-    ): PostgreSQLEventStoreConsumer<ConsumerMessageType> =>
-      postgreSQLEventStoreConsumer<ConsumerMessageType>({
+    ): PostgreSQLEventStoreConsumer<ConsumerMessageType> => {
+      const consumer = postgreSQLEventStoreConsumer<ConsumerMessageType>({
         ...consumerOptions,
         schema: {
           ...consumerOptions?.schema,
@@ -718,7 +723,19 @@ export function getPostgreSQLEventStore(
          * specific, so it is read back out of the pg connection context.
          */
         connectionString: dumboOptions.connectionString,
-      }),
+      });
+
+      if (!consumerOptions?.processors?.length)
+        for (const projection of asyncProjections)
+          consumer.projector({
+            // TODO: Fix this cast when projection registrations are typed with the consumer message type
+            projection: projection as unknown as PostgreSQLProjectionDefinition<
+              ConsumerMessageType & AnyEvent
+            >,
+          });
+
+      return consumer;
+    },
 
     close: () => pool.close(),
 
