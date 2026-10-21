@@ -1,0 +1,1 @@
+{ "extends": "../tsconfig.json", "include": ["../lib/message.ts", "../lib/schema.ts"], "exclude": [] }

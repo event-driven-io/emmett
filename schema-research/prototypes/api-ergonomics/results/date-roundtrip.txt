@@ -1,0 +1,13 @@
+A   | ISO string -> ok, Date? true | Date -> ok, Date? true
+B   | ISO string -> ok, Date? true | Date -> issues [{"message":"Invalid input: expected string, received Date","path":["data","confirmedAt"]}]
+B2  | ISO string -> ok, Date? true | Date -> issues [{"message":"Invalid type: Expected string but received Date","path":["data","confirmedAt"]}]
+B3  | ISO string -> ok, Date? true | Date -> issues [{"message":"confirmedAt must be a string (was an object)","path":["data","confirmedAt"]}]
+B4  | ISO string -> ok, Date? true | Date -> issues [{"message":"Expected string","path":["data","confirmedAt"]}]
+B5  | ISO string -> ok, Date? true | Date -> issues [{"message":"must be string","path":["data","confirmedAt"]}]
+JSON Schema (A): {"$schema":"https://json-schema.org/draft/2020-12/schema","title":"ShoppingCartConfirmed","type":"object","properties":{"type":{"const":"ShoppingCartConfirmed"},"data":{"type":"object","properties":{"shoppingCartId":{"type":"string"},"confirmedAt":{"type":"string","format":"date-time"}},"required":["shoppingCartId","confirmedAt"]},"metadata":{"type":"object","properties":{"clientId":{"type":"string"}},"required":["clientId"],"additionalProperties":false}},"required":["type","data","metadata"]}
+JSON Schema (A) confirmedAt: {"type":"string","format":"date-time"}
+JSON Schema (B) confirmedAt: {"type":"string","format":"date-time","pattern":"^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578
+JSON Schema (B2) confirmedAt: {}
+JSON Schema (B3) confirmedAt: {"type":"string","pattern":"^([+-]?\\d{4}(?!\\d{2}\\b))((-?)((0[1-9]|1[0-2])(\\3([12]\\d|0[1-9]|3[01]))?|W([0-4]\\d|5[0-3])(-?[1-7])?|(00[1-9]|0[1-9]\\d|[12]\\d
+JSON Schema (B4) confirmedAt: {}
+JSON Schema (B5) confirmedAt: {"type":"string","format":"date-time"}

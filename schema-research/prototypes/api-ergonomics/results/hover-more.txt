@@ -1,0 +1,73 @@
+=== b2-valibot: hover on 'type ShoppingCartConfirmed' / interface
+
+=== b2-valibot: hover on value ShoppingCartConfirmed
+const ShoppingCartConfirmed: EventDefinition<"ShoppingCartConfirmed", {
+    shoppingCartId: string;
+    confirmedAt: Date;
+}, {
+    clientId: string;
+}>
+=== b3-arktype: hover on 'type ShoppingCartConfirmed' / interface
+
+=== b3-arktype: hover on value ShoppingCartConfirmed
+const ShoppingCartConfirmed: EventDefinition<"ShoppingCartConfirmed", {
+    shoppingCartId: string;
+    confirmedAt: Date;
+}, {
+    clientId: string;
+}>
+=== b4-effect: hover on 'type ShoppingCartConfirmed' / interface
+
+=== b4-effect: hover on value ShoppingCartConfirmed
+const ShoppingCartConfirmed: EventDefinition<"ShoppingCartConfirmed", {
+    readonly shoppingCartId: string;
+    readonly confirmedAt: Date;
+}, {
+    readonly clientId: string;
+}>
+=== b5-typebox: hover on 'type ShoppingCartConfirmed' / interface
+
+=== b5-typebox: hover on value ShoppingCartConfirmed
+const ShoppingCartConfirmed: EventDefinition<"ShoppingCartConfirmed", {
+    shoppingCartId: string;
+    confirmedAt: Date;
+}, {
+    clientId: string;
+}>
+=== e-interface: hover on 'type ShoppingCartConfirmed' / interface
+
+=== e-interface: hover on value ShoppingCartConfirmed
+const ShoppingCartConfirmed: EventDefinition<"ShoppingCartConfirmed", {
+    shoppingCartId: string;
+    confirmedAt: Date;
+}, {
+    clientId: string;
+}>
+=== e-interface: hover on 'type ShoppingCartEvent'
+type ShoppingCartEvent = ProductItemAddedToShoppingCart | ProductItemRemovedFromShoppingCart | ShoppingCartConfirmed | ShoppingCartCancelled
+=== e-interface: hover on param of decide
+(parameter) command: ShoppingCartCommand
+=== f-class: hover on class ShoppingCartConfirmed
+class ShoppingCartConfirmed
+=== f-class: hover on 'type ShoppingCartEvent'
+type ShoppingCartEvent = ProductItemAddedToShoppingCart | ProductItemRemovedFromShoppingCart | ShoppingCartConfirmed | ShoppingCartCancelled
+=== b-zod: hover on ProductItem type
+type ProductItem = {
+    productId: string;
+    quantity: number;
+}
+=== b4-effect: hover on ProductItem type
+type ProductItem = {
+    readonly productId: string;
+    readonly quantity: number;
+}
+=== b3-arktype: hover on ProductItem type
+type ProductItem = {
+    productId: string;
+    quantity: number;
+}
+=== a-builtin: hover on value ProductItem
+const ProductItem: ObjectSchema<{
+    readonly productId: Schema<string, string>;
+    readonly quantity: Schema<number, number>;
+}>

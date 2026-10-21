@@ -1,0 +1,2 @@
+errors/no-typeof.ts(4,28): error TS2749: 'Confirmed7' refers to a value, but is being used as a type here. Did you mean 'typeof Confirmed7'?
+errors/no-typeof.ts(6,39): error TS2749: 'Confirmed7' refers to a value, but is being used as a type here. Did you mean 'typeof Confirmed7'?

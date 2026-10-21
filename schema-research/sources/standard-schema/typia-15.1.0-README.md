@@ -1,0 +1,175 @@
+# Typia
+
+![Typia Logo](https://typia.io/logo.png)
+
+[![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/samchon/typia/blob/master/LICENSE)
+[![NPM Version](https://img.shields.io/npm/v/typia.svg)](https://www.npmjs.com/package/typia)
+[![NPM Downloads](https://img.shields.io/npm/dm/typia.svg)](https://www.npmjs.com/package/typia)
+[![Build Status](https://github.com/samchon/typia/workflows/test/badge.svg)](https://github.com/samchon/typia/actions?query=workflow%3Atest)
+[![Guide Documents](https://img.shields.io/badge/Guide-Documents-forestgreen)](https://typia.io/docs/)
+[![Discord Badge](https://img.shields.io/badge/discord-samchon-d91965?style=flat&labelColor=5866f2&logo=discord&logoColor=white&link=https://discord.gg/E94XhzrUCZ)](https://discord.gg/E94XhzrUCZ)
+
+```typescript
+// RUNTIME VALIDATORS
+export function is<T>(input: unknown): input is T; // returns boolean
+export function assert<T>(input: unknown): T; // throws TypeGuardError
+export function assertGuard<T>(input: unknown): asserts input is T;
+export function validate<T>(input: unknown): IValidation<T>; // detailed
+
+// JSON FUNCTIONS
+export namespace json {
+  export function schema<T>(): IJsonSchemaUnit<T>; // JSON schema
+  export function assertParse<T>(input: string): T; // type safe parser
+  export function assertStringify<T>(input: T): string; // safe and faster
+}
+
+// AI FUNCTION CALLING HARNESS
+export namespace llm {
+  // collection of function calling schemas + validators/parsers
+  export function application<Class>(): ILlmApplication<Class>;
+  export function structuredOutput<P>(): ILlmStructuredOutput;
+  // typed questions for evaluation models + checked answer decoder
+  export function evaluation<T>(): ILlmEvaluation<T>;
+  // lenient json parser + type coercion
+  export function parse<T>(str: string): T;
+}
+
+// PROTOCOL BUFFER
+export namespace protobuf {
+  export function message<T>(): string; // Protocol Buffer message
+  export function assertDecode<T>(buffer: Uint8Array): T; // safe decoder
+  export function assertEncode<T>(input: T): Uint8Array; // safe encoder
+}
+
+// RANDOM GENERATOR
+export function random<T>(g?: Partial<IRandomGenerator>): T;
+```
+
+`typia` is a transformer library supporting below features:
+
+  - Super-fast Runtime Validators
+  - Enhanced JSON schema and serde functions
+  - LLM function calling harness
+  - Protocol Buffer encoder and decoder
+  - Random data generator
+
+> [!NOTE]
+>
+> - **Only one line** required, with pure TypeScript type
+> - Runtime validator is **20,000x faster** than `class-validator`
+> - JSON serialization is **200x faster** than `class-transformer`
+> - LLM function calling harness turns **6.75% → 100%** accuracy
+
+Write the type on the left, and `typia` compiles it into the validator on the right — at build time, with no schema and no runtime reflection.
+
+![Write a TypeScript type and typia compiles it into a dedicated validator](https://typia.io/images/concepts/transform.svg)
+
+## Setup
+
+Install `typia` with the [`ttsc`](https://github.com/samchon/ttsc) toolchain.
+
+```bash
+# install
+npm i typia
+npm i -D ttsc typescript
+
+# build
+npx ttsc
+
+# run a script directly
+npx ttsx src/index.ts
+```
+
+You **must** use `ttsc` and `ttsx`. The stock `tsc`, `ts-node`, and `tsx` cannot apply the `typia` transform, so they will not work.
+
+For bundler integration (Vite, Next.js, Webpack, Rollup, esbuild, ...), use [`@ttsc/unplugin`](https://github.com/samchon/ttsc/tree/master/packages/unplugin).
+
+
+## Transformation
+
+If you call `typia` function, it would be compiled like below.
+
+This is the key concept of `typia`, transforming TypeScript type to a runtime function. The `typia.is<T>()` function is transformed to a dedicated type checker by analyzing the target type `T` in the compilation level.
+
+This feature enables developers to ensure type safety in their applications, leveraging TypeScript's static typing while also providing runtime validation. Instead of defining additional schemas, you can simply utilize the pure TypeScript type itself.
+
+```typescript
+//----
+// examples/checkString.ts
+//----
+import typia, { tags } from "typia";
+export const checkString = typia.createIs<string>();
+
+//----
+// examples/checkString.js
+//----
+import typia from "typia";
+export const checkString = (() => {
+  return (input) => "string" === typeof input;
+})();
+```
+
+## Sponsors
+
+[![Backers](https://opencollective.com/typia/backers.svg?avatarHeight=75&width=600)](https://opencollective.com/typia)
+
+Thanks for your support.
+
+Your [donation](https://opencollective.com/typia) encourages `typia` development.
+
+## Playground
+
+You can experience how typia works by [playground website](https://typia.io/playground):
+
+- 💻 https://typia.io/playground
+
+## Guide Documents
+
+Check out the document in the [website](https://typia.io/docs/):
+
+### 🏠 Home
+
+- [Introduction](https://typia.io/docs/)
+- [Setup](https://typia.io/docs/setup/)
+- [Pure TypeScript](https://typia.io/docs/pure/)
+  
+### 📖 Features
+
+- Runtime Validators
+  - [`assert()` function](https://typia.io/docs/validators/assert/)
+  - [`is()` function](https://typia.io/docs/validators/is/)
+  - [`validate()` function](https://typia.io/docs/validators/validate/)
+  - [Functional Module](https://typia.io/docs/validators/functional)
+  - [Special Tags](https://typia.io/docs/validators/tags/)
+- Enhanced JSON
+  - [JSON Schema](https://typia.io/docs/json/schema/)
+  - [`stringify()` functions](https://typia.io/docs/json/stringify/)
+  - [`parse()` functions](https://typia.io/docs/json/parse/)
+- LLM Function Calling Harness
+  - [`application()` function](https://typia.io/docs/llm/application/)
+  - [`structuredOutput()` function](https://typia.io/docs/llm/structuredOutput/)
+  - [`evaluation()` function](https://typia.io/docs/llm/evaluation/)
+  - [`HttpLlm` module](https://typia.io/docs/llm/http/)
+  - [`LlmJson` module](https://typia.io/docs/llm/json/)
+- Protocol Buffer
+  - [Message Schema](https://typia.io/docs/protobuf/message)
+  - [`decode()` functions](https://typia.io/docs/protobuf/decode/)
+  - [`encode()` functions](https://typia.io/docs/protobuf/encode/)
+- [Random Generator](https://typia.io/docs/random/)
+- [Miscellaneous](https://typia.io/docs/misc/)
+
+### 🔗 Appendix
+
+- [API Documents](https://typia.io/api)
+- Utilization Cases
+  - [MCP](https://typia.io/docs/utilization/mcp/)
+  - [Vercel AI SDK](https://typia.io/docs/utilization/vercel/)
+  - [LangChain](https://typia.io/docs/utilization/langchain/)
+  - [NestJS](https://typia.io/docs/utilization/nestjs/)
+  - [tRPC](https://typia.io/docs/utilization/trpc/)
+- [⇲ Benchmark Result](https://github.com/samchon/typia/tree/master/benchmark/results/11th%20Gen%20Intel(R)%20Core(TM)%20i5-1135G7%20%40%202.40GHz)
+- [⇲ `dev.to` Articles](https://dev.to/samchon/series/22474)
+
+## Inspired By
+
+- [`typescript-is`](https://github.com/woutervh-/typescript-is)

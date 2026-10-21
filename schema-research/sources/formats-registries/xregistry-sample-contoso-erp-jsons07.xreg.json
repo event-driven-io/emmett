@@ -1,0 +1,1305 @@
+{
+    "endpoints": {
+        "Contoso.ERP.Http": {
+            "description": "HTTP producer endpoint for Contoso ERP eventing",
+            "usage": [ "producer" ],
+            "protocol": "HTTP",
+            "protocoloptions": {
+                "deployed": false,
+                "endpoints": [
+                    {
+                        "uri": "https://erpsystem.com/events"
+                    }
+                ]
+            },
+            "messagegroups": [
+                "/messagegroups/Contoso.ERP.ReservationEvents",
+                "/messagegroups/Contoso.ERP.PaymentEvents",
+                "/messagegroups/Contoso.ERP.ShippingEvents",
+                "/messagegroups/Contoso.ERP.InventoryEvents",
+                "/messagegroups/Contoso.ERP.ProductEvents",
+                "/messagegroups/Contoso.ERP.EmployeeEvents",
+                "/messagegroups/Contoso.ERP.PurchasingEvents"
+            ],
+            "envelope": "CloudEvents/1.0"
+        },
+        "Contoso.ERP.HttpSubscriber": {
+            "description": "HTTP subscriber endpoint for Contoso ERP eventing",
+            "usage": [ "subscriber"] ,
+            "protocol": "HTTP",
+            "protocoloptions": {
+                "deployed": false,
+                "endpoints": [
+                    {
+                        "uri": "https://erpsystem.com/events/subscriptions"
+                    }
+                ]
+            },
+            "messagegroups": [
+                "/messagegroups/Contoso.ERP.ReservationEvents",
+                "/messagegroups/Contoso.ERP.PaymentEvents",
+                "/messagegroups/Contoso.ERP.ShippingEvents",
+                "/messagegroups/Contoso.ERP.InventoryEvents",
+                "/messagegroups/Contoso.ERP.ProductEvents",
+                "/messagegroups/Contoso.ERP.EmployeeEvents",
+                "/messagegroups/Contoso.ERP.PurchasingEvents"
+            ],
+            "envelope": "CloudEvents/1.0"
+        },
+        "Contoso.ERP.QueueConsumer": {
+            "description": "AMQP consumer endpoint for Contoso ERP eventing via queue",
+            "channel": "myqueue",
+            "usage": [ "consumer" ],
+            "protocol": "AMQP/1.0",
+            "protocoloptions": {
+                "deployed": false,
+                "endpoints": [
+                    {
+                        "uri": "amqps://cediscoveryinterop.example.com/queue"
+                    }
+                ],
+                "node": "queue",
+                "link-properties": {
+                    "myprop": "prop"
+                },
+                "distribution-mode": "copy"
+            },
+            "messagegroups": [
+                "/messagegroups/Contoso.ERP.ReservationEvents",
+                "/messagegroups/Contoso.ERP.PaymentEvents",
+                "/messagegroups/Contoso.ERP.ShippingEvents",
+                "/messagegroups/Contoso.ERP.InventoryEvents",
+                "/messagegroups/Contoso.ERP.ProductEvents",
+                "/messagegroups/Contoso.ERP.EmployeeEvents",
+                "/messagegroups/Contoso.ERP.PurchasingEvents"
+            ],
+            "envelope": "CloudEvents/1.0"
+        },
+        "Contoso.ERP.QueueProducer": {
+            "description": "AMQP producer endpoint for Contoso ERP eventing via queue",
+            "channel": "myqueue",
+            "usage": [ "producer" ],
+            "protocol": "AMQP/1.0",
+            "protocoloptions": {
+                "deployed": false,
+                "endpoints": [
+                    {
+                        "uri": "amqps://cediscoveryinterop.example.com/queue"
+                    }
+                ],
+                "node": "queue",
+                "link-properties": {
+                    "myprop": "prop"
+                },
+                "distribution-mode": "copy"
+            },
+            "messagegroups": [
+                "/messagegroups/Contoso.ERP.ReservationEvents",
+                "/messagegroups/Contoso.ERP.PaymentEvents",
+                "/messagegroups/Contoso.ERP.ShippingEvents",
+                "/messagegroups/Contoso.ERP.InventoryEvents",
+                "/messagegroups/Contoso.ERP.ProductEvents",
+                "/messagegroups/Contoso.ERP.EmployeeEvents",
+                "/messagegroups/Contoso.ERP.PurchasingEvents"
+            ],
+            "envelope": "CloudEvents/1.0"
+        },
+        "Contoso.ERP.KafkaProducer": {
+            "description": "Kafka producer endpoint for Contoso ERP eventing",
+            "channel": "mytopic",
+            "usage": [ "producer" ],
+            "protocol": "KAFKA",
+            "protocoloptions": {
+                "deployed": false,
+                "endpoints": [
+                    {
+                        "bootstrap.servers": [
+                            "SSL://cediscoveryinterop.example.com:9093"
+                        ]
+                    }
+                ],
+                "topic": "mytopic",
+                "partition": 0
+            },
+            "messagegroups": [
+                "/messagegroups/Contoso.ERP.ReservationEvents",
+                "/messagegroups/Contoso.ERP.PaymentEvents",
+                "/messagegroups/Contoso.ERP.ShippingEvents",
+                "/messagegroups/Contoso.ERP.InventoryEvents",
+                "/messagegroups/Contoso.ERP.ProductEvents",
+                "/messagegroups/Contoso.ERP.EmployeeEvents",
+                "/messagegroups/Contoso.ERP.PurchasingEvents"
+            ],
+            "envelope": "CloudEvents/1.0"
+        },
+        "Contoso.ERP.KafkaConsumer": {
+            "description": "Kafka consumer endpoint for Contoso ERP eventing",
+            "channel": "mytopic",
+            "usage": [ "consumer" ],
+            "protocol": "KAFKA",
+            "protocoloptions": {
+                "deployed": false,
+                "endpoints": [
+                    {
+                        "bootstrap.servers": [
+                            "SSL://cediscoveryinterop.example.com:9093"
+                        ]
+                    }
+                ],
+                "topic": "mytopic",
+                "consumergroup": "mygroup"
+            },
+            "messagegroups": [
+                "/messagegroups/Contoso.ERP.ReservationEvents",
+                "/messagegroups/Contoso.ERP.PaymentEvents",
+                "/messagegroups/Contoso.ERP.ShippingEvents",
+                "/messagegroups/Contoso.ERP.InventoryEvents",
+                "/messagegroups/Contoso.ERP.ProductEvents",
+                "/messagegroups/Contoso.ERP.EmployeeEvents",
+                "/messagegroups/Contoso.ERP.PurchasingEvents"
+            ],
+            "envelope": "CloudEvents/1.0"
+        }
+    },
+    "messagegroups": {
+        "Contoso.ERP.ReservationEvents": {
+            "description": "Message group for reservation events",
+            "envelope": "CloudEvents/1.0",
+            "messages": {
+                "Contoso.ERP.ReservationPlaced": {
+                    "description": "A reservation has been placed",
+                    "envelope": "CloudEvents/1.0",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the reservation placed event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.ReservationPlaced",
+                            "required": true,
+                            "description": "The event type for a reservation placed"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the reservation was placed"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/orders",
+                            "required": true,
+                            "description": "Source URI template for the reservation event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{reservationId}",
+                            "required": true,
+                            "description": "Subject template for the reservation event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.OrderData"
+                },
+                "Contoso.ERP.ReservationCancelled": {
+                    "description": "A reservation has been cancelled",
+                    "envelope": "CloudEvents/1.0",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the reservation cancelled event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.ReservationCancelled",
+                            "required": true,
+                            "description": "The event type for a reservation cancellation"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the reservation was cancelled"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/orders",
+                            "required": true,
+                            "description": "Source URI template for the cancellation event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{reservationId}",
+                            "required": true,
+                            "description": "Subject template for the reservation cancellation event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.CancellationData"
+                },
+                "Contoso.ERP.ReservationRefunded": {
+                    "description": "A reservation has been refunded",
+                    "envelope": "CloudEvents/1.0",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the reservation refunded event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.ReservationRefunded",
+                            "required": true,
+                            "description": "The event type for a reservation refund"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the reservation was refunded"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/orders",
+                            "required": true,
+                            "description": "Source URI template for the refund event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{reservationId}",
+                            "required": true,
+                            "description": "Subject template for the reservation refund event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.RefundData"
+                }
+            }
+        },
+        "Contoso.ERP.PaymentEvents": {
+            "description": "Message group for payment events",
+            "envelope": "CloudEvents/1.0",
+            "messages": {
+                "Contoso.ERP.PaymentsReceived": {
+                    "envelope": "CloudEvents/1.0",
+                    "description": "A payment has been received",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the payment received event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.PaymentsReceived",
+                            "required": true,
+                            "description": "The event type for a payment received"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the payment was received"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/payments",
+                            "required": true,
+                            "description": "Source URI template for the payment event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{paymentId}",
+                            "required": true,
+                            "description": "Subject template for the payment event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.PaymentData"
+                }
+            }
+        },
+        "Contoso.ERP.ShippingEvents": {
+            "description": "Message group for shipping events",
+            "envelope": "CloudEvents/1.0",
+            "messages": {
+                "Contoso.ERP.ShipmentAccepted": {
+                    "description": "A shipment has been accepted",
+                    "envelope": "CloudEvents/1.0",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the shipment accepted event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.ShipmentAccepted",
+                            "required": true,
+                            "description": "The event type for a shipment accepted"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the shipment was accepted"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/shipments",
+                            "required": true,
+                            "description": "Source URI template for the shipment event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{shipmentId}",
+                            "required": true,
+                            "description": "Subject template for the shipment event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.ShipmentData"
+                },
+                "Contoso.ERP.ShipmentRejected": {
+                    "description": "A shipment has been rejected",
+                    "envelope": "CloudEvents/1.0",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the shipment rejected event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.ShipmentRejected",
+                            "required": true,
+                            "description": "The event type for a shipment rejected"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the shipment was rejected"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/shipments",
+                            "required": true,
+                            "description": "Source URI template for the shipment event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{shipmentId}",
+                            "required": true,
+                            "description": "Subject template for the shipment event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.ShipmentData"
+                },
+                "Contoso.ERP.ReturnRequested": {
+                    "description": "A return has been requested",
+                    "envelope": "CloudEvents/1.0",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the return requested event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.ReturnRequested",
+                            "required": true,
+                            "description": "The event type for a return requested"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the return was requested"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/returns",
+                            "required": true,
+                            "description": "Source URI template for the return event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{returnId}",
+                            "required": true,
+                            "description": "Subject template for the return event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.ReturnData"
+                }
+            }
+        },
+        "Contoso.ERP.InventoryEvents": {
+            "description": "Message group for inventory updates",
+            "envelope": "CloudEvents/1.0",
+            "messages": {
+                "Contoso.ERP.InventoryUpdated": {
+                    "description": "Inventory has been updated",
+                    "envelope": "CloudEvents/1.0",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "description": "The id of the inventory update event",
+                            "required": true
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.InventoryUpdated",
+                            "description": "The type of the inventory update event",
+                            "required": true
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the inventory was updated"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/inventory",
+                            "required": true,
+                            "description": "Source URI template for the inventory update event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{inventoryId}",
+                            "required": true,
+                            "description": "Subject template for the inventory update event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.InventoryData"
+                }
+            }
+        },
+        "Contoso.ERP.ProductEvents": {
+            "description": "Message group for product related events",
+            "envelope": "CloudEvents/1.0",
+            "messages": {
+                "Contoso.ERP.ProductAdded": {
+                    "description": "A product has been added",
+                    "envelope": "CloudEvents/1.0",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the product added event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.ProductAdded",
+                            "required": true,
+                            "description": "The event type for a product added"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the product was added"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/products",
+                            "required": true,
+                            "description": "Source URI template for the product event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{productId}",
+                            "required": true,
+                            "description": "Subject template for the product event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.ProductData"
+                },
+                "Contoso.ERP.ProductDeleted": {
+                    "description": "A product has been deleted",
+                    "envelope": "CloudEvents/1.0",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the product deleted event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.ProductDeleted",
+                            "required": true,
+                            "description": "The event type for a product deleted"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the product was deleted"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/products",
+                            "required": true,
+                            "description": "Source URI template for the product event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{productId}",
+                            "required": true,
+                            "description": "Subject template for the product event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.ProductDeletionData"
+                },
+                "Contoso.ERP.ProductUpdated": {
+                    "description": "A product has been updated",
+                    "envelope": "CloudEvents/1.0",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the product updated event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.ProductUpdated",
+                            "required": true,
+                            "description": "The event type for a product updated"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the product was updated"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/products",
+                            "required": true,
+                            "description": "Source URI template for the product event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{productId}",
+                            "required": true,
+                            "description": "Subject template for the product event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.ProductUpdatedData"
+                }
+            }
+        },
+        "Contoso.ERP.EmployeeEvents": {
+            "description": "Message group for employee management events",
+            "envelope": "CloudEvents/1.0",
+            "messages": {
+                "Contoso.ERP.EmployeeAdded": {
+                    "envelope": "CloudEvents/1.0",
+                    "description": "An employee has been added",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the employee added event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.EmployeeAdded",
+                            "required": true,
+                            "description": "The event type for an employee added"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the employee was added"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/employees",
+                            "required": true,
+                            "description": "Source URI template for the employee event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{employeeId}",
+                            "required": true,
+                            "description": "Subject template for the employee event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.EmployeeData"
+                },
+                "Contoso.ERP.EmployeeDeleted": {
+                    "envelope": "CloudEvents/1.0",
+                    "description": "An employee has been deleted",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the employee deleted event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.EmployeeDeleted",
+                            "required": true,
+                            "description": "The event type for an employee deleted"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the employee was deleted"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/employees",
+                            "required": true,
+                            "description": "Source URI template for the employee event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{employeeId}",
+                            "required": true,
+                            "description": "Subject template for the employee event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.EmployeeDeletionData"
+                },
+                "Contoso.ERP.EmployeeUpdated": {
+                    "envelope": "CloudEvents/1.0",
+                    "description": "An employee has been updated",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the employee updated event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.EmployeeUpdated",
+                            "required": true,
+                            "description": "The event type for an employee updated"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the employee was updated"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/employees",
+                            "required": true,
+                            "description": "Source URI template for the employee event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{employeeId}",
+                            "required": true,
+                            "description": "Subject template for the employee event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.EmployeeUpdatedData"
+                }
+            }
+        },
+        "Contoso.ERP.PurchasingEvents": {
+            "description": "Message group for purchase order events",
+            "envelope": "CloudEvents/1.0",
+            "messages": {
+                "Contoso.ERP.PurchaseOrderCreated": {
+                    "envelope": "CloudEvents/1.0",
+                    "description": "A purchase order has been created",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the purchase order created event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.PurchaseOrderCreated",
+                            "required": true,
+                            "description": "The event type for a purchase order created"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the purchase order was created"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/purchasing",
+                            "required": true,
+                            "description": "Source URI template for the purchase order event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{purchaseOrderId}",
+                            "required": true,
+                            "description": "Subject template for the purchase order event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.PurchaseOrderData"
+                },
+                "Contoso.ERP.PurchaseOrderUpdated": {
+                    "envelope": "CloudEvents/1.0",
+                    "description": "A purchase order has been updated",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the purchase order updated event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.PurchaseOrderUpdated",
+                            "required": true,
+                            "description": "The event type for a purchase order updated"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the purchase order was updated"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/purchasing",
+                            "required": true,
+                            "description": "Source URI template for the purchase order event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{purchaseOrderId}",
+                            "required": true,
+                            "description": "Subject template for the purchase order event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.PurchaseOrderUpdatedData"
+                },
+                "Contoso.ERP.PurchaseOrderDeleted": {
+                    "envelope": "CloudEvents/1.0",
+                    "description": "A purchase order has been deleted",
+                    "envelopemetadata": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "description": "Unique identifier for the purchase order deleted event"
+                        },
+                        "type": {
+                            "type": "string",
+                            "value": "Contoso.ERP.PurchaseOrderDeleted",
+                            "required": true,
+                            "description": "The event type for a purchase order deleted"
+                        },
+                        "time": {
+                            "type": "timestamp",
+                            "required": true,
+                            "description": "Timestamp when the purchase order was deleted"
+                        },
+                        "source": {
+                            "type": "uritemplate",
+                            "value": "/erp/{tenantid}/purchasing",
+                            "required": true,
+                            "description": "Source URI template for the purchase order event"
+                        },
+                        "subject": {
+                            "type": "uritemplate",
+                            "value": "{purchaseOrderId}",
+                            "required": true,
+                            "description": "Subject template for the purchase order event"
+                        }
+                    },
+                    "dataschemaformat": "JSONSchema/Draft-07",
+                    "dataschemauri": "/schemagroups/Contoso.ERP/schemas/Contoso.ERP.PurchaseOrderDeletionData"
+                }
+            }
+        }
+    },
+    "schemagroups": {
+        "Contoso.ERP": {
+            "description": "Schema group for Contoso ERP event schemas",
+            "schemas": {
+                "Contoso.ERP.OrderData": {
+                    "description": "JSON schema for order data associated with reservation events",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the order data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "orderId": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "customerId": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "total": {
+                                        "type": "number",
+                                        "minimum": 0
+                                    },
+                                    "items": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "productId": {
+                                                    "type": "string",
+                                                    "minLength": 1
+                                                },
+                                                "quantity": {
+                                                    "type": "number",
+                                                    "minimum": 0
+                                                },
+                                                "price": {
+                                                    "type": "number",
+                                                    "minimum": 0
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Contoso.ERP.PaymentData": {
+                    "description": "JSON schema for payment event data",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the payment data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "transactionId": {
+                                        "type": "string"
+                                    },
+                                    "orderId": {
+                                        "type": "string"
+                                    },
+                                    "amount": {
+                                        "type": "number",
+                                        "minimum": 0
+                                    },
+                                    "status": {
+                                        "type": "string"
+                                    },
+                                    "paymentmethod": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Contoso.ERP.ShipmentData": {
+                    "description": "JSON schema for shipment event data",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the shipment data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "trackingnumber": {
+                                        "type": "string"
+                                    },
+                                    "orderId": {
+                                        "type": "string"
+                                    },
+                                    "status": {
+                                        "type": "string"
+                                    },
+                                    "courierName": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Contoso.ERP.CancellationData": {
+                    "description": "JSON schema for reservation cancellation data",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the cancellation data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "orderId": {
+                                        "type": "string"
+                                    },
+                                    "reason": {
+                                        "type": "string"
+                                    },
+                                    "status": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Contoso.ERP.RefundData": {
+                    "description": "JSON schema for reservation refund data",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the refund data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "orderId": {
+                                        "type": "string"
+                                    },
+                                    "amount": {
+                                        "type": "number"
+                                    },
+                                    "reason": {
+                                        "type": "string"
+                                    },
+                                    "status": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Contoso.ERP.InventoryData": {
+                    "description": "JSON schema for inventory update data",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the inventory data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "productId": {
+                                        "type": "string"
+                                    },
+                                    "quantity": {
+                                        "type": "number"
+                                    },
+                                    "location": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Contoso.ERP.ProductData": {
+                    "description": "JSON schema for product details data",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the product data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "productId": {
+                                        "type": "string"
+                                    },
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "description": {
+                                        "type": "string"
+                                    },
+                                    "price": {
+                                        "type": "number"
+                                    },
+                                    "category": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Contoso.ERP.ProductDeletionData": {
+                    "description": "JSON schema for product deletion event details",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the product deletion data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "productId": {
+                                        "type": "string",
+                                        "description": "The product id"
+                                    },
+                                    "reason": {
+                                        "type": "string",
+                                        "description": "The reason for deletion"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Contoso.ERP.ProductUpdatedData": {
+                    "description": "JSON schema for product updated data",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the product updated data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "productId": {
+                                        "type": "string",
+                                        "description": "The product id"
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "description": "The product name"
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "description": "The product description"
+                                    },
+                                    "price": {
+                                        "type": "number",
+                                        "description": "The product price"
+                                    },
+                                    "category": {
+                                        "type": "string",
+                                        "description": "The product category"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Contoso.ERP.EmployeeData": {
+                    "description": "JSON schema for employee data",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the employee data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "employeeId": {
+                                        "type": "string",
+                                        "description": "The employee id"
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "description": "The employee name"
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "description": "The employee email"
+                                    },
+                                    "position": {
+                                        "type": "string"
+                                    },
+                                    "department": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Contoso.ERP.EmployeeDeletionData": {
+                    "description": "JSON schema for employee deletion data",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the employee deletion data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "employeeId": {
+                                        "type": "string"
+                                    },
+                                    "reason": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Contoso.ERP.EmployeeUpdatedData": {
+                    "description": "JSON schema for employee update data",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the employee updated data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "employeeId": {
+                                        "type": "string"
+                                    },
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email"
+                                    },
+                                    "position": {
+                                        "type": "string"
+                                    },
+                                    "department": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Contoso.ERP.PurchaseOrderData": {
+                    "description": "JSON schema for purchase order data",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the purchase order data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "purchaseOrderId": {
+                                        "type": "string"
+                                    },
+                                    "supplierName": {
+                                        "type": "string"
+                                    },
+                                    "totalCost": {
+                                        "type": "number"
+                                    },
+                                    "status": {
+                                        "type": "string"
+                                    },
+                                    "items": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "productId": {
+                                                    "type": "string"
+                                                },
+                                                "quantity": {
+                                                    "type": "number"
+                                                },
+                                                "unitCost": {
+                                                    "type": "number"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Contoso.ERP.PurchaseOrderUpdatedData": {
+                    "description": "JSON schema for updated purchase order data",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the purchase order updated data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "purchaseOrderId": {
+                                        "type": "string"
+                                    },
+                                    "status": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Contoso.ERP.PurchaseOrderDeletionData": {
+                    "description": "JSON schema for purchase order deletion event data",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the purchase order deletion data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "purchaseOrderId": {
+                                        "type": "string"
+                                    },
+                                    "reason": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Contoso.ERP.ReturnData": {
+                    "description": "JSON schema for return event data",
+                    "format": "JSONSchema/Draft-07",
+                    "versions": {
+                        "1": {
+                            "description": "Version 1 of the return data schema",
+                            "format": "JSONSchema/Draft-07",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "returnId": {
+                                        "type": "string"
+                                    },
+                                    "orderId": {
+                                        "type": "string"
+                                    },
+                                    "items": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "orderId": {
+                                                    "type": "string"
+                                                },
+                                                "productId": {
+                                                    "type": "string"
+                                                },
+                                                "quantity": {
+                                                    "type": "number"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

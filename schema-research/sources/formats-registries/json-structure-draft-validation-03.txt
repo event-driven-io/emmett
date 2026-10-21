@@ -1,0 +1,672 @@
+
+
+
+
+Building Blocks for HTTP APIs                                 C. Vasters
+Internet-Draft                                     Microsoft Corporation
+Intended status: Standards Track                             9 June 2026
+Expires: 11 December 2026
+
+
+                 JSON Structure: Validation Extensions
+               draft-vasters-json-structure-validation-03
+
+Abstract
+
+   The JSON Structure Validation extension provides schema authors with
+   additional means to constrain instance data.  These keywords are
+   applied in conjunction with the constructs defined in JSON Structure
+   Core.  The keywords defined herein include numeric, string, array,
+   and object validation keywords as well as conditional validations.
+
+About This Document
+
+   This note is to be removed before publishing as an RFC.
+
+   The latest revision of this draft can be found at https://json-
+   structure.github.io/validation/draft-vasters-json-structure-
+   validation.html.  Status information for this document may be found
+   at https://datatracker.ietf.org/doc/draft-vasters-json-structure-
+   validation/.
+
+
+   Source for this draft and an issue tracker can be found at
+   https://github.com/json-structure/validation.
+
+Status of This Memo
+
+   This Internet-Draft is submitted in full conformance with the
+   provisions of BCP 78 and BCP 79.
+
+   Internet-Drafts are working documents of the Internet Engineering
+   Task Force (IETF).  Note that other groups may also distribute
+   working documents as Internet-Drafts.  The list of current Internet-
+   Drafts is at https://datatracker.ietf.org/drafts/current/.
+
+   Internet-Drafts are draft documents valid for a maximum of six months
+   and may be updated, replaced, or obsoleted by other documents at any
+   time.  It is inappropriate to use Internet-Drafts as reference
+   material or to cite them other than as "work in progress."
+
+   This Internet-Draft will expire on 11 December 2026.
+
+
+
+
+Vasters                 Expires 11 December 2026                [Page 1]
+
+Internet-Draft    JSON Structure: Validation Extensions        June 2026
+
+
+Copyright Notice
+
+   Copyright (c) 2026 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents (https://trustee.ietf.org/
+   license-info) in effect on the date of publication of this document.
+   Please review these documents carefully, as they describe your rights
+   and restrictions with respect to this document.  Code Components
+   extracted from this document must include Revised BSD License text as
+   described in Section 4.e of the Trust Legal Provisions and are
+   provided without warranty as described in the Revised BSD License.
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   3
+   2.  Conventions . . . . . . . . . . . . . . . . . . . . . . . . .   3
+   3.  Validation Keywords . . . . . . . . . . . . . . . . . . . . .   3
+     3.1.  Numeric Validation Keywords . . . . . . . . . . . . . . .   3
+       3.1.1.  minimum . . . . . . . . . . . . . . . . . . . . . . .   3
+       3.1.2.  maximum . . . . . . . . . . . . . . . . . . . . . . .   4
+       3.1.3.  exclusiveMinimum  . . . . . . . . . . . . . . . . . .   4
+       3.1.4.  exclusiveMaximum  . . . . . . . . . . . . . . . . . .   4
+       3.1.5.  multipleOf  . . . . . . . . . . . . . . . . . . . . .   4
+     3.2.  String Validation Keywords  . . . . . . . . . . . . . . .   5
+       3.2.1.  minLength . . . . . . . . . . . . . . . . . . . . . .   5
+       3.2.2.  pattern . . . . . . . . . . . . . . . . . . . . . . .   5
+       3.2.3.  format  . . . . . . . . . . . . . . . . . . . . . . .   5
+     3.3.  Array and Set Validation Keywords . . . . . . . . . . . .   6
+       3.3.1.  minItems  . . . . . . . . . . . . . . . . . . . . . .   6
+       3.3.2.  maxItems  . . . . . . . . . . . . . . . . . . . . . .   6
+       3.3.3.  uniqueItems . . . . . . . . . . . . . . . . . . . . .   6
+       3.3.4.  contains  . . . . . . . . . . . . . . . . . . . . . .   7
+       3.3.5.  maxContains . . . . . . . . . . . . . . . . . . . . .   7
+       3.3.6.  minContains . . . . . . . . . . . . . . . . . . . . .   7
+     3.4.  Object and Map Validation Keywords  . . . . . . . . . . .   7
+       3.4.1.  minProperties and minEntries  . . . . . . . . . . . .   8
+       3.4.2.  maxProperties and maxEntries  . . . . . . . . . . . .   8
+       3.4.3.  dependentRequired . . . . . . . . . . . . . . . . . .   8
+       3.4.4.  patternProperties and patternKeys . . . . . . . . . .   9
+       3.4.5.  propertyNames and keyNames  . . . . . . . . . . . . .   9
+       3.4.6.  has . . . . . . . . . . . . . . . . . . . . . . . . .   9
+     3.5.  Default Values  . . . . . . . . . . . . . . . . . . . . .  10
+       3.5.1.  default . . . . . . . . . . . . . . . . . . . . . . .  10
+     3.6.  Enabling the Extensions . . . . . . . . . . . . . . . . .  10
+   4.  Implementation Considerations . . . . . . . . . . . . . . . .  11
+   5.  Security Considerations . . . . . . . . . . . . . . . . . . .  11
+
+
+
+Vasters                 Expires 11 December 2026                [Page 2]
+
+Internet-Draft    JSON Structure: Validation Extensions        June 2026
+
+
+   6.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .  11
+   7.  Normative References  . . . . . . . . . . . . . . . . . . . .  11
+   Changes from draft-vasters-json-structure-validation-01 . . . . .  12
+   Changes from draft-vasters-json-structure-validation-00 . . . . .  12
+   Acknowledgments . . . . . . . . . . . . . . . . . . . . . . . . .  12
+   Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .  12
+
+1.  Introduction
+
+   The JSON Structure Validation extension provides schema authors with
+   additional means to constrain instance data.  These keywords are
+   applied in conjunction with the constructs defined in JSON Structure
+   Core [JSTRUCT-CORE].  The keywords defined herein include numeric,
+   string, array, and object validation keywords as well as conditional
+   validations.
+
+   For each keyword, this document specifies its applicability, the
+   permitted value types, and the related standards that must be
+   observed.
+
+2.  Conventions
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+3.  Validation Keywords
+
+3.1.  Numeric Validation Keywords
+
+   This section defines the validation keywords applicable to schemas
+   with numeric types.  The value of each keyword MUST be in the value
+   space of the numeric type to which the keyword is applied.
+
+   For schemas with extended numeric types (such as long integers and
+   decimals) whose base representation is a string, numeric constraint
+   values (e.g., for minimum, maximum) MUST be provided as strings.
+
+3.1.1.  minimum
+
+   An instance is valid if its numeric value is greater than or equal to
+   the value specified in minimum.
+
+   Example for basic type:
+
+   { "type": "number", "minimum": 10 }
+
+
+
+Vasters                 Expires 11 December 2026                [Page 3]
+
+Internet-Draft    JSON Structure: Validation Extensions        June 2026
+
+
+   Example for extended type:
+
+   { "type": "decimal", "minimum": "10.00" }
+
+3.1.2.  maximum
+
+   An instance is valid if its numeric value is less than or equal to
+   the value specified in maximum.
+
+   Example for basic type:
+
+   { "type": "number", "maximum": 100 }
+
+   Example for extended type:
+
+   { "type": "decimal", "maximum": "100.00" }
+
+3.1.3.  exclusiveMinimum
+
+   An instance is valid if its numeric value is strictly greater than
+   the value specified in exclusiveMinimum.
+
+   Example for basic type:
+
+   { "type": "number", "exclusiveMinimum": 10 }
+
+   Example for extended type:
+
+   { "type": "int64", "exclusiveMinimum": "10" }
+
+3.1.4.  exclusiveMaximum
+
+   An instance is valid if its numeric value is strictly less than the
+   value specified in exclusiveMaximum.
+
+   Example for basic type:
+
+   { "type": "number", "exclusiveMaximum": 100 }
+
+   Example for extended type:
+
+   { "type": "decimal", "exclusiveMaximum": "100.00" }
+
+3.1.5.  multipleOf
+
+   An instance is valid if dividing its numeric value by the value of
+   multipleOf results in an integer value.  The value of multipleOf MUST
+   be a positive number.
+
+
+
+Vasters                 Expires 11 December 2026                [Page 4]
+
+Internet-Draft    JSON Structure: Validation Extensions        June 2026
+
+
+   Example for basic type:
+
+   { "type": "number", "multipleOf": 5 }
+
+   Example for extended type:
+
+   { "type": "decimal", "multipleOf": "5" }
+
+3.2.  String Validation Keywords
+
+   This section defines the validation keywords applicable to schemas
+   with the type string.  The maxLength keyword is not included as it is
+   part of JSON Structure Core and is not redefined here.
+
+3.2.1.  minLength
+
+   A string is valid if its length is at least the integer value
+   specified in minLength.  The value of minLength MUST be a non-
+   negative integer.
+
+   Example:
+
+   { "type": "string", "minLength": 3 }
+
+3.2.2.  pattern
+
+   A string is valid if its entire value conforms to the regular
+   expression provided in the pattern keyword.  The value of pattern
+   MUST be a string representing a valid regular expression that
+   conforms to the [ECMA_262_2022] standard.
+
+   Example:
+
+   { "type": "string", "pattern": "^[A-Z][a-z]+$" }
+
+3.2.3.  format
+
+   A string is valid if it conforms to a specific format.  The value of
+   format MUST be a string.  The format keyword adds additional standard
+   validation constraints not covered by the extended types in the core
+   specification without the need to define an explicit regular
+   expression pattern.
+
+   *  ipv4 – Internet Protocol version 4 address
+
+   *  ipv6 – Internet Protocol version 6 address
+
+   *  email – Email address
+
+
+
+Vasters                 Expires 11 December 2026                [Page 5]
+
+Internet-Draft    JSON Structure: Validation Extensions        June 2026
+
+
+   *  idn-email – Internationalized email address
+
+   *  hostname – Hostname
+
+   *  idn-hostname – Internationalized hostname
+
+   *  iri – Internationalized Resource Identifier
+
+   *  iri-reference – Internationalized Resource Identifier reference
+
+   *  uri-template – URI template
+
+   *  relative-json-pointer – Relative JSON pointer
+
+   *  regex – Regular expression
+
+3.3.  Array and Set Validation Keywords
+
+   This section defines the validation keywords applicable to schemas
+   with the type array and set.
+
+3.3.1.  minItems
+
+   An array or set is valid if its number of elements is at least the
+   integer value specified in minItems.  The value of minItems MUST be a
+   non-negative integer.
+
+   Example:
+
+   { "type": "array", "minItems": 2 }
+
+3.3.2.  maxItems
+
+   An array or set is valid if its number of elements does not exceed
+   the integer value specified in maxItems.  The value of maxItems MUST
+   be a non-negative integer.
+
+   Example:
+
+   { "type": "array", "maxItems": 10 }
+
+3.3.3.  uniqueItems
+
+   This keyword is only applicable to schemas with the type array as
+   this constraint is inherent to set.  An array is valid if, when
+   uniqueItems is set to true, no two elements are equal.  The value of
+   uniqueItems MUST be a boolean (either true or false).
+
+
+
+
+Vasters                 Expires 11 December 2026                [Page 6]
+
+Internet-Draft    JSON Structure: Validation Extensions        June 2026
+
+
+   Example:
+
+   { "type": "array", "uniqueItems": true }
+
+3.3.4.  contains
+
+   An array or set is valid if at least one element satisfies the schema
+   specified in contains.  The value of contains MUST be a valid JSON
+   Structure object.
+
+   Example:
+
+   { "type": "array", "contains": { "type": "string" } }
+
+   The condition schema MAY contain a const keyword to specify a fixed
+   value that the array must contain.
+
+   Example:
+
+   { "type": "array", "contains": { "type": "string", "const": "foo" } }
+
+3.3.5.  maxContains
+
+   An array or set is valid if at most the number of elements specified
+   in maxContains satisfy the schema specified in contains.  The value
+   of maxContains MUST be a non-negative integer.
+
+   Example:
+
+   { "type": "array", "contains": { "type": "string" }, "maxContains": 2 }
+
+3.3.6.  minContains
+
+   An array or set is valid if at least the number of elements specified
+   in minContains satisfy the schema specified in contains.  The value
+   of minContains MUST be a non-negative integer.
+
+   Example:
+
+   { "type": "array", "contains": { "type": "string" }, "minContains": 2 }
+
+3.4.  Object and Map Validation Keywords
+
+   This section defines the validation keywords applicable to schemas
+   with the type object and map.
+
+
+
+
+
+
+Vasters                 Expires 11 December 2026                [Page 7]
+
+Internet-Draft    JSON Structure: Validation Extensions        June 2026
+
+
+3.4.1.  minProperties and minEntries
+
+   An object is valid if it has at least as many properties as defined
+   by the integer value specified in minProperties.  The value of
+   minProperties MUST be a non-negative integer.  The minEntries keyword
+   applies equivalently to map types.
+
+   Example:
+
+   { "type": "object", "minProperties": 1 }
+
+   This constraint is useful for object definitions that use dynamic
+   properties via additionalProperties and patternProperties.
+
+3.4.2.  maxProperties and maxEntries
+
+   An object is valid if it contains no more than the integer value
+   specified in maxProperties.  The value of maxProperties MUST be a
+   non-negative integer.  The maxEntries keyword applies equivalently to
+   map types.
+
+   Example:
+
+   { "type": "object", "maxProperties": 5 }
+
+3.4.3.  dependentRequired
+
+   This keyword establishes dependencies between object properties.  The
+   value is a map of arrays of strings.  Each entry in the map
+   corresponds to a property name in the object instance.  If the
+   property exists, then the properties listed in the corresponding
+   array MUST also exist in the instance.  This keyword does not apply
+   to the map type.
+
+   Example:
+
+   {
+     "type": "object",
+     "properties": {
+       "name": { "type": "string" },
+       "credit_card": { "type": "number" },
+       "billing_address": { "type": "string" }
+     },
+     "dependentRequired": {
+       "credit_card": ["billing_address"]
+     },
+     "required": ["name"]
+   }
+
+
+
+Vasters                 Expires 11 December 2026                [Page 8]
+
+Internet-Draft    JSON Structure: Validation Extensions        June 2026
+
+
+3.4.4.  patternProperties and patternKeys
+
+   This keyword applies validation schemas to the *values* of properties
+   whose names match specified regular expressions.  It does not define
+   or declare properties; rather, it constrains the values of any
+   properties that happen to match the given patterns.
+
+   For each property in the object instance, if its name matches a
+   regular expression defined in patternProperties, then its value MUST
+   validate against the corresponding schema.  The property names used
+   as keys in patternProperties MUST be strings representing valid
+   regular expressions conforming to the [ECMA_262_2022] standard.  The
+   patternKeys keyword applies equivalently to map types.
+
+   Example:
+
+   {
+     "type": "object",
+     "patternProperties": {
+       "^[A-Z]": { "type": "string" }
+     }
+   }
+
+      *Note:* All identifiers are additionally subject to the
+      constraints of the identifier syntax in JSON Structure Core
+      [JSTRUCT-CORE].
+
+3.4.5.  propertyNames and keyNames
+
+   The propertyNames keyword constrains the *names* of all properties in
+   an object.  Unlike patternProperties, which validates property values
+   based on name patterns, propertyNames validates the names themselves
+   against a string-typed schema.  An object is valid only if every
+   property name in the object satisfies the given schema.  The schema
+   MUST be of type string.  The keyNames keyword applies equivalently to
+   map types.
+
+   Example:
+
+   {
+     "type": "object",
+     "propertyNames": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*$" }
+   }
+
+3.4.6.  has
+
+   The has keyword validates that an object or map has at least one
+   value that matches the schema.  The schema MUST be of type object.
+
+
+
+Vasters                 Expires 11 December 2026                [Page 9]
+
+Internet-Draft    JSON Structure: Validation Extensions        June 2026
+
+
+   Example:
+
+   {
+     "type": "object",
+     "has": { "type": "string" }
+   }
+
+3.5.  Default Values
+
+3.5.1.  default
+
+   The default keyword provides a default value for a schema.  If an
+   instance matches the schema but does not contain the property, the
+   default value is used.
+
+   Example:
+
+   {
+     "type": "object",
+     "properties": {
+       "name": {
+         "type": "string",
+         "default": "John Doe"
+       }
+     }
+   }
+
+3.6.  Enabling the Extensions
+
+   Validation extensions can be enabled in a schema or meta-schema by
+   adding JSONSchemaValidation to the $uses array when referencing the
+   extended meta-schema:
+
+   {
+     "$schema": "https://json-structure.org/meta/extended/v0/#",
+     "$id": "myschema",
+     "$uses": [
+       "JSONSchemaValidation"
+     ],
+     "type": "object",
+     "properties": {
+       "name": {
+         "type": "string",
+         "pattern": "^[A-Z][a-z]+$"
+       }
+     }
+   }
+
+
+
+
+Vasters                 Expires 11 December 2026               [Page 10]
+
+Internet-Draft    JSON Structure: Validation Extensions        June 2026
+
+
+   The extensions are enabled by default in the validation meta-schema:
+
+   {
+     "$schema": "https://json-structure.org/meta/validation/v0/#",
+     "$id": "myschema",
+     "type": "object",
+     "properties": {
+       "name": {
+         "type": "string",
+         "pattern": "^[A-Z][a-z]+$"
+       }
+     }
+   }
+
+4.  Implementation Considerations
+
+   Validators shall process each validation keyword independently and
+   combine results using a logical AND conjunction.  Regular expression
+   evaluation for pattern, patternProperties, and propertyNames MUST
+   conform to the ECMAScript Language Specification [ECMA_262_2022].
+
+5.  Security Considerations
+
+   Complex regular expressions specified in pattern, patternProperties,
+   and propertyNames may lead to performance issues (e.g., ReDoS).
+   Implementations should mitigate such risks.  Overly complex or deeply
+   nested validation constructs may impact performance and should be
+   optimized.
+
+6.  IANA Considerations
+
+   This document has no IANA actions.
+
+7.  Normative References
+
+   [ECMA_262_2022]
+              Ecma International, "ECMAScript® Language Specification",
+              ECMA Standards ECMA-262, 2022, <https://www.ecma-
+              international.org/publications-and-standards/standards/
+              ecma-262/>.
+
+   [JSTRUCT-CORE]
+              Vasters, C., "JSON Structure Core", n.d., <https://json-
+              structure.github.io/core/draft-vasters-json-structure-
+              core.html>.
+
+
+
+
+
+
+Vasters                 Expires 11 December 2026               [Page 11]
+
+Internet-Draft    JSON Structure: Validation Extensions        June 2026
+
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/rfc/rfc2119>.
+
+   [RFC5646]  Phillips, A., Ed. and M. Davis, Ed., "Tags for Identifying
+              Languages", BCP 47, RFC 5646, DOI 10.17487/RFC5646,
+              September 2009, <https://www.rfc-editor.org/rfc/rfc5646>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/rfc/rfc8174>.
+
+Changes from draft-vasters-json-structure-validation-01
+
+   *  Updated obsolete RFC 4646 reference to RFC 5646 (BCP 47).
+
+   *  Fixed terminology: $uses is an array, not a "clause"; entries are
+      not "keys".
+
+   *  Removed awkward parenthetical "(property)" in has keyword
+      definition.
+
+   *  Clarified roles of patternProperties/patternKeys vs propertyNames/
+      keyNames: the former validates property values by name pattern,
+      the latter validates names themselves.
+
+Changes from draft-vasters-json-structure-validation-00
+
+   *  Fixed typo in "Enabling the Extensions" section title.
+
+   *  Fixed invalid JSON in example (removed trailing comma).
+
+Acknowledgments
+
+   TODO acknowledge.
+
+Author's Address
+
+   Clemens Vasters
+   Microsoft Corporation
+   Email: clemensv@microsoft.com
+
+
+
+
+
+
+
+
+
+Vasters                 Expires 11 December 2026               [Page 12]

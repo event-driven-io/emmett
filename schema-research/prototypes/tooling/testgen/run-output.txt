@@ -1,0 +1,5 @@
+property: 200 fuzzed commands produced schema-valid events
+examples: {"opened":{"shoppingCartId":"aG88rLS"},"addCommand":{"shoppingCartId":"aG88rLS","productId":"mAZKiPw8c","quantity":8243368819687424}}
+same seed, same example: true
+Given/When/Then with generated examples: passed
+Given(no events)/When/ThenThrows with generated examples: passed

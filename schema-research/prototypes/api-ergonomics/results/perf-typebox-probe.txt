@@ -1,0 +1,9 @@
+typebox-plain: Instantiations: 3568 Check time: 0.23s 
+typebox-decode: Instantiations: 3710 Check time: 0.30s 
+typebox-adapter: Instantiations: 1309262 Check time: 6.15s 
+after fix typebox-adapter: Instantiations: 1313438 Check time: 3.90s 
+typebox-value-wide: Instantiations: 1 Check time: 0.03s 
+typebox-value-decode-wide: Instantiations: 1312859 Check time: 2.78s 
+typebox-value-errors: Instantiations: 25 Check time: 0.04s 
+after Decode cast, typebox-adapter: Instantiations: 5499 Check time: 0.18s 
+dropping StaticEncode (input unknown): b5 style Instantiations 1325183 (no change), reverted

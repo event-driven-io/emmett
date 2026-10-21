@@ -1,0 +1,44 @@
+{
+    "type": "object",
+    "title": "ShoppingCartConfirmed",
+    "description": "Shopping cart was confirmed by the client",
+    "properties": {
+        "shoppingCartId": {
+            "type": "string",
+            "description": "Cart id"
+        },
+        "confirmedAt": {
+            "type": "integer",
+            "format": "int64"
+        },
+        "totalAmount": {
+            "type": "string",
+            "contentEncoding": "base64"
+        },
+        "streamPosition": {
+            "type": "integer",
+            "format": "int64"
+        },
+        "note": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "status": {
+            "type": "string",
+            "enum": [
+                "Confirmed",
+                "Cancelled"
+            ],
+            "title": "Status"
+        }
+    },
+    "required": [
+        "shoppingCartId",
+        "confirmedAt",
+        "totalAmount",
+        "streamPosition",
+        "status"
+    ]
+}

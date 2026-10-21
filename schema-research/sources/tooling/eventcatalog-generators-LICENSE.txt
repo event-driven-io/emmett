@@ -1,0 +1,19 @@
+Copyright (c) 2024-2026 EventCatalog Ltd
+
+This software is dual-licensed:
+
+* For open-source projects: licensed under the GNU Affero General Public
+  License v3.0 (AGPL-3.0). See LICENSE-OPENSOURCE.md for the full terms.
+
+* For proprietary, internal, or commercial use: licensed under the EventCatalog
+  Commercial License. See LICENSE-COMMERCIAL.md for the full terms.
+
+If you are using these plugins for internal business purposes and do not wish
+to release your source code under AGPL-3.0, you must obtain a Commercial
+License.
+
+To obtain a Commercial License:
+  - Purchase a subscription at https://www.eventcatalog.dev/pricing
+  - Purchase individual plugins at https://eventcatalog.cloud/
+  - Free 14-day trial at https://eventcatalog.cloud/
+  - Contact us at hello@eventcatalog.dev

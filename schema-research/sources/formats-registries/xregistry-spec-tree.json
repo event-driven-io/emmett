@@ -1,0 +1,1355 @@
+{
+  "sha": "508cd2760a3c5b74adf61acac1e94654f9852f34",
+  "url": "https://api.github.com/repos/xregistry/spec/git/trees/508cd2760a3c5b74adf61acac1e94654f9852f34",
+  "tree": [
+    {
+      "path": ".clomonitor.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fcefb2672ac8f06bdc6115b07d74fb1a67696e5e",
+      "size": 186,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/fcefb2672ac8f06bdc6115b07d74fb1a67696e5e"
+    },
+    {
+      "path": ".editorconfig",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e0b7ac8596708724c00da448feb36f0025fd51ea",
+      "size": 414,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/e0b7ac8596708724c00da448feb36f0025fd51ea"
+    },
+    {
+      "path": ".gitattributes",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "526c8a38d4a53c339833267bbf86577f023ec507",
+      "size": 16,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/526c8a38d4a53c339833267bbf86577f023ec507"
+    },
+    {
+      "path": ".github",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "980c5c86d40f6ada5fc9cfdca1bc206de7507711",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/980c5c86d40f6ada5fc9cfdca1bc206de7507711"
+    },
+    {
+      "path": ".github/pull-request-template.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ef8fba84dbdd927199ec308b34f368235e3bda39",
+      "size": 311,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/ef8fba84dbdd927199ec308b34f368235e3bda39"
+    },
+    {
+      "path": ".github/workflows",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "81d2b946363e99f2584d5211260bc4644af1286c",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/81d2b946363e99f2584d5211260bc4644af1286c"
+    },
+    {
+      "path": ".github/workflows/fossa.yaml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "38e7ef8b1b36002ed29cd8ac6550ac2332a39353",
+      "size": 385,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/38e7ef8b1b36002ed29cd8ac6550ac2332a39353"
+    },
+    {
+      "path": ".github/workflows/regen-xreg-site.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "740d796a8828f14432d09a7f63bfec73a0a6bea4",
+      "size": 463,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/740d796a8828f14432d09a7f63bfec73a0a6bea4"
+    },
+    {
+      "path": ".github/workflows/release-notes.yaml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bf6cbbe65dd7d0b325407845ff18e5b9b2d92602",
+      "size": 2990,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/bf6cbbe65dd7d0b325407845ff18e5b9b2d92602"
+    },
+    {
+      "path": ".github/workflows/verify.yaml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d0da478eee5c2009b0670feb1ed141567b747c8d",
+      "size": 509,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/d0da478eee5c2009b0670feb1ed141567b747c8d"
+    },
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "71c56f435b47633b4dbcf82478320bec16b25a7a",
+      "size": 26,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/71c56f435b47633b4dbcf82478320bec16b25a7a"
+    },
+    {
+      "path": ".vscode",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "46aaf291ca3d4da608bc99ad8f2698db80169a55",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/46aaf291ca3d4da608bc99ad8f2698db80169a55"
+    },
+    {
+      "path": ".vscode/settings.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8d8cf75d0bf441e150a79115b5d195d7239f1411",
+      "size": 130,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/8d8cf75d0bf441e150a79115b5d195d7239f1411"
+    },
+    {
+      "path": "LICENSE",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5fcf6f1a0f9f263906e539471b22764db5f1976a",
+      "size": 11349,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/5fcf6f1a0f9f263906e539471b22764db5f1976a"
+    },
+    {
+      "path": "OWNERS",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bf2177b2204526feb1b3c3ff8077f465cd063a77",
+      "size": 397,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/bf2177b2204526feb1b3c3ff8077f465cd063a77"
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7eb0b922a21e3afc7684c824e97bdaa5d404e8b1",
+      "size": 7991,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/7eb0b922a21e3afc7684c824e97bdaa5d404e8b1"
+    },
+    {
+      "path": "cloudevents",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "93512bd8b2b3ffa24c145e828a1dbeb8714d75a8",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/93512bd8b2b3ffa24c145e828a1dbeb8714d75a8"
+    },
+    {
+      "path": "cloudevents/model.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2af2be816aba7fdc0cb008960f378694a4e89440",
+      "size": 246,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/2af2be816aba7fdc0cb008960f378694a4e89440"
+    },
+    {
+      "path": "cloudevents/samples",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "10311f663a271677748b38597ecf330dbc3723e2",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/10311f663a271677748b38597ecf330dbc3723e2"
+    },
+    {
+      "path": "cloudevents/samples/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "86afef61604baedc47474ba027904f75a125609f",
+      "size": 541,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/86afef61604baedc47474ba027904f75a125609f"
+    },
+    {
+      "path": "cloudevents/samples/scenarios",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "f830407c3b77a709e7987f360c685ee9c0a411b7",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/f830407c3b77a709e7987f360c685ee9c0a411b7"
+    },
+    {
+      "path": "cloudevents/samples/scenarios/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8d6495471f3a19a7cb13d8b642ca43c202d5b11b",
+      "size": 3300,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/8d6495471f3a19a7cb13d8b642ca43c202d5b11b"
+    },
+    {
+      "path": "cloudevents/samples/scenarios/contoso-erp-jsons07.xreg.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0ba8935c68d39a1b80e5266886eda117ac52e995",
+      "size": 62258,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/0ba8935c68d39a1b80e5266886eda117ac52e995"
+    },
+    {
+      "path": "cloudevents/samples/scenarios/import_all.sh",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "191790921d4cf81b702c350c7104b5a657a2b600",
+      "size": 1076,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/191790921d4cf81b702c350c7104b5a657a2b600"
+    },
+    {
+      "path": "cloudevents/samples/scenarios/inkjet-proto3.xreg.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7ea97898e5b6aae9523ba9d431ee40aaec2d0912",
+      "size": 10418,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/7ea97898e5b6aae9523ba9d431ee40aaec2d0912"
+    },
+    {
+      "path": "cloudevents/samples/scenarios/lightbulb-avro.xreg.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "498a77d0eb0efdc7b2f432786b5c1ba65a6b48d9",
+      "size": 14984,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/498a77d0eb0efdc7b2f432786b5c1ba65a6b48d9"
+    },
+    {
+      "path": "cloudevents/samples/scenarios/mqtt-sparkplugB.xreg.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "aee8c7677cade7782b4ecf3dbc022e0922575c97",
+      "size": 14591,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/aee8c7677cade7782b4ecf3dbc022e0922575c97"
+    },
+    {
+      "path": "cloudevents/samples/scenarios/smartoven-xsd.xreg.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b7a2e5b48322cde61803ddfab646ea43a0d20767",
+      "size": 11586,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/b7a2e5b48322cde61803ddfab646ea43a0d20767"
+    },
+    {
+      "path": "cloudevents/samples/scenarios/vacuumcleaner-avro.xreg.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "12b2bab47fd07b98f95d316262c88407a4387078",
+      "size": 20916,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/12b2bab47fd07b98f95d316262c88407a4387078"
+    },
+    {
+      "path": "cloudevents/samples/scenarios/watchkam-jsons07.xreg.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a2714a78f652a6530309abaa5a6c7b8ba5d77e41",
+      "size": 11777,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/a2714a78f652a6530309abaa5a6c7b8ba5d77e41"
+    },
+    {
+      "path": "cloudevents/samples/scenarios/waterboiler-mqtt5-jsons07.xreg.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dac6885ecfc8f3977174dc9260a9213428ea68ca",
+      "size": 5864,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/dac6885ecfc8f3977174dc9260a9213428ea68ca"
+    },
+    {
+      "path": "cloudevents/samples/scenarios/windgenerator-kafka-avro.xreg.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dd57810e892b47a6d755ef68735b5234530bdf2c",
+      "size": 3297,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/dd57810e892b47a6d755ef68735b5234530bdf2c"
+    },
+    {
+      "path": "cloudevents/samples/schemas",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "9f1a621b302e4bab81b5101ce953c03dd4333357",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/9f1a621b302e4bab81b5101ce953c03dd4333357"
+    },
+    {
+      "path": "cloudevents/samples/schemas/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ec3bf15c190b769a5b859abc75fe6c4347c104c8",
+      "size": 692,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/ec3bf15c190b769a5b859abc75fe6c4347c104c8"
+    },
+    {
+      "path": "cloudevents/samples/schemas/schemastore_org.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3d4ae1a104478b1fb14466a91ecc4d66eb21a3d0",
+      "size": 6543,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/3d4ae1a104478b1fb14466a91ecc4d66eb21a3d0"
+    },
+    {
+      "path": "cloudevents/samples/schemas/schemastore_org.xreg.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "13839203d9a28b97407b376de2e6b36909475a43",
+      "size": 240800,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/13839203d9a28b97407b376de2e6b36909475a43"
+    },
+    {
+      "path": "cloudevents/schemas",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "81f6b826c116a01e36b059dc1111e9a5f0572df7",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/81f6b826c116a01e36b059dc1111e9a5f0572df7"
+    },
+    {
+      "path": "cloudevents/schemas/document-schema.avsc",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d5322da51c791988b50ba812fa284306db75628a",
+      "size": 28704,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/d5322da51c791988b50ba812fa284306db75628a"
+    },
+    {
+      "path": "cloudevents/schemas/document-schema.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "94122d1b2f8df5739f56c6919a56d8ec9110cdce",
+      "size": 99888,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/94122d1b2f8df5739f56c6919a56d8ec9110cdce"
+    },
+    {
+      "path": "cloudevents/schemas/document-schema.struct.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "30e99606fc0a4c810df12d6bee09e96033c2bc38",
+      "size": 54063,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/30e99606fc0a4c810df12d6bee09e96033c2bc38"
+    },
+    {
+      "path": "cloudevents/schemas/openapi.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e497c82a4680686c3c88085414cdae9b4cd169ca",
+      "size": 176296,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/e497c82a4680686c3c88085414cdae9b4cd169ca"
+    },
+    {
+      "path": "cloudevents/spec.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0ca9ec203b7fa7921e1cd4e0d4ef547705588ba5",
+      "size": 18521,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/0ca9ec203b7fa7921e1cd4e0d4ef547705588ba5"
+    },
+    {
+      "path": "core",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "400f9ab280dbdf9e3a1efd41d1771f16a0bf0204",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/400f9ab280dbdf9e3a1efd41d1771f16a0bf0204"
+    },
+    {
+      "path": "core/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3b622c3b3d84ab0b3401cf31a8ea86a32266964e",
+      "size": 91,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/3b622c3b3d84ab0b3401cf31a8ea86a32266964e"
+    },
+    {
+      "path": "core/diagrams.pptx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "114aac30763b56edb47a0b8b568afa03110f4855",
+      "size": 67559,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/114aac30763b56edb47a0b8b568afa03110f4855"
+    },
+    {
+      "path": "core/events.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7da5880a27977eac1a29805937411e8c731f8ba0",
+      "size": 29164,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/7da5880a27977eac1a29805937411e8c731f8ba0"
+    },
+    {
+      "path": "core/http.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "80c55057b696925c0451d9da51e6c22dcc5fdb35",
+      "size": 104321,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/80c55057b696925c0451d9da51e6c22dcc5fdb35"
+    },
+    {
+      "path": "core/model.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "da69c194c02a8e622fffdc050b682e3fbe87bf9b",
+      "size": 1623,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/da69c194c02a8e622fffdc050b682e3fbe87bf9b"
+    },
+    {
+      "path": "core/model.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "72d6e33cb7e4427a5712d9a918f9b2bd87b244d1",
+      "size": 68141,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/72d6e33cb7e4427a5712d9a918f9b2bd87b244d1"
+    },
+    {
+      "path": "core/model.schema.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d8b7d818cc11fe8be42a3472ceefcba0274ec829",
+      "size": 15511,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/d8b7d818cc11fe8be42a3472ceefcba0274ec829"
+    },
+    {
+      "path": "core/primer.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bca18a98bf6f31cb7b3a2b829be92dc33371ab71",
+      "size": 82357,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/bca18a98bf6f31cb7b3a2b829be92dc33371ab71"
+    },
+    {
+      "path": "core/resource.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0b5df8096c469d48a746b434acee8819c7a98a5b",
+      "size": 42314,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/0b5df8096c469d48a746b434acee8819c7a98a5b"
+    },
+    {
+      "path": "core/sample-model-full.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "908a1757544cd013af85ea1582cb7a6c0ee4b1a8",
+      "size": 15201,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/908a1757544cd013af85ea1582cb7a6c0ee4b1a8"
+    },
+    {
+      "path": "core/sample-model.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "db672fd9574b523c7798936b3b315489b73264cd",
+      "size": 154,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/db672fd9574b523c7798936b3b315489b73264cd"
+    },
+    {
+      "path": "core/samples",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "f8d26231339424848d614a88527128c18c04d018",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/f8d26231339424848d614a88527128c18c04d018"
+    },
+    {
+      "path": "core/samples/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0e2d8eae540e9ff93897f94a06281f8a24de1f85",
+      "size": 1823,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/0e2d8eae540e9ff93897f94a06281f8a24de1f85"
+    },
+    {
+      "path": "core/samples/contoso-crm.cereg",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "50f07a0b0d6fe8aabdcd1c650919320618827a14",
+      "size": 21467,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/50f07a0b0d6fe8aabdcd1c650919320618827a14"
+    },
+    {
+      "path": "core/samples/contoso-crm.cereg.yaml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ea18f158c48ac4817c30c71fd5d0e729e95dcc5d",
+      "size": 15727,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/ea18f158c48ac4817c30c71fd5d0e729e95dcc5d"
+    },
+    {
+      "path": "core/samples/doc-store-data.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "59bb0ca5a0d2581ff2f642026d8e1f5aae875f5b",
+      "size": 747,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/59bb0ca5a0d2581ff2f642026d8e1f5aae875f5b"
+    },
+    {
+      "path": "core/samples/doc-store-model.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3a60fc89a1915a6ae2202a4acbf248f213c51cee",
+      "size": 155,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/3a60fc89a1915a6ae2202a4acbf248f213c51cee"
+    },
+    {
+      "path": "core/samples/formatted-doc-store-data.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "df3e9bc6421ec0be05c47a88696a6bed9409635e",
+      "size": 982,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/df3e9bc6421ec0be05c47a88696a6bed9409635e"
+    },
+    {
+      "path": "core/samples/formatted-doc-store-model.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "35d1f2cbc310cb0b65a18b929ca4c6a6a3eb132f",
+      "size": 165,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/35d1f2cbc310cb0b65a18b929ca4c6a6a3eb132f"
+    },
+    {
+      "path": "core/spec.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7313fa973295605c88c2b7a103e3d5b8ff841f96",
+      "size": 243037,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/7313fa973295605c88c2b7a103e3d5b8ff841f96"
+    },
+    {
+      "path": "core/templates",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "477b22ed4f538be9c2de74efb18eb87e9598dbe3",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/477b22ed4f538be9c2de74efb18eb87e9598dbe3"
+    },
+    {
+      "path": "core/templates/xregistry_openapi_template.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "185571441dbea3d694a395aed10d88eb49f2aa62",
+      "size": 81938,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/185571441dbea3d694a395aed10d88eb49f2aa62"
+    },
+    {
+      "path": "core/xregbasicmodel.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cca9329082939c9ddec97f654db5beef4a6d0698",
+      "size": 79392,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/cca9329082939c9ddec97f654db5beef4a6d0698"
+    },
+    {
+      "path": "core/xregfullmodel.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "624105105ae50ef3224cc719e954d2703e172baf",
+      "size": 124518,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/624105105ae50ef3224cc719e954d2703e172baf"
+    },
+    {
+      "path": "core/xregsample.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "08ff5e88c6bdbf1e76a329553c4ed7bb17c932c8",
+      "size": 100595,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/08ff5e88c6bdbf1e76a329553c4ed7bb17c932c8"
+    },
+    {
+      "path": "core/xregurlmapping.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1b83d77f0da8b9629fb666c2a6682b5a258f1868",
+      "size": 245391,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/1b83d77f0da8b9629fb666c2a6682b5a258f1868"
+    },
+    {
+      "path": "docs",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5754c6d669d085aa973e69816848c86a651b5c6c",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/5754c6d669d085aa973e69816848c86a651b5c6c"
+    },
+    {
+      "path": "docs/CONTRIBUTING.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "20c9de788df4a524991514d10017bfdd95d4b1cd",
+      "size": 4925,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/20c9de788df4a524991514d10017bfdd95d4b1cd"
+    },
+    {
+      "path": "docs/GOVERNANCE.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "46f2fb2de633ce37a420d64ded09a0c0f211f5ba",
+      "size": 10146,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/46f2fb2de633ce37a420d64ded09a0c0f211f5ba"
+    },
+    {
+      "path": "docs/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e01cbfdebe34e0856fe20205de0b25e064aa1da6",
+      "size": 846,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/e01cbfdebe34e0856fe20205de0b25e064aa1da6"
+    },
+    {
+      "path": "docs/RELEASES.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0b32e9d7f924e904a5efeb18abc7f0bc6d3b8614",
+      "size": 532,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/0b32e9d7f924e904a5efeb18abc7f0bc6d3b8614"
+    },
+    {
+      "path": "docs/RELEASE_NOTES.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "07a89b04b38871e6dc0365a48ce6e511fc32fd1a",
+      "size": 810,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/07a89b04b38871e6dc0365a48ce6e511fc32fd1a"
+    },
+    {
+      "path": "docs/ROADMAP.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dd407882311980c493e57328841b3401a8276589",
+      "size": 1133,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/dd407882311980c493e57328841b3401a8276589"
+    },
+    {
+      "path": "docs/contributors.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8a9f790170a42b261eff95798b70cc9f43e4d27d",
+      "size": 1368,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/8a9f790170a42b261eff95798b70cc9f43e4d27d"
+    },
+    {
+      "path": "docs/demos.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b5c97e2684dd0f93fdb1dadc0a75c62ba391fcae",
+      "size": 320,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/b5c97e2684dd0f93fdb1dadc0a75c62ba391fcae"
+    },
+    {
+      "path": "docs/open-source.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "11110a47d8259b3d4710d5f2d9fa74b0bd78b5cb",
+      "size": 993,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/11110a47d8259b3d4710d5f2d9fa74b0bd78b5cb"
+    },
+    {
+      "path": "docs/share",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "41336b0bdd1231d54e893ecd4f0fbbd5c97795cc",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/41336b0bdd1231d54e893ecd4f0fbbd5c97795cc"
+    },
+    {
+      "path": "docs/share/KubeConEU23-CEDiscovery.pptx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d0a566a486478b0da0bd35eedf2ad3af129b6981",
+      "size": 11420322,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/d0a566a486478b0da0bd35eedf2ad3af129b6981"
+    },
+    {
+      "path": "docs/share/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a3d328cd049d54ea504da2f3b61c4b4091efb93a",
+      "size": 49,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/a3d328cd049d54ea504da2f3b61c4b4091efb93a"
+    },
+    {
+      "path": "endpoint",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c4596ae6c474408444f2a83940cc7e19e22086d2",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/c4596ae6c474408444f2a83940cc7e19e22086d2"
+    },
+    {
+      "path": "endpoint/model.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a2d141d4f7ce06e4cf3f7b48828cab1c19336c31",
+      "size": 46042,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/a2d141d4f7ce06e4cf3f7b48828cab1c19336c31"
+    },
+    {
+      "path": "endpoint/schemas",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "8663eab0150a60133d5d9437db56b840691c8b11",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/8663eab0150a60133d5d9437db56b840691c8b11"
+    },
+    {
+      "path": "endpoint/schemas/document-schema.avsc",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fc1f35eb778f04d6806c44bad2b4a35a79e27a6a",
+      "size": 22442,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/fc1f35eb778f04d6806c44bad2b4a35a79e27a6a"
+    },
+    {
+      "path": "endpoint/schemas/document-schema.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5dedccec269fc8465ef056b6ef660fd362f51368",
+      "size": 93031,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/5dedccec269fc8465ef056b6ef660fd362f51368"
+    },
+    {
+      "path": "endpoint/schemas/document-schema.struct.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1891c3a72a349471e8bf0e97ffd7487b0829d777",
+      "size": 48576,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/1891c3a72a349471e8bf0e97ffd7487b0829d777"
+    },
+    {
+      "path": "endpoint/schemas/openapi.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9189387aba4460b5b51ae753d945978f83596a21",
+      "size": 136436,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/9189387aba4460b5b51ae753d945978f83596a21"
+    },
+    {
+      "path": "endpoint/spec.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "78df20f54ce2bcf648eabd569b03d9626e2c905b",
+      "size": 54010,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/78df20f54ce2bcf648eabd569b03d9626e2c905b"
+    },
+    {
+      "path": "message",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "9382af02a4bdeffb784c813ecdf294f4d2e593e6",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/9382af02a4bdeffb784c813ecdf294f4d2e593e6"
+    },
+    {
+      "path": "message/model.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1c1edd5ed81f65a691ae30eccbcf1b5b543cea52",
+      "size": 66255,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/1c1edd5ed81f65a691ae30eccbcf1b5b543cea52"
+    },
+    {
+      "path": "message/schemas",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "40d2f021ac6d49aaecd4e7e18681101b6a6bd6cd",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/40d2f021ac6d49aaecd4e7e18681101b6a6bd6cd"
+    },
+    {
+      "path": "message/schemas/document-schema.avsc",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a2cef101d7f9050d4c52a76b9196b1a41da23bf8",
+      "size": 14783,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/a2cef101d7f9050d4c52a76b9196b1a41da23bf8"
+    },
+    {
+      "path": "message/schemas/document-schema.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "aec784b3ccabe232fa086c09823c5972e4d4e45f",
+      "size": 51189,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/aec784b3ccabe232fa086c09823c5972e4d4e45f"
+    },
+    {
+      "path": "message/schemas/document-schema.struct.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d6549fd0089b366d7431f533fef2f32284ddee97",
+      "size": 36456,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/d6549fd0089b366d7431f533fef2f32284ddee97"
+    },
+    {
+      "path": "message/schemas/openapi.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "140507660c132ecc411498db135cdb66ffae3406",
+      "size": 104471,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/140507660c132ecc411498db135cdb66ffae3406"
+    },
+    {
+      "path": "message/spec.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8433d843b6ca669afd3c60ddfd7b001b68d89b2d",
+      "size": 60910,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/8433d843b6ca669afd3c60ddfd7b001b68d89b2d"
+    },
+    {
+      "path": "pagination",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "554c4b4c58a058ac5d78628c2efc35e97ba36f7a",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/554c4b4c58a058ac5d78628c2efc35e97ba36f7a"
+    },
+    {
+      "path": "pagination/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8de70d04f873339437965c6ebcabcf7cfd16ac15",
+      "size": 77,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/8de70d04f873339437965c6ebcabcf7cfd16ac15"
+    },
+    {
+      "path": "pagination/RELEASE_NOTES.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "700a27ce479b694b8db832ec690303df14ee1961",
+      "size": 119,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/700a27ce479b694b8db832ec690303df14ee1961"
+    },
+    {
+      "path": "pagination/spec.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "00b6dc38ea56e4ad900530ff7614def82be7a5d0",
+      "size": 8522,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/00b6dc38ea56e4ad900530ff7614def82be7a5d0"
+    },
+    {
+      "path": "schema",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "98faa127404522e9c3980aa069e43d77ea53c89c",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/98faa127404522e9c3980aa069e43d77ea53c89c"
+    },
+    {
+      "path": "schema/model.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "462998da9e070de2398a7a30d9c79ef8750d0cae",
+      "size": 1132,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/462998da9e070de2398a7a30d9c79ef8750d0cae"
+    },
+    {
+      "path": "schema/schemas",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "7ec46e3b88b161b8b018564f66f4a095de79c714",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/7ec46e3b88b161b8b018564f66f4a095de79c714"
+    },
+    {
+      "path": "schema/schemas/document-schema.avsc",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "178e65cb67745c0a64cc6f158c4021d9610b1612",
+      "size": 7571,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/178e65cb67745c0a64cc6f158c4021d9610b1612"
+    },
+    {
+      "path": "schema/schemas/document-schema.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4094f5a85fe718c37c8f0c8d5cd69a5648d27737",
+      "size": 7049,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/4094f5a85fe718c37c8f0c8d5cd69a5648d27737"
+    },
+    {
+      "path": "schema/schemas/document-schema.struct.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8b986a331a4cf612ae910d98fd69bc9755761871",
+      "size": 5830,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/8b986a331a4cf612ae910d98fd69bc9755761871"
+    },
+    {
+      "path": "schema/schemas/openapi.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9dc55ad0250ff92282447e319a5a1f43e7456c0d",
+      "size": 68909,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/9dc55ad0250ff92282447e319a5a1f43e7456c0d"
+    },
+    {
+      "path": "schema/spec.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "202fa045d07394804fdfca3bc5705a6ffa4541d2",
+      "size": 28944,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/202fa045d07394804fdfca3bc5705a6ffa4541d2"
+    },
+    {
+      "path": "todos",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "0a02ea2187f93ee44483b61827004c1dba601115",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/0a02ea2187f93ee44483b61827004c1dba601115"
+    },
+    {
+      "path": "todos/discovery.yaml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "67629f0466db6b2d49e897867b158d8c62718edc",
+      "size": 13847,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/67629f0466db6b2d49e897867b158d8c62718edc"
+    },
+    {
+      "path": "todos/primer.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b3dddc7f7391d122a1542cc5ee38fcad58b0a3c3",
+      "size": 6984,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/b3dddc7f7391d122a1542cc5ee38fcad58b0a3c3"
+    },
+    {
+      "path": "tools",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "eb7efda87950831613600d9044598410d783190a",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/eb7efda87950831613600d9044598410d783190a"
+    },
+    {
+      "path": "tools/Makefile",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f9ce07d64b3ca171a9c0cf0337556115ae991434",
+      "size": 5609,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/f9ce07d64b3ca171a9c0cf0337556115ae991434"
+    },
+    {
+      "path": "tools/dict",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dad808a6e1b177e2f233e6d74ff719087603fa4f",
+      "size": 4131,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/dad808a6e1b177e2f233e6d74ff719087603fa4f"
+    },
+    {
+      "path": "tools/errorcheck",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "eeb9e13fa6385a4041180e22f34d36ae08abd307",
+      "size": 1893,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/eeb9e13fa6385a4041180e22f34d36ae08abd307"
+    },
+    {
+      "path": "tools/fake-docs",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "98c181e87133be705168f174839e16f00bc18a8e",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/98c181e87133be705168f174839e16f00bc18a8e"
+    },
+    {
+      "path": "tools/fake-docs/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "94f5e9f3c76c091f23ef7c601236929352fbd25b",
+      "size": 85,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/94f5e9f3c76c091f23ef7c601236929352fbd25b"
+    },
+    {
+      "path": "tools/fake-docs/languages",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "43834f1827de55a4bcca0477a77f5d34cb4e76b8",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/43834f1827de55a4bcca0477a77f5d34cb4e76b8"
+    },
+    {
+      "path": "tools/fake-docs/languages/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e0ca35905ece736ca3fdfe5156d71310642c48d2",
+      "size": 25,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/e0ca35905ece736ca3fdfe5156d71310642c48d2"
+    },
+    {
+      "path": "tools/fake-docs/languages/my-lang",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "05fc3a8abe06e0476c203ed97be9ac5541cb507c",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/05fc3a8abe06e0476c203ed97be9ac5541cb507c"
+    },
+    {
+      "path": "tools/fake-docs/languages/my-lang/link-verification.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "27a86a38378c399bde2b4ec46156d406bbfe5390",
+      "size": 122,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/27a86a38378c399bde2b4ec46156d406bbfe5390"
+    },
+    {
+      "path": "tools/fake-docs/languages/my-lang/myspec",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c17cff4db0c5bb5ca0e728ba4f67984db54b5bb7",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/c17cff4db0c5bb5ca0e728ba4f67984db54b5bb7"
+    },
+    {
+      "path": "tools/fake-docs/languages/my-lang/myspec/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2351c7de238b7c06bc2d23b143b2f7363cd8c1ee",
+      "size": 91,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/2351c7de238b7c06bc2d23b143b2f7363cd8c1ee"
+    },
+    {
+      "path": "tools/fake-docs/languages/my-lang/myspec/spec.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2351c7de238b7c06bc2d23b143b2f7363cd8c1ee",
+      "size": 91,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/2351c7de238b7c06bc2d23b143b2f7363cd8c1ee"
+    },
+    {
+      "path": "tools/fake-docs/languages/your-lang",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c6092f5a38d6ffb9384a18296f327975dca57b7f",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/c6092f5a38d6ffb9384a18296f327975dca57b7f"
+    },
+    {
+      "path": "tools/fake-docs/languages/your-lang/myspec",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "846b389de6dd647dcc729670566e721bdd0c0e33",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/846b389de6dd647dcc729670566e721bdd0c0e33"
+    },
+    {
+      "path": "tools/fake-docs/languages/your-lang/myspec/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "29389ca4c5d932d76481bdb642f9b37944595303",
+      "size": 147,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/29389ca4c5d932d76481bdb642f9b37944595303"
+    },
+    {
+      "path": "tools/fake-docs/languages/your-lang/myspec/spec.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6b071e194edbb23ff16040f8581247eef13ccb70",
+      "size": 99,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/6b071e194edbb23ff16040f8581247eef13ccb70"
+    },
+    {
+      "path": "tools/fake-docs/languages/your-lang/text-verification.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "75fa2e40293b1de90aa974f1c94c40fcd7eb384f",
+      "size": 112,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/75fa2e40293b1de90aa974f1c94c40fcd7eb384f"
+    },
+    {
+      "path": "tools/fake-docs/link-verification.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5b0d59f6780115c9b08c8762ee00c30f1a2875b2",
+      "size": 963,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/5b0d59f6780115c9b08c8762ee00c30f1a2875b2"
+    },
+    {
+      "path": "tools/fake-docs/myspec",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5cc405b607cc7248a31330895008836245b77af4",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/5cc405b607cc7248a31330895008836245b77af4"
+    },
+    {
+      "path": "tools/fake-docs/myspec/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1522c631edf4cc61c26e51a47040ad88bd39abc8",
+      "size": 115,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/1522c631edf4cc61c26e51a47040ad88bd39abc8"
+    },
+    {
+      "path": "tools/fake-docs/myspec/spec.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "de719785aac55987a129a3228549326bbf4f393b",
+      "size": 116,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/de719785aac55987a129a3228549326bbf4f393b"
+    },
+    {
+      "path": "tools/fake-docs/text-verification.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b0ca5f912e3f445ea766998ef931f65d57871688",
+      "size": 693,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/b0ca5f912e3f445ea766998ef931f65d57871688"
+    },
+    {
+      "path": "tools/fake-docs/yourspec",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "b471a081370cc2c11f726512443033e6f70592be",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/b471a081370cc2c11f726512443033e6f70592be"
+    },
+    {
+      "path": "tools/fake-docs/yourspec/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "118f04d2bb58dccb494e3a209c0b252801ba9886",
+      "size": 225,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/118f04d2bb58dccb494e3a209c0b252801ba9886"
+    },
+    {
+      "path": "tools/fake-docs/yourspec/spec.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3c68ae61d3993e28d4c5434add546730c1c2b08e",
+      "size": 226,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/3c68ae61d3993e28d4c5434add546730c1c2b08e"
+    },
+    {
+      "path": "tools/modelscheck",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "751da6924b3171417a2e6d67feb071c463465791",
+      "size": 1713,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/751da6924b3171417a2e6d67feb071c463465791"
+    },
+    {
+      "path": "tools/requirements.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d56fe084b5c940df68b0a5c6209feaf661e6807f",
+      "size": 151,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/d56fe084b5c940df68b0a5c6209feaf661e6807f"
+    },
+    {
+      "path": "tools/samplescheck",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "168927ae624b71a818a2f77518a4a8178e88a7cd",
+      "size": 330,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/168927ae624b71a818a2f77518a4a8178e88a7cd"
+    },
+    {
+      "path": "tools/schema-generator.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0c66974d4646f5f6b4853000b8d782b35cd3309b",
+      "size": 74534,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/0c66974d4646f5f6b4853000b8d782b35cd3309b"
+    },
+    {
+      "path": "tools/spellcheck",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "810738c8f5ec793d020acd3fdbb88eb56b1c95e4",
+      "size": 1137,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/810738c8f5ec793d020acd3fdbb88eb56b1c95e4"
+    },
+    {
+      "path": "tools/tabcheck",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "4d9b3b4fe9991e3e58b98bb540de00f52be7147e",
+      "size": 322,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/4d9b3b4fe9991e3e58b98bb540de00f52be7147e"
+    },
+    {
+      "path": "tools/test-openapi.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c2e1b58b39de669775c335e81c898c1e64763b17",
+      "size": 104110,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/c2e1b58b39de669775c335e81c898c1e64763b17"
+    },
+    {
+      "path": "tools/test_samples.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f775dbce8035d3da56ce1d320d7d2990c2a1eee7",
+      "size": 3512,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/f775dbce8035d3da56ce1d320d7d2990c2a1eee7"
+    },
+    {
+      "path": "tools/test_schema_generator.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bb6daa76ec9ebeb85c5909b94c3f8ead968aeed3",
+      "size": 24174,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/bb6daa76ec9ebeb85c5909b94c3f8ead968aeed3"
+    },
+    {
+      "path": "tools/test_verify.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "10c946e067d611dd0e0a2595f1c3fd9adf7b12f7",
+      "size": 10012,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/10c946e067d611dd0e0a2595f1c3fd9adf7b12f7"
+    },
+    {
+      "path": "tools/validate-models.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b6a737565da0ebc0caac8bcd8d6bcfcc4bdac991",
+      "size": 2619,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/b6a737565da0ebc0caac8bcd8d6bcfcc4bdac991"
+    },
+    {
+      "path": "tools/verify.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d4b08430e7959c2caee8819207fe2a427e6fdda3",
+      "size": 35802,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/d4b08430e7959c2caee8819207fe2a427e6fdda3"
+    },
+    {
+      "path": "tools/verify.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a131269c10825e5007185a161ee2f7e146b75990",
+      "size": 16014,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/a131269c10825e5007185a161ee2f7e146b75990"
+    },
+    {
+      "path": "tools/words",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bef5232322009afcd28132d7be6db400887066f9",
+      "size": 3864877,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/bef5232322009afcd28132d7be6db400887066f9"
+    },
+    {
+      "path": "workingdrafts",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "b62c41291c2ce1290810219e961983bab38b2881",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/b62c41291c2ce1290810219e961983bab38b2881"
+    },
+    {
+      "path": "workingdrafts/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fbb50a62fcd3a682f1614258eb6bb806e5c35e94",
+      "size": 447,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/fbb50a62fcd3a682f1614258eb6bb806e5c35e94"
+    },
+    {
+      "path": "workingdrafts/bindings",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "1a517462ac7c517d201eb72cccba2330cce0c23b",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/1a517462ac7c517d201eb72cccba2330cce0c23b"
+    },
+    {
+      "path": "workingdrafts/bindings/opcua.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d7320a0be833870262005bfd8dc6f93dd37281df",
+      "size": 79393,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/d7320a0be833870262005bfd8dc6f93dd37281df"
+    },
+    {
+      "path": "workingdrafts/models",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "9dd507ed8bc4bf7891591889362f0cb85d1e8e67",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/9dd507ed8bc4bf7891591889362f0cb85d1e8e67"
+    },
+    {
+      "path": "workingdrafts/models/openusd",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "a9767debecf6703264a3bcac0c7864cbeef77b7d",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/a9767debecf6703264a3bcac0c7864cbeef77b7d"
+    },
+    {
+      "path": "workingdrafts/models/openusd/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "442c80195592e67d6351c63abae576a64b1ce4ca",
+      "size": 174,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/442c80195592e67d6351c63abae576a64b1ce4ca"
+    },
+    {
+      "path": "workingdrafts/models/openusd/model.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dc7d37ebdf10e2f73fccf41592e905d1de62aa40",
+      "size": 8122,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/dc7d37ebdf10e2f73fccf41592e905d1de62aa40"
+    },
+    {
+      "path": "workingdrafts/models/openusd/spec.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "740818de358d00f9761bf8860965b58b0e60c937",
+      "size": 41749,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/740818de358d00f9761bf8860965b58b0e60c937"
+    },
+    {
+      "path": "workingdrafts/models/wot",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "2f18b87c158c720bb5dc00a5069dceeb7146ff29",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/2f18b87c158c720bb5dc00a5069dceeb7146ff29"
+    },
+    {
+      "path": "workingdrafts/models/wot/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4e0522bc877f89530e8647dc4751af2f1e71d855",
+      "size": 223,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/4e0522bc877f89530e8647dc4751af2f1e71d855"
+    },
+    {
+      "path": "workingdrafts/models/wot/decisions.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "12715e40996fd37141c91cf80d31cfbf2128e6ef",
+      "size": 8597,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/12715e40996fd37141c91cf80d31cfbf2128e6ef"
+    },
+    {
+      "path": "workingdrafts/models/wot/model.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "07fa64b53eaf2528c393bfce1743be0ff611d21c",
+      "size": 8231,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/07fa64b53eaf2528c393bfce1743be0ff611d21c"
+    },
+    {
+      "path": "workingdrafts/models/wot/samples",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "b003f62fe6a6ca376e681952b7de6932c1541374",
+      "url": "https://api.github.com/repos/xregistry/spec/git/trees/b003f62fe6a6ca376e681952b7de6932c1541374"
+    },
+    {
+      "path": "workingdrafts/models/wot/samples/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a9fa9cb85d7de254d4e3057ef270fa0dec7d3ff1",
+      "size": 2572,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/a9fa9cb85d7de254d4e3057ef270fa0dec7d3ff1"
+    },
+    {
+      "path": "workingdrafts/models/wot/samples/byom-pump-tm.xreg.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4bee14f2bff1cccb7144c3b501131626a9c8971e",
+      "size": 4772,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/4bee14f2bff1cccb7144c3b501131626a9c8971e"
+    },
+    {
+      "path": "workingdrafts/models/wot/samples/lamp-td.xreg.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8aafd13617c2b845d4af40ca503febc1bb17cdc0",
+      "size": 4495,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/8aafd13617c2b845d4af40ca503febc1bb17cdc0"
+    },
+    {
+      "path": "workingdrafts/models/wot/samples/lamp-tm.xreg.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0c6c9b9a4fb265fe389eea74ed0656d5f8aeeffa",
+      "size": 3184,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/0c6c9b9a4fb265fe389eea74ed0656d5f8aeeffa"
+    },
+    {
+      "path": "workingdrafts/models/wot/samples/smartlamp-wot.xreg.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ce8d33485c48a53100e017c4123f8ea03a121c56",
+      "size": 3464,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/ce8d33485c48a53100e017c4123f8ea03a121c56"
+    },
+    {
+      "path": "workingdrafts/models/wot/spec.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7c94faca36d7ef499d9012f8813b4015ff36c4c0",
+      "size": 54367,
+      "url": "https://api.github.com/repos/xregistry/spec/git/blobs/7c94faca36d7ef499d9012f8813b4015ff36c4c0"
+    }
+  ],
+  "truncated": false
+}

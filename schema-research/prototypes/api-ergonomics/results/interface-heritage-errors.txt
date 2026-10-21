@@ -1,0 +1,2 @@
+errors/interface-heritage.ts(3,33): error TS1109: Expression expected.
+errors/interface-heritage.ts(3,52): error TS1005: ';' expected.

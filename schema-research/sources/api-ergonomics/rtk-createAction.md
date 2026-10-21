@@ -1,0 +1,153 @@
+---
+id: createAction
+title: createAction
+sidebar_label: createAction
+hide_title: true
+---
+
+&nbsp;
+
+# `createAction`
+
+A helper function for defining a Redux [action](/tutorials/fundamentals/part-2-concepts-data-flow) type and creator.
+
+```js
+function createAction(type, prepareAction?)
+```
+
+The usual way to define an action in Redux is to separately declare an _action type_ constant and an _action creator_ function for constructing actions of that type.
+
+```ts
+const INCREMENT = 'counter/increment'
+
+function increment(amount: number) {
+  return {
+    type: INCREMENT,
+    payload: amount,
+  }
+}
+
+const action = increment(3)
+// { type: 'counter/increment', payload: 3 }
+```
+
+The `createAction` helper combines these two declarations into one. It takes an action type and returns an action creator for that type. The action creator can be called either without arguments or with a `payload` to be attached to the action.
+
+```ts
+import { createAction } from '@reduxjs/toolkit'
+
+const increment = createAction<number | undefined>('counter/increment')
+
+let action = increment()
+// { type: 'counter/increment' }
+
+action = increment(3)
+// returns { type: 'counter/increment', payload: 3 }
+
+console.log(`The action type is: ${increment.type}`)
+// 'The action type is: counter/increment'
+```
+
+## Using Prepare Callbacks to Customize Action Contents
+
+By default, the generated action creators accept a single argument, which becomes `action.payload`. This requires the caller to construct the entire payload correctly and pass it in.
+
+In many cases, you may want to write additional logic to customize the creation of the `payload` value, such as accepting multiple parameters for the action creator, generating a random ID, or getting the current timestamp. To do this, `createAction` accepts an optional second argument: a "prepare callback" that will be used to construct the payload value.
+
+```ts
+import { createAction, nanoid } from '@reduxjs/toolkit'
+
+const addTodo = createAction('todos/add', function prepare(text: string) {
+  return {
+    payload: {
+      text,
+      id: nanoid(),
+      createdAt: new Date().toISOString(),
+    },
+  }
+})
+
+console.log(addTodo('Write more docs'))
+/**
+ * {
+ *   type: 'todos/add',
+ *   payload: {
+ *     text: 'Write more docs',
+ *     id: '4AJvwMSWEHCchcWYga3dj',
+ *     createdAt: '2019-10-03T07:53:36.581Z'
+ *   }
+ * }
+ **/
+```
+
+If provided, all arguments from the action creator will be passed to the prepare callback, and it should return an object with the `payload` field (otherwise the payload of created actions will be `undefined`). Additionally, the object can have a `meta` and/or an `error` field that will also be added to created actions. `meta` may contain extra information about the action, `error` may contain details about the action failure. These three fields (`payload`, `meta` and `error`) adhere to the specification of [Flux Standard Actions](https://github.com/redux-utilities/flux-standard-action#actions).
+
+**Note:** The type field will be added automatically.
+
+## Usage with createReducer()
+
+Action creators can be passed directly to `addCase` in a [createReducer()](createReducer.mdx) build callback.
+
+```ts
+import { createAction, createReducer } from '@reduxjs/toolkit'
+
+const increment = createAction<number>('counter/increment')
+const decrement = createAction<number>('counter/decrement')
+
+const counterReducer = createReducer(0, (builder) => {
+  builder.addCase(increment, (state, action) => state + action.payload)
+  builder.addCase(decrement, (state, action) => state - action.payload)
+})
+```
+
+:::warning Non-String Action Types
+As of Redux 5.0, action types are _required_ to be strings. An error will be thrown by the store if a non-string action type reaches the original store dispatch.
+:::
+
+## actionCreator.match
+
+Every generated actionCreator has a `.match(action)` method that can be used to determine if the passed action is of the same type as an action that would be created by the action creator.
+
+This has different uses:
+
+### As a TypeScript Type Guard
+
+This `match` method is a [TypeScript type guard](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#using-type-predicates) and can be used to discriminate the `payload` type of an action.
+
+This behavior can be particularly useful when used in custom middlewares, where manual casts might be necessary otherwise.
+
+```ts
+import { createAction } from '@reduxjs/toolkit'
+import type { Action } from '@reduxjs/toolkit'
+
+const increment = createAction<number>('INCREMENT')
+
+function someFunction(action: Action) {
+  // accessing action.payload would result in an error here
+  if (increment.match(action)) {
+    // action.payload can be used as `number` here
+  }
+}
+```
+
+### With redux-observable
+
+The `match` method can also be used as a filter method, which makes it powerful when used with redux-observable:
+
+```ts
+import { createAction } from '@reduxjs/toolkit'
+import type { Action } from '@reduxjs/toolkit'
+import type { Observable } from 'rxjs'
+import { map, filter } from 'rxjs/operators'
+
+const increment = createAction<number>('INCREMENT')
+
+export const epic = (actions$: Observable<Action>) =>
+  actions$.pipe(
+    filter(increment.match),
+    map((action) => {
+      // action.payload can be safely used as number here (and will also be correctly inferred by TypeScript)
+      // ...
+    }),
+  )
+```

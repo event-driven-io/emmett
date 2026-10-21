@@ -1,0 +1,54 @@
+######## today
+now is a Date? false
+projected ProductItemAddedToShoppingCart
+[{"type":"ProductItemAddedToShoppingCart","data":{"shoppingCartId":"cart-1","clientId":"c1","productItem":{"productId":"p1","quantity":2,"unitPrice":10},"addedAt":"2026-10-04T10:00:00.000Z"},"metadata":{"clientId":"c1"}}]
+######## a-builtin
+now is a Date? true
+issues [{"message":"Expected string","path":["data","shoppingCartId"]},{"message":"Expected object","path":["data","productItem"]}]
+projected ProductItemAddedToShoppingCart
+[{"type":"ProductItemAddedToShoppingCart","data":{"shoppingCartId":"cart-1","clientId":"c1","productItem":{"productId":"p1","quantity":2,"unitPrice":10},"addedAt":"2026-10-04T10:00:00.000Z"},"metadata":{"clientId":"c1"},"kind":"Event"}]
+######## b-zod
+now is a Date? true
+issues [{"message":"Invalid input: expected string, received number","path":["data","shoppingCartId"]},{"message":"Invalid input: expected object, received undefined","path":["data","productItem"]}]
+projected ProductItemAddedToShoppingCart
+[{"type":"ProductItemAddedToShoppingCart","data":{"shoppingCartId":"cart-1","clientId":"c1","productItem":{"productId":"p1","quantity":2,"unitPrice":10},"addedAt":"2026-10-04T10:00:00.000Z"},"metadata":{"clientId":"c1"},"kind":"Event"}]
+######## b2-valibot
+now is a Date? true
+issues [{"message":"Invalid type: Expected string but received 42","path":["data","shoppingCartId"]},{"message":"Invalid key: Expected \"productItem\" but received undefined","path":["data","productItem"]}]
+projected ProductItemAddedToShoppingCart
+[{"type":"ProductItemAddedToShoppingCart","data":{"shoppingCartId":"cart-1","clientId":"c1","productItem":{"productId":"p1","quantity":2,"unitPrice":10},"addedAt":"2026-10-04T10:00:00.000Z"},"metadata":{"clientId":"c1"},"kind":"Event"}]
+######## b3-arktype
+now is a Date? true
+issues [{"message":"productItem must be an object (was missing)","path":["data","productItem"]},{"message":"shoppingCartId must be a string (was a number)","path":["data","shoppingCartId"]}]
+projected ProductItemAddedToShoppingCart
+[{"type":"ProductItemAddedToShoppingCart","data":{"shoppingCartId":"cart-1","clientId":"c1","productItem":{"productId":"p1","quantity":2,"unitPrice":10},"addedAt":"2026-10-04T10:00:00.000Z"},"metadata":{"clientId":"c1"},"kind":"Event"}]
+######## b4-effect
+now is a Date? true
+issues [{"message":"Expected string","path":["data","shoppingCartId"]},{"message":"Missing key","path":["data","productItem"]}]
+projected ProductItemAddedToShoppingCart
+[{"type":"ProductItemAddedToShoppingCart","data":{"shoppingCartId":"cart-1","clientId":"c1","productItem":{"productId":"p1","quantity":2,"unitPrice":10},"addedAt":"2026-10-04T10:00:00.000Z"},"metadata":{"clientId":"c1"},"kind":"Event"}]
+######## b5-typebox
+now is a Date? true
+issues [{"message":"must have required properties productItem","path":["data"]},{"message":"must be string","path":["data","shoppingCartId"]}]
+projected ProductItemAddedToShoppingCart
+[{"type":"ProductItemAddedToShoppingCart","data":{"shoppingCartId":"cart-1","clientId":"c1","productItem":{"productId":"p1","quantity":2,"unitPrice":10},"addedAt":"2026-10-04T10:00:00.000Z"},"metadata":{"clientId":"c1"},"kind":"Event"}]
+######## c-type-first
+now is a Date? true
+issues [{"message":"Expected string","path":["data","shoppingCartId"]},{"message":"Expected object","path":["data","productItem"]}]
+projected ProductItemAddedToShoppingCart
+[{"type":"ProductItemAddedToShoppingCart","data":{"shoppingCartId":"cart-1","clientId":"c1","productItem":{"productId":"p1","quantity":2,"unitPrice":10},"addedAt":"2026-10-04T10:00:00.000Z"},"metadata":{"clientId":"c1"},"kind":"Event"}]
+######## d-grouped
+now is a Date? true
+issues [{"message":"Expected string","path":["data","shoppingCartId"]},{"message":"Expected object","path":["data","productItem"]}]
+projected ProductItemAddedToShoppingCart
+[{"type":"ProductItemAddedToShoppingCart","data":{"shoppingCartId":"cart-1","clientId":"c1","productItem":{"productId":"p1","quantity":2,"unitPrice":10},"addedAt":"2026-10-04T10:00:00.000Z"},"metadata":{"clientId":"c1"},"kind":"Event"}]
+######## e-interface
+now is a Date? true
+issues [{"message":"Expected string","path":["data","shoppingCartId"]},{"message":"Expected object","path":["data","productItem"]}]
+projected ProductItemAddedToShoppingCart
+[{"type":"ProductItemAddedToShoppingCart","data":{"shoppingCartId":"cart-1","clientId":"c1","productItem":{"productId":"p1","quantity":2,"unitPrice":10},"addedAt":"2026-10-04T10:00:00.000Z"},"metadata":{"clientId":"c1"},"kind":"Event"}]
+######## f-class
+now is a Date? true
+issues [{"message":"Expected string","path":["data","shoppingCartId"]},{"message":"Expected object","path":["data","productItem"]}]
+projected ProductItemAddedToShoppingCart
+[{"data":{"shoppingCartId":"cart-1","clientId":"c1","productItem":{"productId":"p1","quantity":2,"unitPrice":10},"addedAt":"2026-10-04T10:00:00.000Z"},"metadata":{"clientId":"c1"},"type":"ProductItemAddedToShoppingCart","kind":"Event"}]

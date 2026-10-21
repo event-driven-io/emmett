@@ -1,0 +1,48 @@
+@@ -3,9 +3,9 @@
+ /////////////////////////////////////////
+ 
+ export const addProductItem = (
+-  command: AddProductItemToShoppingCart,
++  command: ShoppingCartCommands['AddProductItemToShoppingCart'],
+   state: ShoppingCart,
+-): ProductItemAddedToShoppingCart => {
++): ShoppingCartEvents['ProductItemAddedToShoppingCart'] => {
+   if (state.status === 'Closed')
+     throw new IllegalStateError('Shopping Cart already closed');
+ 
+@@ -21,9 +21,9 @@
+ };
+ 
+ export const removeProductItem = (
+-  command: RemoveProductItemFromShoppingCart,
++  command: ShoppingCartCommands['RemoveProductItemFromShoppingCart'],
+   state: ShoppingCart,
+-): ProductItemRemovedFromShoppingCart => {
++): ShoppingCartEvents['ProductItemRemovedFromShoppingCart'] => {
+   if (state.status !== 'Opened')
+     throw new IllegalStateError('Shopping Cart is not opened');
+ 
+@@ -44,9 +44,9 @@
+ };
+ 
+ export const confirm = (
+-  command: ConfirmShoppingCart,
++  command: ShoppingCartCommands['ConfirmShoppingCart'],
+   state: ShoppingCart,
+-): ShoppingCartConfirmed => {
++): ShoppingCartEvents['ShoppingCartConfirmed'] => {
+   if (state.status !== 'Opened')
+     throw new IllegalStateError('Shopping Cart is not opened');
+ 
+@@ -67,9 +67,9 @@
+ };
+ 
+ export const cancel = (
+-  command: CancelShoppingCart,
++  command: ShoppingCartCommands['CancelShoppingCart'],
+   state: ShoppingCart,
+-): ShoppingCartCancelled => {
++): ShoppingCartEvents['ShoppingCartCancelled'] => {
+   if (state.status !== 'Opened')
+     throw new IllegalStateError('Shopping Cart is not opened');
+ 

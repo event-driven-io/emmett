@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "ShoppingCartConfirmed",
+  "namespace": "com.example.shoppingcarts",
+  "doc": "Shopping cart was confirmed by the client",
+  "aliases": ["CartConfirmed"],
+  "fields": [
+    { "name": "shoppingCartId", "type": { "type": "string", "logicalType": "uuid" }, "doc": "Cart id" },
+    { "name": "confirmedAt", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+    { "name": "totalAmount", "type": { "type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2 } },
+    { "name": "streamPosition", "type": "long" },
+    { "name": "note", "type": ["null", "string"], "default": null },
+    { "name": "status", "type": { "type": "enum", "name": "Status", "symbols": ["Confirmed", "Cancelled"], "default": "Confirmed" } }
+  ]
+}

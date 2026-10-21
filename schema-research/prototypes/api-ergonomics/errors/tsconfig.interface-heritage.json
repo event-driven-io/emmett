@@ -1,0 +1,1 @@
+{ "extends": "../tsconfig.json", "include": ["../lib/**/*.ts", "interface-heritage.ts"], "exclude": [] }

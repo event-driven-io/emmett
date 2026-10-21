@@ -1,0 +1,23 @@
+@json-structure/sdk 0.7.0 2026-06-08 MIT | TypeScript/JavaScript SDK for validating JSON documents against JSON Structure s
+avsc 5.7.9 2025-07-13 MIT | Avro for JavaScript
+@kafkajs/confluent-schema-registry 4.1.0 2026-05-29 None | ConfluentSchemaRegistry is a library that makes it easier to interact with the C
+@confluentinc/schemaregistry 1.10.1 2026-09-10 MIT | Node.js client for Confluent Schema Registry
+@confluentinc/kafka-javascript 1.10.1 2026-09-10 MIT | Node.js bindings for librdkafka
+jsonschema-avro 2.1.1 2024-03-03 MIT | Convert JSON-schema into avro schema
+json-schema-to-avro 1.1.0 2019-11-06 MIT | Convert JSON Schema into Apache Avro schema
+avro-to-json-schema 0.1.0 2021-10-07 MIT | TypeScript code generator for Apache Avro types
+avro-js 1.12.2 2026-08-18 Apache-2.0 | JavaScript Avro implementation
+@apicurio/apicurio-registry-sdk 3.3.3 2026-09-08 None | This library provides an SDK for Apicurio Registry for use in Node.js and front-
+@azure/schema-registry 1.3.0 2024-09-16 MIT | Schema Registry Library with typescript type definitions for node.js and browser
+@azure/schema-registry-avro 1.1.0 2023-10-25 MIT | Schema Registry Avro Serializer Library with typescript type definitions for nod
+@azure/schema-registry-json 1.0.0 2024-09-17 MIT | Schema Registry JSON Serializer Library with typescript type definitions for nod
+@aws-sdk/client-glue 3.1146.0 2026-10-02 Apache-2.0 | AWS SDK for JavaScript Glue Client for Node.js, Browser and React Native
+protobufjs 8.8.0 2026-08-27 BSD-3-Clause | Protocol Buffers for JavaScript & TypeScript.
+@bufbuild/protobuf 2.16.0 2026-09-29 (Apache-2.0 AND BSD-3-Clause) | Protocol Buffers for ECMAScript. Fully compliant with the Protobuf conformance t
+@kurrent/kurrentdb-client 1.3.1 2026-06-29 Apache-2.0 | KurrentDB gRPC NodeJS Client SDK
+@eventstore/db-client 6.2.1 2024-05-10 Apache-2.0 | NodeJS EventStoreDB version 20+ and uses gRPC as the communication protocol.
+@hyperjump/json-schema 1.17.9 2026-10-03 MIT | A JSON Schema validator with support for custom keywords, vocabularies, and dial
+ajv 8.20.0 2026-04-24 MIT | Another JSON Schema Validator
+json-schema-diff 1.0.0 2025-11-21 Apache-2.0 | A language agnostic CLI tool and nodejs api to identify differences between two 
+@x0k/json-schema-merge 1.1.0 2026-09-30 MIT | A minimal JSON Schema merging library.
+json-schema-compatibility 1.1.0 2015-07-29 None | JSON Schema tools are now being written for v4 of the draft, but v3 schemas stil

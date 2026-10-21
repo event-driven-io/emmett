@@ -1,0 +1,231 @@
+# Restate
+
+> Restate is the simplest way to build resilient applications.
+
+- [Welcome to Restate!](https://docs.restate.dev/index.md): Build innately resilient backends and AI agents
+- [Quickstart](https://docs.restate.dev/quickstart.md): Develop and run your first Restate service
+- [Restate + Agent SDK](https://docs.restate.dev/ai-quickstart-redirect.md)
+- [Examples](https://docs.restate.dev/examples.md)
+- [AI Agents](https://docs.restate.dev/use-cases/ai-agents.md): Build resilient, observable AI agents that recover from failures and handle complex multi-step tasks.
+- [Workflows](https://docs.restate.dev/use-cases/workflows.md): Build resilient, low-latency workflows with code.
+- [Microservice Orchestration](https://docs.restate.dev/use-cases/microservice-orchestration.md): Build resilient, distributed microservices with durable execution, sagas, and reliable service communication.
+- [Event Processing](https://docs.restate.dev/use-cases/event-processing.md): Build lightweight, transactional event handlers with built-in resiliency.
+- [Key Concepts](https://docs.restate.dev/foundations/key-concepts.md): Core concepts of Restate applications
+- [Services](https://docs.restate.dev/foundations/services.md): Understanding Restate's three service types and when to use each
+- [Handlers](https://docs.restate.dev/foundations/handlers.md): Learn how to create, invoke and manage handlers in Restate services
+- [Actions](https://docs.restate.dev/foundations/actions.md): Essential context actions for building reliable handlers
+- [Invocations](https://docs.restate.dev/foundations/invocations.md): Invoke handlers in Restate services over HTTP, Kafka or with typed clients.
+- [AI Agents](https://docs.restate.dev/tour/agents.md)
+- [Workflows](https://docs.restate.dev/tour/workflows.md): Build resilient workflows with familiar programming patterns.
+- [Microservice Orchestration](https://docs.restate.dev/tour/microservice-orchestration.md): Learn how to orchestrate microservices with durable execution, sagas, and async communication patterns.
+- [Documentation](https://docs.restate.dev/docs.md): Build, deploy, and operate resilient applications with Restate
+- [Installation](https://docs.restate.dev/installation.md): Learn how to set up your local Restate development environment.
+- [Services](https://docs.restate.dev/develop/ts/services.md): Implementing Restate services with the TypeScript SDK.
+- [Durable Steps](https://docs.restate.dev/develop/ts/durable-steps.md): Persist results of operations.
+- [Service Communication](https://docs.restate.dev/develop/ts/service-communication.md): Call other services from your handler.
+- [State](https://docs.restate.dev/develop/ts/state.md): Store key-value state in Restate.
+- [Signals and external events](https://docs.restate.dev/develop/ts/external-events.md): Use signals, awakeables, and workflow promises for durable coordination.
+- [Scheduling & Timers](https://docs.restate.dev/develop/ts/durable-timers.md): Durable timers, scheduled actions, and sleep, backed by Restate.
+- [Concurrent Tasks](https://docs.restate.dev/develop/ts/concurrent-tasks.md): Execute multiple tasks concurrently and gather results.
+- [Error Handling](https://docs.restate.dev/develop/ts/error-handling.md): Stop infinite retries with Terminal Errors.
+- [Hooks](https://docs.restate.dev/develop/ts/hooks.md): Intercept handler execution for observability, tracing, and cross-cutting concerns.
+- [Serialization](https://docs.restate.dev/develop/ts/serialization.md): Customize serialization for SDK actions.
+- [Serving](https://docs.restate.dev/develop/ts/serving.md): Create an endpoint to serve your services.
+- [Testing](https://docs.restate.dev/develop/ts/testing.md): Utilities to test your handler logic.
+- [Logging](https://docs.restate.dev/develop/ts/logging.md): Configure the log level of your services.
+- [Tracing](https://docs.restate.dev/develop/ts/tracing.md): OpenTelemetry integration via hooks.
+- [Services](https://docs.restate.dev/develop/java/services.md): Implementing Restate services with the Java/Kotlin SDK.
+- [Durable Steps](https://docs.restate.dev/develop/java/durable-steps.md): Persist results of operations.
+- [Service Communication](https://docs.restate.dev/develop/java/service-communication.md): Call other services from your handler.
+- [State](https://docs.restate.dev/develop/java/state.md): Store key-value state in Restate.
+- [Signals and external events](https://docs.restate.dev/develop/java/external-events.md): Use signals, awakeables, and workflow promises for durable coordination.
+- [Scheduling & Timers](https://docs.restate.dev/develop/java/durable-timers.md): Durable timers, scheduled actions, and sleep, backed by Restate.
+- [Concurrent Tasks](https://docs.restate.dev/develop/java/concurrent-tasks.md): Execute multiple tasks concurrently and gather results.
+- [Error Handling](https://docs.restate.dev/develop/java/error-handling.md): Stop infinite retries with Terminal Errors.
+- [Serialization](https://docs.restate.dev/develop/java/serialization.md): Customize serialization for SDK actions.
+- [Serving](https://docs.restate.dev/develop/java/serving.md): Create an endpoint to serve your services.
+- [Spring Boot](https://docs.restate.dev/develop/java/spring-boot.md): Run Restate services inside a Spring Boot application with dependency injection.
+- [Testing](https://docs.restate.dev/develop/java/testing.md): Utilities to test your handler logic.
+- [Logging](https://docs.restate.dev/develop/java/logging.md): Configure the log level of your services.
+- [Tracing](https://docs.restate.dev/develop/java/tracing.md): Spring Boot, OpenTelemetry and Micrometer integration for distributed tracing.
+- [Services](https://docs.restate.dev/develop/python/services.md): Implementing Restate services with the Python SDK.
+- [Durable Steps](https://docs.restate.dev/develop/python/durable-steps.md): Persist results of operations.
+- [Service Communication](https://docs.restate.dev/develop/python/service-communication.md): Call other services from your handler.
+- [State](https://docs.restate.dev/develop/python/state.md): Store key-value state in Restate.
+- [Signals and external events](https://docs.restate.dev/develop/python/external-events.md): Use signals, awakeables, and workflow promises for durable coordination.
+- [Scheduling & Timers](https://docs.restate.dev/develop/python/durable-timers.md): Durable timers, scheduled actions, and sleep, backed by Restate.
+- [Concurrent Tasks](https://docs.restate.dev/develop/python/concurrent-tasks.md): Execute multiple tasks concurrently and gather results.
+- [Error Handling](https://docs.restate.dev/develop/python/error-handling.md): Stop infinite retries with Terminal Errors.
+- [Serialization](https://docs.restate.dev/develop/python/serialization.md): Customize serialization for SDK actions.
+- [Serving](https://docs.restate.dev/develop/python/serving.md): Create an endpoint to serve your services.
+- [Testing](https://docs.restate.dev/develop/python/testing.md): Utilities to test your handler logic.
+- [Logging](https://docs.restate.dev/develop/python/logging.md): Suppress duplicate Python service logs during replay.
+- [Services](https://docs.restate.dev/develop/go/services.md): Implementing Restate services with the Go SDK.
+- [Durable Steps](https://docs.restate.dev/develop/go/durable-steps.md): Persist results of operations.
+- [Service Communication](https://docs.restate.dev/develop/go/service-communication.md): Call other services from your handler.
+- [State](https://docs.restate.dev/develop/go/state.md): Store key-value state in Restate.
+- [Signals and external events](https://docs.restate.dev/develop/go/external-events.md): Use signals, awakeables, and workflow promises for durable coordination.
+- [Scheduling & Timers](https://docs.restate.dev/develop/go/durable-timers.md): Durable timers, scheduled actions, and sleep, backed by Restate.
+- [Concurrent Tasks](https://docs.restate.dev/develop/go/concurrent-tasks.md): Execute multiple tasks concurrently and gather results.
+- [Error Handling](https://docs.restate.dev/develop/go/error-handling.md): Stop infinite retries with Terminal Errors.
+- [Serving](https://docs.restate.dev/develop/go/serving.md): Create an endpoint to serve your services.
+- [Testing](https://docs.restate.dev/develop/go/testing.md): Utilities to test your handler logic.
+- [Logging](https://docs.restate.dev/develop/go/logging.md): Configure the log level of your services.
+- [Code Generation](https://docs.restate.dev/develop/go/code-generation.md): Use proto for type-safe servers and clients.
+- [Rust SDK](https://docs.restate.dev/develop/rust.md)
+- [Ruby SDK](https://docs.restate.dev/develop/ruby.md)
+- [Develop with AI](https://docs.restate.dev/develop/ai-assistant.md): Developing Restate apps with AI coding agents.
+- [Kubernetes](https://docs.restate.dev/services/deploy/kubernetes.md): Learn how to run Restate applications on Kubernetes.
+- [Google Cloud Run](https://docs.restate.dev/services/deploy/cloud-run.md): Run your Restate services on Google Cloud Run with native OIDC authentication
+- [Vercel](https://docs.restate.dev/services/deploy/vercel.md): Run your TypeScript services on Vercel
+- [AWS Lambda](https://docs.restate.dev/services/deploy/lambda.md): Run your Restate services on AWS Lambda.
+- [Cloudflare Workers](https://docs.restate.dev/services/deploy/cloudflare-workers.md): Run your TypeScript services on Cloudflare Workers
+- [Deno Deploy](https://docs.restate.dev/services/deploy/deno-deploy.md): Run your TypeScript services on Deno Deploy
+- [Other serverless platforms](https://docs.restate.dev/services/deploy/other-serverless-platforms.md): Deploy Restate services to Modal, Render, Railway, Fly.io, sandboxes, and other serverless or application platforms.
+- [Containers and VMs](https://docs.restate.dev/services/deploy/standalone.md): Run Restate services in containers or on virtual machines and connect them to your Restate environment.
+- [HTTP](https://docs.restate.dev/services/invocation/http.md): Learn how to invoke Restate services over HTTP.
+- [TypeScript SDK Clients](https://docs.restate.dev/services/invocation/clients/typescript-sdk.md): Invoke services from any TypeScript code.
+- [Java/Kotlin SDK Clients](https://docs.restate.dev/services/invocation/clients/java-sdk.md): Invoke services from any Java/Kotlin code.
+- [Python SDK Clients](https://docs.restate.dev/services/invocation/clients/python-sdk.md): Invoke services from any Python code.
+- [Go SDK Clients](https://docs.restate.dev/services/invocation/clients/go-sdk.md): Invoke services from any Go code.
+- [Kafka](https://docs.restate.dev/services/invocation/kafka.md): Invoke handlers via Kafka events.
+- [Managing Invocations](https://docs.restate.dev/services/invocation/managing-invocations.md): Understand the lifecycle of a Restate invocation and how to manage it.
+- [Flow Control](https://docs.restate.dev/services/flow-control.md): Shape and limit concurrent invocations with scope-based concurrency limits.
+- [Versioning](https://docs.restate.dev/services/versioning.md): Understand deployments, registration, and versioning in Restate.
+- [Security](https://docs.restate.dev/services/security.md): Restrict access to Restate services
+- [Service Configuration](https://docs.restate.dev/services/configuration.md): Configure service-level behavior like retries, timeouts, retention, and privacy.
+- [Introspection](https://docs.restate.dev/services/introspection.md): Inspect the status of invocations/services.
+- [Choose how to run Restate](https://docs.restate.dev/hosting/overview.md): Compare Restate Cloud, Restate BYOC, and self-hosted Restate.
+- [Restate Cloud](https://docs.restate.dev/cloud/getting-started.md): Learn how to use Restate Cloud, the fully managed version of Restate.
+- [Restate BYOC](https://docs.restate.dev/byoc/overview.md): Run Restate Cloud in your own cloud account with full data sovereignty and network isolation.
+- [Installation](https://docs.restate.dev/byoc/installation.md): How a Restate Cloud BYOC deployment is set up in your cloud account.
+- [Security Model](https://docs.restate.dev/byoc/security.md): How Restate Cloud BYOC secures the control channel, infrastructure, and customer data.
+- [Self-hosted Restate Overview](https://docs.restate.dev/server/overview.md): Learn how to deploy and operate a self-hosted Restate server.
+- [Kubernetes](https://docs.restate.dev/server/deploy/kubernetes.md): Deploy the Restate Server on Kubernetes.
+- [Deploying Restate on AWS](https://docs.restate.dev/server/deploy/aws.md): Deploy the Restate Server on Amazon Web Services using EKS, Fargate, and S3.
+- [Deploying Restate on GCP](https://docs.restate.dev/server/deploy/gcp.md): Deploy the Restate Server on Google Cloud Platform using GKE and persistent storage.
+- [Deploying Restate on Azure](https://docs.restate.dev/server/deploy/azure.md): Deploy the Restate Server on Microsoft Azure using AKS and persistent storage.
+- [Docker](https://docs.restate.dev/server/deploy/docker.md): Run Restate Server in Docker and Docker Compose.
+- [Restate Server Configuration](https://docs.restate.dev/server/configuration.md): Configure the Restate Server.
+- [Memory Configuration](https://docs.restate.dev/server/memory.md): Understanding and configuring Restate Server memory usage.
+- [Networking](https://docs.restate.dev/server/networking.md): Configure network ports, addresses, and listeners for Restate Server
+- [Highly-Available Clusters](https://docs.restate.dev/server/clusters.md): Deploying and operating Restate clusters
+- [Metadata Storage](https://docs.restate.dev/server/metadata.md): Understanding and configuring metadata storage providers for Restate
+- [Snapshots & Backups](https://docs.restate.dev/server/snapshots.md): Understanding and configuring snapshots and data backups in Restate clusters
+- [Security](https://docs.restate.dev/server/security.md): Securing your self-hosted Restate Server deployment
+- [Logging](https://docs.restate.dev/server/monitoring/logging.md): Configure logging for Restate Server.
+- [Tracing](https://docs.restate.dev/server/monitoring/tracing.md): Export OTEL traces of your invocations.
+- [Metrics](https://docs.restate.dev/server/monitoring/metrics.md): Expose Restate Server Prometheus metrics.
+- [Upgrading Restate](https://docs.restate.dev/server/upgrading.md): Version upgrades of Restate Server, compatibility policy, and rollback strategy
+- [Cluster state endpoint](https://docs.restate.dev/admin-api/cluster_health/cluster-state-endpoint.md)
+- [List deployments](https://docs.restate.dev/admin-api/deployment/list-deployments.md): Returns a list of all registered deployments, including their endpoints and associated services.
+- [Register deployment](https://docs.restate.dev/admin-api/deployment/register-deployment.md): Registers a new deployment (HTTP or Lambda). Restate will invoke the endpoint to discover available services and handlers, and make them available for invocation. For more information, see the [deployment documentation](https://docs.restate.dev/services/versioning#registering-a-deployment).
+- [Get deployment](https://docs.restate.dev/admin-api/deployment/get-deployment.md): Returns detailed information about a registered deployment, including deployment metadata and the services it exposes.
+- [Delete deployment](https://docs.restate.dev/admin-api/deployment/delete-deployment.md): Delete a deployment. Currently, only forced deletions are supported. **Use with caution**: forcing a deployment deletion can break in-flight invocations.
+- [Update deployment](https://docs.restate.dev/admin-api/deployment/update-deployment.md): Updates an existing deployment configuration, such as the endpoint address or invocation headers. By default, service schemas are not re-discovered. Set `overwrite: true` to trigger re-discovery.
+- [Health check endpoint](https://docs.restate.dev/admin-api/health/health-check-endpoint.md)
+- [Delete an invocation](https://docs.restate.dev/admin-api/invocation/delete-an-invocation.md): Use kill_invocation/cancel_invocation/purge_invocation instead.
+- [Cancel an invocation](https://docs.restate.dev/admin-api/invocation/cancel-an-invocation.md): Gracefully cancels an invocation. The invocation is terminated, but its progress is persisted, allowing consistency guarantees to be maintained. For more information, see the [cancellation documentation](https://docs.restate.dev/services/invocation/managing-invocations#cancel).
+- [Kill an invocation](https://docs.restate.dev/admin-api/invocation/kill-an-invocation.md): Forcefully terminates an invocation. **Warning**: This operation does not guarantee consistency for virtual object instance state, in-flight invocations to other services, or other side effects. Use with caution. For more information, see the [cancellation documentation](https://docs.restate.dev/ser…
+- [Pause an invocation](https://docs.restate.dev/admin-api/invocation/pause-an-invocation.md)
+- [Purge a completed invocation](https://docs.restate.dev/admin-api/invocation/purge-a-completed-invocation.md): Deletes all state associated with a completed invocation, including its journal and metadata. This operation only applies to invocations that have already completed. For more information, see the [purging documentation](https://docs.restate.dev/services/invocation/managing-invocations#purge).
+- [Purge invocation journal](https://docs.restate.dev/admin-api/invocation/purge-invocation-journal.md): Deletes only the journal entries for a completed invocation, while retaining its metadata. This operation only applies to invocations that have already completed.
+- [Restart invocation as new](https://docs.restate.dev/admin-api/invocation/restart-invocation-as-new.md): Creates a new invocation from a completed invocation, optionally copying partial progress from the original invocation's journal. The new invocation will have a different invocation ID. Use the `from` parameter to specify how much of the original journal to preserve.
+- [Resume an invocation](https://docs.restate.dev/admin-api/invocation/resume-an-invocation.md): Resumes a paused or suspended invocation. If the invocation is backing off due to a retry, this will immediately trigger the retry. Optionally, you can change the deployment ID that will be used when the invocation resumes. For more information see [resume documentation](https://docs.restate.dev/ser…
+- [List Kafka clusters](https://docs.restate.dev/admin-api/kafka_cluster/list-kafka-clusters.md): Returns a list of all registered Kafka clusters.
+- [Create Kafka cluster](https://docs.restate.dev/admin-api/kafka_cluster/create-kafka-cluster.md): Registers a new Kafka cluster configuration that can be referenced by subscriptions. The cluster configuration is validated to ensure required broker properties are present.
+- [Get Kafka cluster](https://docs.restate.dev/admin-api/kafka_cluster/get-kafka-cluster.md): Returns the details of a specific Kafka cluster, including its configuration properties. Sensitive properties (passwords, secrets, etc.) are automatically redacted in the response.
+- [Delete Kafka cluster](https://docs.restate.dev/admin-api/kafka_cluster/delete-kafka-cluster.md): Deletes a Kafka cluster. By default, deletion is prevented if subscriptions reference the cluster. Use the force parameter to allow deletion with orphaned subscriptions.
+- [Update Kafka cluster](https://docs.restate.dev/admin-api/kafka_cluster/update-kafka-cluster.md): Updates the configuration properties of an existing Kafka cluster. Sensitive properties (passwords, secrets, etc.) are automatically redacted in the response.
+- [Upsert a batch of rules.](https://docs.restate.dev/admin-api/rule/upsert-a-batch-of-rules.md): Each entry carries an optional [`Precondition`]. Setting it to `DoesNotExist` makes the entry a strict insert; `Matches(v)` rejects the batch unless the rule's current version is `v`; omitting it (`None`) is unconditional. The whole batch is atomic: any failed precondition or cap-exceeded condition…
+- [Delete a batch of rules by pattern.](https://docs.restate.dev/admin-api/rule/delete-a-batch-of-rules-by-pattern.md): Each entry may carry an `expected_version`; if present the rule must exist at that exact version, otherwise the batch fails. Without `expected_version` the delete is unconditional and idempotent: a pattern that's already absent is silently skipped. Returns the patterns that this batch actually remov…
+- [Query the system and service state by using SQL.](https://docs.restate.dev/admin-api/introspection/query-the-system-and-service-state-by-using-sql.md)
+- [List services](https://docs.restate.dev/admin-api/service/list-services.md): Returns a list of all registered services, including their metadata and configuration.
+- [Get service](https://docs.restate.dev/admin-api/service/get-service.md): Returns detailed metadata about a specific service, including its type, handlers, and configuration settings.
+- [Modify service configuration](https://docs.restate.dev/admin-api/service/modify-service-configuration.md): Updates the configuration of a registered service, such as public visibility, retention policies, and timeout settings. Note: Service re-discovery will update these settings based on the service endpoint configuration.
+- [Get service OpenAPI definition](https://docs.restate.dev/admin-api/service/get-service-openapi-definition.md): Returns the OpenAPI 3.1 specification for the service, describing all handlers and their request/response schemas.
+- [Modify service state](https://docs.restate.dev/admin-api/service/modify-service-state.md): Modifies the K/V state of a Virtual Object. For a detailed description of this API and how to use it, see the [state documentation](https://docs.restate.dev/services/introspection#inspecting-application-state).
+- [List service handlers](https://docs.restate.dev/admin-api/service_handler/list-service-handlers.md): Returns a list of all handlers (methods) available in the specified service.
+- [Get service handler](https://docs.restate.dev/admin-api/service_handler/get-service-handler.md): Returns detailed metadata about a specific handler within a service, including its input/output types and handler type.
+- [List subscriptions](https://docs.restate.dev/admin-api/subscription/list-subscriptions.md): Returns a list of all registered subscriptions, optionally filtered by source or sink.
+- [Create subscription](https://docs.restate.dev/admin-api/subscription/create-subscription.md): Creates a new subscription that connects an event source (e.g., a Kafka topic) to a Restate service handler. For more information, see the [subscription documentation](https://docs.restate.dev/services/invocation/kafka#managing-kafka-subscriptions).
+- [Get subscription](https://docs.restate.dev/admin-api/subscription/get-subscription.md): Returns the details of a specific subscription, including its source, sink, and configuration options.
+- [Delete subscription](https://docs.restate.dev/admin-api/subscription/delete-subscription.md): Deletes a subscription. This will stop events from the source from being forwarded to the sink.
+- [Get version information](https://docs.restate.dev/admin-api/version/get-version-information.md): Returns the server version, supported Admin API versions, and the advertised ingress endpoint.
+- [Pauses a virtual queue.](https://docs.restate.dev/admin-api/vqueue/pauses-a-virtual-queue.md)
+- [Resumes a virtual queue.](https://docs.restate.dev/admin-api/vqueue/resumes-a-virtual-queue.md)
+- [Typescript API](https://docs.restate.dev/references/tsdocs.md)
+- [Javadocs](https://docs.restate.dev/references/javadocs.md)
+- [KotlinDocs](https://docs.restate.dev/references/ktdocs.md)
+- [Go API](https://docs.restate.dev/references/gopkg.md)
+- [SQL Introspection API](https://docs.restate.dev/references/sql-introspection.md): API reference for inspecting the invocation status and service state.
+- [Restate Server Configuration](https://docs.restate.dev/references/server-config.md): Reference of the configuration options for Restate Server.
+- [CLI Configuration](https://docs.restate.dev/references/cli-config.md): Restate CLI configuration options.
+- [Restate Architecture](https://docs.restate.dev/references/architecture.md): Restate architecture and distributed deployment concepts
+- [Restate Server changelog](https://docs.restate.dev/changelog/server.md): Releases of the Restate Server.
+- [TypeScript SDK changelog](https://docs.restate.dev/changelog/typescript-sdk.md): Releases of the TypeScript SDK.
+- [Python SDK changelog](https://docs.restate.dev/changelog/python-sdk.md): Releases of the Python SDK.
+- [Java/Kotlin SDK changelog](https://docs.restate.dev/changelog/java-kotlin-sdk.md): Releases of the Java/Kotlin SDK.
+- [Go SDK changelog](https://docs.restate.dev/changelog/go-sdk.md): Releases of the Go SDK.
+- [Rust SDK changelog](https://docs.restate.dev/changelog/rust-sdk.md): Releases of the Rust SDK.
+- [Kubernetes Operator changelog](https://docs.restate.dev/changelog/operator.md): Releases of the Kubernetes Operator.
+- [Error Codes](https://docs.restate.dev/references/errors.md): Descriptions of error codes emitted by Restate components
+- [Guides](https://docs.restate.dev/guides/index.md): Learn how to do common tasks with Restate.
+- [Sagas](https://docs.restate.dev/guides/sagas.md): Implementing undo operations in case of failures, to keep your system consistent
+- [Cron Jobs](https://docs.restate.dev/guides/cron.md): Schedule tasks periodically with Restate
+- [Parallelizing Work](https://docs.restate.dev/guides/parallelizing-work.md): Execute a list of tasks in parallel and then gather their result.
+- [Durable Webhooks](https://docs.restate.dev/guides/durable-webhooks.md): Process webhook events from external services with exactly-once delivery guarantees.
+- [Rate Limiting](https://docs.restate.dev/guides/rate-limiting.md): Control request rates and prevent service overload with Restate
+- [Request Lifecycle](https://docs.restate.dev/guides/request-lifecycle.md): Deep dive into the lifecycle of a request in Restate
+- [Databases and Restate](https://docs.restate.dev/guides/databases.md): Learn when and how to use databases in combination with Restate.
+- [Error Handling](https://docs.restate.dev/guides/error-handling.md): Learn how to handle transient and terminal errors in your applications.
+- [Local Restate Cluster with Docker](https://docs.restate.dev/guides/cluster.md): Learn how to deploy a Restate cluster using Docker Compose.
+- [Scaling to Multi-Node Deployments](https://docs.restate.dev/guides/local-to-replicated.md): Migrate a single node to a multi-node cluster.
+- [Migrating Snapshot Storage Backend](https://docs.restate.dev/guides/snapshot-storage-migration.md): Move a multi-node Restate cluster from one snapshot destination to another.
+- [XState](https://docs.restate.dev/guides/xstate.md): Integrate Restate with XState to implement durable state machines.
+- [Restate-Kafka Quickstart](https://docs.restate.dev/guides/kafka-quickstart.md): Learn how to connect your Restate service to a Kafka topic.
+- [Restate and Encore](https://docs.restate.dev/guides/encore.md): Learn how to run Restate service handlers inside an Encore TypeScript backend.
+- [OSS Roadmap](https://docs.restate.dev/roadmap/oss.md): Upcoming capabilities in Restate Open Source.
+- [Restate Cloud Roadmap](https://docs.restate.dev/roadmap/cloud.md): Upcoming capabilities in Restate Cloud.
+- [Enterprise Roadmap](https://docs.restate.dev/roadmap/enterprise.md): Upcoming capabilities in Restate Enterprise.
+- [AI / Agents with Restate](https://docs.restate.dev/ai/index.md): Build durable AI agents and workflows that recover from failures, maintain state, and scale to production.
+- [Agent Quickstart](https://docs.restate.dev/ai-quickstart.md): Build and run your first AI agent with Restate and popular AI SDKs
+- [AI Examples](https://docs.restate.dev/ai/ai-examples.md): Examples of durable agents with Restate
+- [Agent Reference Architecture](https://docs.restate.dev/ai/reference-architecture.md): Explore a complete TypeScript agent built on Restate with human approvals, tools, memory, and schedules.
+- [Durable Agents](https://docs.restate.dev/ai/patterns/durable-agents.md): Build AI agents that survive crashes and recover automatically. Every LLM call, tool execution, and routing decision is durably persisted.
+- [Durable Sessions](https://docs.restate.dev/ai/patterns/sessions.md): Persistent, isolated agent sessions keyed by ID. Conversation state survives crashes and restarts with built-in concurrency control.
+- [Approvals with Pause & Resume](https://docs.restate.dev/ai/patterns/human-in-the-loop.md): Agents that pause for human approval and resume when it arrives, even across restarts and infrastructure changes.
+- [Multi-Agent Orchestration](https://docs.restate.dev/ai/patterns/multi-agent.md): Route tasks between specialized agents with durable decisions. Coordinate agents within the same process using handoffs and tools.
+- [Observability & Control](https://docs.restate.dev/ai/patterns/observability-control.md): Full visibility into agent execution. Inspect journals, export traces, and cancel or kill stuck agents.
+- [Parallel Tool Calls](https://docs.restate.dev/ai/patterns/parallelization.md): Execute multiple tool calls in parallel with automatic recovery and coordination.
+- [Sequential Pipeline](https://docs.restate.dev/ai/patterns/workflow-sequential.md): Chain agentic and traditional steps in sequence. Each step is recorded for automatic recovery.
+- [Parallel Agents](https://docs.restate.dev/ai/patterns/workflow-parallel.md): Fan out work to multiple agents, then combine the results. Failed agents are retried independently while successful results are preserved.
+- [Evaluation Feedback Loop](https://docs.restate.dev/ai/patterns/workflow-evaluator.md): Have an agent generate output, evaluate it with a second LLM call, and loop until quality meets your criteria. Each iteration is checkpointed.
+- [Orchestrator-Worker](https://docs.restate.dev/ai/patterns/workflow-orchestrator.md): An orchestrator agent dynamically plans tasks and dispatches them to worker agents. Plans and results are durably persisted.
+- [Workflows as Tools](https://docs.restate.dev/ai/patterns/tools.md): Deploy complex tool logic as separate durable services. Scale tools independently, use any language, and get end-to-end durability.
+- [Remote Agents](https://docs.restate.dev/ai/patterns/remote-agents.md): Route tasks between remote agents over HTTP with durable RPC calls.
+- [Racing agents](https://docs.restate.dev/ai/patterns/competitive-racing.md): Run agents in parallel, return the fastest response and cancel the others.
+- [Interrupt & Regenerate](https://docs.restate.dev/ai/patterns/interrupt-regenerate.md): Cancel an in-flight agent task and start a new one when the user sends a follow-up message, with durable cleanup along the way.
+- [Retries & Error Handling](https://docs.restate.dev/ai/patterns/error-handling.md): Implement robust error handling and retry strategies for reliable agents.
+- [Rollback on Failures](https://docs.restate.dev/ai/patterns/rollback.md): Implement rollback mechanisms for agent failures.
+- [Chat UI Integration](https://docs.restate.dev/ai/patterns/chat-ui-integration.md): Call Restate agents from frontend applications, such as Next.js, React or any web framework.
+- [Streaming Responses](https://docs.restate.dev/ai/patterns/streaming-responses.md): Stream updates from Restate Services to the UI via Server-Sent Events.
+- [Notify when ready](https://docs.restate.dev/ai/patterns/notify-when-ready.md): Build async notification systems for your agents with just a few lines of code.
+- [Restate & Vercel AI SDK](https://docs.restate.dev/ai/sdk-integrations/vercel-ai-sdk.md): Learn how to use the Vercel AI SDK with Restate.
+- [Restate & OpenAI Agents SDK](https://docs.restate.dev/ai/sdk-integrations/openai-agents-sdk.md): Learn how to use the OpenAI Agents SDK with Restate.
+- [Restate & Google ADK](https://docs.restate.dev/ai/sdk-integrations/google-adk.md): Learn how to use the Google ADK with Restate.
+- [Restate & Pydantic AI](https://docs.restate.dev/ai/sdk-integrations/pydantic-ai.md): Learn how to use the Pydantic AI SDK with Restate.
+- [Restate & LangChain](https://docs.restate.dev/ai/sdk-integrations/langchain.md): Learn how to use LangChain with Restate.
+- [Restate & LiteLLM](https://docs.restate.dev/ai/sdk-integrations/litellm.md): Learn how to use the LiteLLM with Restate.
+- [Integrating Restate with LLM / Agent SDKs](https://docs.restate.dev/ai/sdk-integrations/integration-guide.md): Learn what's required to integrate Restate with LLM / Agent SDKs.
+- [Langfuse](https://docs.restate.dev/ai/ecosystem-integrations/langfuse.md): Trace and monitor your Restate AI agents with Langfuse. Get full visibility into LLM calls, tool executions, and workflow steps.
+- [Pydantic Logfire](https://docs.restate.dev/ai/ecosystem-integrations/logfire.md): Trace and monitor your Restate Pydantic AI agents with Logfire. Get full visibility into LLM calls, tool executions, and workflow steps.
+- [Arize Phoenix](https://docs.restate.dev/ai/ecosystem-integrations/arize-phoenix.md): Trace and monitor your Restate AI agents with Arize Phoenix. Get full visibility into LLM calls, tool executions, and workflow steps.
+- [Parseable](https://docs.restate.dev/ai/ecosystem-integrations/parseable.md): Trace durable OpenAI agent workflows with Restate and Parseable.
+
+## OpenAPI Specs
+
+- [openapi-admin](/schemas/openapi-admin.json)
+
+
+This documentation is built and hosted on [Mintlify](https://mintlify.com), a developer documentation platform.

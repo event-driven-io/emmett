@@ -1,0 +1,49 @@
+################ today
+errors/today.ts(4,83): error TS2322: Type 'number' is not assignable to type 'string'.
+errors/today.ts(6,73): error TS2345: Argument of type '{ shoppingCartId: string; }' is not assignable to parameter of type '{ shoppingCartId: string; confirmedAt: Date; }'.
+  Property 'confirmedAt' is missing in type '{ shoppingCartId: string; }' but required in type '{ shoppingCartId: string; confirmedAt: Date; }'.
+errors/today.ts(8,19): error TS2554: Expected 3 arguments, but got 2.
+errors/today.ts(10,70): error TS2678: Type '"ShoppingCartConfirmd"' is not comparable to type '"ProductItemAddedToShoppingCart" | "ProductItemRemovedFromShoppingCart" | "ShoppingCartConfirmed" | "ShoppingCartCancelled"'.
+################ a-builtin
+errors/a-builtin.ts(3,43): error TS2322: Type 'number' is not assignable to type 'string'.
+errors/a-builtin.ts(5,41): error TS2345: Argument of type '{ shoppingCartId: string; }' is not assignable to parameter of type '{ shoppingCartId: string; confirmedAt: Date; }'.
+  Property 'confirmedAt' is missing in type '{ shoppingCartId: string; }' but required in type '{ shoppingCartId: string; confirmedAt: Date; }'.
+errors/a-builtin.ts(7,19): error TS2554: Expected 2 arguments, but got 1.
+errors/a-builtin.ts(9,70): error TS2678: Type '"ShoppingCartConfirmd"' is not comparable to type '"ProductItemAddedToShoppingCart" | "ProductItemRemovedFromShoppingCart" | "ShoppingCartConfirmed" | "ShoppingCartCancelled"'.
+errors/a-builtin.ts(12,57): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(type: "ShoppingCartOpened", options: MessageOptions<MessageSchema, undefined>): EventDefinition<"ShoppingCartOpened", never, undefined>', gave the following error.
+    Type 'string' is not assignable to type 'AnySchema'.
+  Overload 2 of 2, '(type: string, options: TypeFirstOptions<DefaultRecord, DefaultRecord | undefined>): EventDefinition<string, DefaultRecord, DefaultRecord | undefined>', gave the following error.
+    Type 'string' is not assignable to type 'StandardSchemaV1<unknown, unknown>'.
+################ b-zod
+errors/b-zod.ts(3,43): error TS2322: Type 'number' is not assignable to type 'string'.
+errors/b-zod.ts(5,41): error TS2345: Argument of type '{ shoppingCartId: string; }' is not assignable to parameter of type '{ shoppingCartId: string; confirmedAt: Date; }'.
+  Property 'confirmedAt' is missing in type '{ shoppingCartId: string; }' but required in type '{ shoppingCartId: string; confirmedAt: Date; }'.
+errors/b-zod.ts(7,19): error TS2554: Expected 2 arguments, but got 1.
+errors/b-zod.ts(9,70): error TS2678: Type '"ShoppingCartConfirmd"' is not comparable to type '"ProductItemAddedToShoppingCart" | "ProductItemRemovedFromShoppingCart" | "ShoppingCartConfirmed" | "ShoppingCartCancelled"'.
+################ c-type-first
+errors/c-type-first.ts(4,43): error TS2322: Type 'number' is not assignable to type 'string'.
+errors/c-type-first.ts(7,39): error TS2322: Type 'Schema<string, string>' is not assignable to type 'StandardSchemaV1<unknown, Date>'.
+  The types returned by '"~standard".validate(...)' are incompatible between these types.
+    Type 'Result<string> | Promise<Result<string>>' is not assignable to type 'Result<Date> | Promise<Result<Date>>'.
+      Type 'SuccessResult<string>' is not assignable to type 'Result<Date> | Promise<Result<Date>>'.
+        Type 'SuccessResult<string>' is not assignable to type 'SuccessResult<Date> | Promise<Result<Date>>'.
+          Type 'SuccessResult<string>' is not assignable to type 'SuccessResult<Date>'.
+            Type 'string' is not assignable to type 'Date'.
+errors/c-type-first.ts(12,3): error TS2322: Type '{ shoppingCartId: Schema<string, string>; }' is not assignable to type 'SchemasFor<{ shoppingCartId: string; confirmedAt: Date; }>'.
+  Property 'confirmedAt' is missing in type '{ shoppingCartId: Schema<string, string>; }' but required in type '{ shoppingCartId: StandardSchemaV1<unknown, string>; confirmedAt: StandardSchemaV1<unknown, Date>; }'.
+errors/c-type-first.ts(17,62): error TS2353: Object literal may only specify known properties, and 'extra' does not exist in type 'SchemasFor<{ shoppingCartId: string; confirmedAt: Date; }>'.
+errors/c-type-first.ts(21,48): error TS2345: Argument of type '"ShoppingCartConfirmd"' is not assignable to parameter of type '"ShoppingCartConfirmed"'.
+errors/c-type-first.ts(26,74): error TS2345: Argument of type '{ data: { shoppingCartId: Schema<string, string>; confirmedAt: Schema<Date, string | Date>; }; }' is not assignable to parameter of type 'TypeFirstOptions<{ shoppingCartId: string; confirmedAt: Date; }, ShoppingCartEventMetadata>'.
+  Property 'metadata' is missing in type '{ data: { shoppingCartId: Schema<string, string>; confirmedAt: Schema<Date, string | Date>; }; }' but required in type '{ metadata: SchemasFor<ShoppingCartEventMetadata>; }'.
+################ d-grouped
+errors/d-grouped.ts(3,43): error TS2322: Type 'number' is not assignable to type 'string'.
+errors/d-grouped.ts(5,38): error TS2339: Property 'ShoppingCartConfirmd' does not exist on type '{ readonly ProductItemAddedToShoppingCart: Event<"ProductItemAddedToShoppingCart", { shoppingCartId: string; clientId: string; productItem: { productId: string; quantity: number; unitPrice: number; }; addedAt: Date; }, { ...; }>; readonly ProductItemRemovedFromShoppingCart: Event<...>; readonly ShoppingCartConfirmed...'.
+################ e-interface
+errors/e-interface.ts(3,43): error TS2322: Type 'number' is not assignable to type 'string'.
+errors/e-interface.ts(5,70): error TS2678: Type '"ShoppingCartConfirmd"' is not comparable to type '"ProductItemAddedToShoppingCart" | "ProductItemRemovedFromShoppingCart" | "ShoppingCartConfirmed" | "ShoppingCartCancelled"'.
+errors/e-interface.ts(7,52): error TS2322: Type '"ShoppingCartCancelled"' is not assignable to type '"ShoppingCartConfirmed"'.
+errors/e-interface.ts(7,112): error TS2353: Object literal may only specify known properties, and 'cancelledAt' does not exist in type '{ shoppingCartId: string; confirmedAt: Date; }'.
+################ f-class
+errors/f-class.ts(3,47): error TS2322: Type 'number' is not assignable to type 'string'.
+errors/f-class.ts(5,20): error TS2348: Value of type 'typeof ShoppingCartConfirmed' is not callable. Did you mean to include 'new'?

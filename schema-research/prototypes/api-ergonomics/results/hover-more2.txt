@@ -1,0 +1,55 @@
+=== b2-valibot: hover on 'type ShoppingCartConfirmed'
+type ShoppingCartConfirmed = Readonly<{
+    type: "ShoppingCartConfirmed";
+    data: {
+        shoppingCartId: string;
+        confirmedAt: Date;
+    };
+    metadata: {
+        clientId: string;
+    };
+}> & {
+    readonly kind?: "Event";
+}
+=== b3-arktype: hover on 'type ShoppingCartConfirmed'
+type ShoppingCartConfirmed = Readonly<{
+    type: "ShoppingCartConfirmed";
+    data: {
+        shoppingCartId: string;
+        confirmedAt: Date;
+    };
+    metadata: {
+        clientId: string;
+    };
+}> & {
+    readonly kind?: "Event";
+}
+=== b4-effect: hover on 'type ShoppingCartConfirmed'
+type ShoppingCartConfirmed = Readonly<{
+    type: "ShoppingCartConfirmed";
+    data: {
+        readonly shoppingCartId: string;
+        readonly confirmedAt: Date;
+    };
+    metadata: {
+        readonly clientId: string;
+    };
+}> & {
+    readonly kind?: "Event";
+}
+=== b5-typebox: hover on 'type ShoppingCartConfirmed'
+type ShoppingCartConfirmed = Readonly<{
+    type: "ShoppingCartConfirmed";
+    data: {
+        shoppingCartId: string;
+        confirmedAt: Date;
+    };
+    metadata: {
+        clientId: string;
+    };
+}> & {
+    readonly kind?: "Event";
+}
+=== e-interface: hover on 'interface ShoppingCartConfirmed'
+interface ShoppingCartConfirmed
+=== e-interface: hover on 'command' param in confirm

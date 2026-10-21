@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,maximum-scale=2">
+    <link rel="stylesheet" type="text/css" media="screen" href="/assets/css/style.css?v=df4d8430c66d019295cf9eeb24974992e2fa6256">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="icon" type="image/x-icon" href="https://github.com/cncf/artwork/raw/main/projects/xregistry/icon/color/xregistry-icon-color.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>xRegistry | The Extensible Registry for Metadata Management</title>
+<meta name="generator" content="Jekyll v3.10.0" />
+<meta property="og:title" content="xRegistry" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="The Extensible Registry for Metadata Management" />
+<meta property="og:description" content="The Extensible Registry for Metadata Management" />
+<link rel="canonical" href="http://xregistry.io/" />
+<meta property="og:url" content="http://xregistry.io/" />
+<meta property="og:site_name" content="xRegistry" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="xRegistry" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebSite","description":"The Extensible Registry for Metadata Management","headline":"xRegistry","name":"xRegistry","url":"http://xregistry.io/"}</script>
+<!-- End Jekyll SEO tag -->
+
+  </head>
+
+  <body>    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          
+
+          <img src="https://github.com/cncf/artwork/raw/main/projects/xregistry/horizontal/color-whitetext/xregistry-horizontal-color-whitetext.svg" alt="xRegistry logo" class="header-logo" />
+          <h2 id="project_tagline">The Extensible Registry for Metadata Management</h2>
+
+          
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+  <!-- Hero section with clear value proposition -->
+  <section id="hero" class="inner">
+    <div class="hero-content">
+     <p class="hero-tagline">
+        A vendor-agnostic specification developed in the <a href="https://www.cncf.io/">CNCF</a> (by the same friendly people who made <img src="https://raw.githubusercontent.com/cncf/artwork/refs/heads/main/projects/cloudevents/icon/color/cloudevents-icon-color.svg" style="height: 1em; vertical-align: text-bottom;" alt="CloudEvents Logo" /> <a href="https://cloudevents.io/">CloudEvents</a>) to define, discover, validate, and version metadata across systems
+      </p>
+      <div class="hero-cta">
+        <a href="http://github.com/xregistry/spec" class="primary-cta-button"><i class="fab fa-github"></i> Get Started</a>
+        <a href="#overview" class="secondary-cta-button">Learn More</a>
+      </div>
+    </div>
+  </section>
+  
+  <section id="overview" class="inner">
+    <p class="intro-text">
+      The xRegistry project defines an model-driven approach to managing
+      metadata like schemas or event definitions and provides a REST-based
+      interface and a document format that are structurally symmetric. You can
+      use the standard registries for event-driven applications that are included,
+      or you can define your own registries for other types of metadata. Multiple
+      registries can be used together to form a single registry for all of your
+      metadata, forming a metadata graph that can be used to discover and validate
+      metadata across systems. 
+    </p>
+
+    <div class="section-heading">
+      <i class="fas fa-star"></i>
+      <h2>Key Capabilities</h2>
+    </div>
+    
+    <div class="feature-container">
+      <div class="feature-box">
+        <h3><i class="fas fa-compass"></i> Discovery</h3>
+        <p>Centralized registry providing a single source of truth across organizational boundaries.</p>
+      </div>
+      
+      <div class="feature-box">
+        <h3><i class="fas fa-handshake"></i> Vendor-Agnostic</h3>
+        <p>Common foundation across different registry solutions, reducing integration friction.</p>
+      </div>
+      
+      <div class="feature-box">
+        <h3><i class="fas fa-code-branch"></i> Versioning</h3>
+        <p>Compatibility strategies for evolving systems without breaking existing consumers.</p>
+      </div>
+      
+      <div class="feature-box">
+        <h3><i class="fas fa-check-circle"></i> Validation</h3>
+        <p>Shared location for schema definitions serving as contracts between publishers and consumers.</p>
+      </div>
+      
+      <div class="feature-box">
+        <h3><i class="fas fa-compress-alt"></i> Payload Reduction</h3>
+        <p>Enables lightweight serialization like Protobuf and Avro.</p>
+      </div>
+      
+      <div class="feature-box">
+        <h3><i class="fas fa-code"></i> Code Generation</h3>
+        <p>Enables data contracts and client code directly from the registry.</p>
+      </div>
+    </div>
+
+    <!-- Implementation & Use Cases - Combined for space efficiency -->
+    <div class="section-heading">
+      <i class="fas fa-cube"></i>
+      <h2>Implementation Options</h2>
+    </div>
+    
+    <div class="card-container">
+      <div class="card">
+        <div class="card-icon"><i class="fas fa-file-code"></i></div>
+        <div class="card-content">
+          <h4>File Representation</h4>
+          <p>Single JSON file for local projects/repos</p>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-icon"><i class="fas fa-server"></i></div>
+        <div class="card-content">
+          <h4>Static File Server</h4>
+          <p>Multiple JSON files via static hosting</p>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-icon"><i class="fas fa-cloud"></i></div>
+        <div class="card-content">
+          <h4>API Server</h4>
+          <p>Full implementation with search & write</p>
+        </div>
+      </div>
+      
+     
+    </div>
+
+    <!-- Documentation Section -->
+    <div class="section-heading">
+      <i class="fas fa-book"></i>
+      <h2>Documentation</h2>
+    </div>
+    
+    <div class="docs-grid">
+      <a href="xreg/xregistryspecs/core-v1/docs/spec.html" class="docs-card">
+        <i class="fas fa-file-alt"></i>
+        <h4>Core Specification</h4>
+        <p>Technical details of the xRegistry core model and APIs</p>
+      </a>
+      
+      <a href="xreg/xregistryspecs/core-v1/docs/primer.html" class="docs-card">
+        <i class="fas fa-book-open"></i>
+        <h4>Primer</h4>
+        <p>Overview of history, motivation, and design goals</p>
+      </a>
+      
+      <a href="xreg/xregistryspecs/endpoint-v1/docs/spec.html" class="docs-card">
+        <i class="fas fa-network-wired"></i>
+        <h4>Endpoints Specification</h4>
+        <p>Domain-specific extension for endpoints discovery</p>
+      </a>
+      
+      <a href="xreg/xregistryspecs/schema-v1/docs/spec.html" class="docs-card">
+        <i class="fas fa-project-diagram"></i>
+        <h4>Schemas Specification</h4>
+        <p>Domain-specific extension for schema management</p>
+      </a>
+      
+      <a href="xreg/xregistryspecs/message-v1/docs/spec.html" class="docs-card">
+        <i class="fas fa-envelope"></i>
+        <h4>Message Specification</h4>
+        <p>Domain-specific extension for message definitions</p>
+      </a>
+    </div>
+
+    <!-- Getting Started CTA -->
+    <div class="cta-section">
+      <h2><i class="fas fa-rocket"></i> Ready to Get Started?</h2>
+      <p>Explore the specifications and examples to begin your journey with xRegistry.</p>
+      <a href="http://github.com/xregistry/spec" class="primary-cta-button"><i class="fab fa-github"></i> Explore on GitHub</a>
+    </div>
+  </section>
+</div>
+
+<!-- Add JavaScript for tabs functionality -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const tabId = button.getAttribute('data-tab');
+        
+        // Hide all tab contents
+        tabContents.forEach(content => {
+          content.classList.remove('active');
+        });
+        
+        // Deactivate all tab buttons
+        tabButtons.forEach(btn => {
+          btn.classList.remove('active');
+        });
+        
+        // Show the selected tab content and activate the button
+        document.getElementById(tabId).classList.add('active');
+        button.classList.add('active');
+      });
+    });
+  });
+</script>
+
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <center>
+          <p>
+            We are a Cloud Native Computing Foundation sandbox project.</p>
+            <img width=40% src="https://raw.githubusercontent.com/cncf/artwork/refs/heads/main/other/cncf/horizontal/white/cncf-white.svg"</img>
+          <p>
+            The Linux Foundation® (TLF) has registered trademarks and uses
+            trademarks. For a list of TLF trademarks, see
+            <a href="https://www.linuxfoundation.org/trademark-usage">Trademark
+            Usage</a> page.
+          </p>
+          <p>
+            Copyright © xRegistry a Series of LF Projects, LLC
+          </p>
+        </center>
+      </footer>
+    </div>
+
+    
+  </body>
+</html>

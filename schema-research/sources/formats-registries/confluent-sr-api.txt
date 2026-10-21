@@ -1,0 +1,4566 @@
+
+
+ , ahead of the
+ OneTrust/referrer-utils script below, so the parser discovers and
+ starts fetching font files before it stalls on that blocking
+
+ Documentation
+
+ Schema Registry API Reference for Confluent Platform
+
+ Search the docs or ask a question
+ /
+
+ Confluent Developer
+
+ Marketplace
+
+ Get started
+
+ Home
+
+ Platform
+
+ Manage Schemas on Confluent Platform
+
+ Schema Registry Developer Guide
+
+ Ask
+
+ Copy as markdown
+
+ View as plain text
+
+## Schema Registry API Reference for Confluent Platform
+
+The Schema Registry API is a REST interface for registering, retrieving, and managing
+schemas and subjects in Confluent Platform.
+
+To test the API, use curl. For examples, see
+Schema Registry API Usage Examples for Confluent Platform.
+
+You can also see curl API calls used in the Schema Registry Tutorial and to test drive different schema formats in the deep dive sections on Formats, Serializers, and Deserializers.
+
+Ready to build?
+
+Sign up for Confluent Cloud with your cloud marketplace account and unlock $1000 in free credits: AWS Marketplace, Google Cloud Marketplace, or Microsoft Azure Marketplace.
+
+## Overview
+
+The Schema Registry API is a RESTful API to manage schemas and their compatibility levels. It is designed to be easy to use and understand, and compatible with the Schema Registry server. These sections introduce key concepts to help you navigate the API reference that follows.
+
+## Compatibility concepts
+
+The Schema Registry server can enforce certain compatibility rules when new schemas are registered in a subject.
+These are the compatibility types:
+
+BACKWARD: (default) consumers using the new schema can read data written by producers using the latest registered schema
+
+BACKWARD_TRANSITIVE: consumers using the new schema can read data written by producers using all previously registered schemas
+
+FORWARD: consumers using the latest registered schema can read data written by producers using the new schema
+
+FORWARD_TRANSITIVE: consumers using all previously registered schemas can read data written by producers using the new schema
+
+FULL: the new schema is forward and backward compatible with the latest registered schema
+
+FULL_TRANSITIVE: the new schema is forward and backward compatible with all previously registered schemas
+
+NONE: schema compatibility checks are disabled
+
+We recommend keeping the default backward compatibility since it allows you to rewind consumers to the beginning of the topic.
+
+For more details on schema resolution, see Schema Evolution and Compatibility for Schema Registry on Confluent Platform.
+
+## Content types
+
+The Schema Registry REST server uses content types for both requests and responses to indicate the serialization format of the data as well as the version of the API being used. Currently, the only serialization format supported is JSON and the only version of the API is v1. However, to remain compatible with future versions, you should specify preferred content types in requests and check the content types of responses.
+
+The preferred format for content types is application/vnd.schemaregistry.v1+json, where v1 is the API version and json is the serialization format. However, other less specific content types are permitted, including application/vnd.schemaregistry+json to indicate no specific API version should be used
+(the most recent stable version will be used), application/json, and application/octet-stream. The latter two are only supported for compatibility and ease of use.
+
+Your requests should specify the most specific format and version information possible via the HTTP Accept header:
+
+Accept: application/vnd.schemaregistry.v1+json
+
+The server also supports content negotiation, so you may include multiple, weighted preferences:
+
+Accept: application/vnd.schemaregistry.v1+json; q=0.9, application/json; q=0.5
+
+which can be useful when, for example, a new version of the API is preferred but
+you cannot be certain it is available yet.
+
+## Extended response fields
+
+Several response fields, including the schema guid, registration timestamp ts, and deleted flag, are returned only when the request includes
+the following header:
+
+Confluent-Accept-Unknown-Properties: true
+
+The Schema Registry Java client and the official non-Java Schema Registry clients add this header
+automatically. When calling the API directly with curl or another HTTP
+client, set the header explicitly to receive these fields in the response.
+For example:
+
+curl -s \
+ -H "Accept: application/vnd.schemaregistry.v1+json" \
+ -H "Confluent-Accept-Unknown-Properties: true" \
+ http://localhost:8081/schemas/ids/1
+
+Endpoints that return these extended fields include:
+
+GET /schemas
+
+GET /schemas/ids/{id}
+
+GET /subjects/{subject}/versions/{version}
+
+GET /subjects/{subject}/metadata
+
+POST /subjects/{subject}
+
+POST /subjects/{subject}/versions
+
+## Errors
+
+All API endpoints use a standard error message format for any requests that return an HTTP status indicating an error (any 400 or 500 statuses). For example, a request entity that omits a required field may generate the following response:
+
+HTTP/1.1 422 Unprocessable Entity
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "error_code": 422,
+ "message": "schema may not be empty"
+}
+
+You may also encounter 50005, such as the following:
+
+Error code Caused by: io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException: Error; error code: 50005
+
+Although it is good practice to check the status code, you may safely parse the response of any non-DELETE API calls and check for the presence of an error_code field to detect errors.
+
+## Example request format and valid JSON
+
+The example requests below are formatted for readability. Therefore, multi-line example requests include newlines. If you want to copy and run them, remove the newlines for valid, runnable JSON.
+
+For example, the following request is formatted without newlines so it runs properly as a copy-and-paste example:
+
+{"schema": "{\"type\": \"record\",\"name\": \"test\",\"fields\":[{\"type\": \"string\",\"name\": \"field1\"},{\"type\": \"int\",\"name\": \"field2\"}]}"}
+
+## Compatibility
+
+The compatibility resource allows you to test schemas for compatibility against a specific version or all versions of a subject’s schema.
+See Test compatibility of a schema with the latest schema under subject “Kafka-value” for usage examples.
+
+## Test compatibility against a particular schema subject-version
+
+POST /compatibility/subjects/(string: subject)/versions/(versionId: version)
+
+Test input schema against a particular version of a subject’s schema for compatibility. Note that the compatibility level applied for the check is the configured compatibility level for the subject (http:get:: /config/(string: subject)). If this subject’s compatibility level was never changed, then the global compatibility level applies (http:get:: /config).
+
+Path Parameters
+
+Parameters:
+
+subject (string) – Subject of the schema version against which compatibility is to be tested
+
+version (int) – Version of the subject’s schema against which compatibility is to be tested. Valid values for versionId are between [1,2^31-1] or the string latest, which checks compatibility of the input schema with the last registered schema under the specified subject. The value -1 is equivalent to latest. Note that there may be a new latest schema that gets registered right after this request is served.
+
+Query Parameters
+
+Parameters:
+
+normalize (boolean) – Add ?normalize=true at the end of this request to normalize the schema. The default is false. To learn more, see Schema normalization.
+
+verbose (boolean) – Add ?verbose=true at the end of this request to output the reason a schema fails the compatibility test, in cases where it fails. The default is false (the reason a schema fails compatibility test is not given).
+
+Request Body
+
+Request JSON Object:
+
+version (integer) – Version number of the schema
+
+id (integer) – Globally unique identifier of the schema
+
+schemaType – Defines the schema format: AVRO (default), PROTOBUF, JSON (Optional)
+
+references – Specifies the names of referenced schemas (Optional). To learn more, see Schema references.
+
+schema – The schema string
+
+metadata – Specifies the user-defined metadata for the schema (Optional). To learn more, see Metadata properties and Configuration enhancements in Data Contracts.
+
+ruleSet – Specifies the ruleSet for the schema (Optional). To learn more, see Rules and Configuration enhancements in Data Contracts.
+
+schemaTagsToAdd (array) – Schema Tags to add to the schema (Optional). Array of objects (Schema Tags)
+
+schemaTagsToRemove (array) – Schema Tags to remove from the schema (Optional). Array of strings (Schema Tags)
+
+propagatedTags (boolean) – Indicates whether to propagate the schema tags from a previous schema version during registration.
+
+Response Body
+
+Response JSON Object:
+
+is_compatible (boolean) – True, if compatible, False if not compatible
+
+messages (array) – An array of error messages (strings) explaining why the schema is incompatible (only returned if verbose=true)
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40401 – Subject not found
+
+Error code 40402 – Version not found
+
+422 Unprocessable Entity – 
+
+Error code 42201 – Invalid schema
+
+Error code 42202 – Invalid version
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+POST /compatibility/subjects/test/versions/latest HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "schema":
+ "{
+ \"type\": \"record\",
+ \"name\": \"test\",
+ \"fields\":
+ [
+ {
+ \"type\": \"string\",
+ \"name\": \"field1\"
+ },
+ {
+ \"type\": \"int\",
+ \"name\": \"field2\"
+ }
+ ]
+ }"
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "is_compatible": true
+}
+
+## Test schema compatibility against all schemas under a subject
+
+POST /compatibility/subjects/(string: subject)/versions
+
+Test input schema against a subject’s schemas for compatibility, based on the configured compatibility level of the subject. In other words,
+this call will perform the same compatibility check as register for that subject. The compatibility level applied for the check is the configured
+compatibility level for the subject (http:get:: /config/(string: subject)). If this subject’s compatibility level was never changed, then the global compatibility level applies (http:get:: /config).
+
+Perform a compatibility check on the schema against one or more versions in the subject, depending on how the compatibility is set.
+For example, if compatibility on the subject is set to BACKWARD, FORWARD, or FULL, the compatibility check is against
+the latest version. If compatibility is set to one of the TRANSITIVE types, the check is against all previous versions.
+
+The compatibility level applied for the check is the configured compatibility level for the subject (http:get:: /config/(string: subject)).
+If this subject’s compatibility level was never changed, then the global compatibility level applies (http:get:: /config).
+This API endpoint, which tests a schema for compatibility against all versions.
+
+Path Parameters
+
+Parameters:
+
+subject (string) – Subject of the schema version against which compatibility is to be tested
+
+Query Parameters
+
+Parameters:
+
+normalize (boolean) – Add ?normalize=true at the end of this request to normalize the schema. The default is false. To learn more, see Schema normalization.
+
+verbose (boolean) – Add ?verbose=true at the end of this request to output the reason a schema fails the compatibility test, in cases where it fails. The default is false (the reason a schema fails compatibility test is not given).
+
+Request Body
+
+Request JSON Object:
+
+version (integer) – Version number of the schema
+
+id (integer) – Globally unique identifier of the schema
+
+schemaType – Defines the schema format: AVRO (default), PROTOBUF, JSON (Optional)
+
+references – Specifies the names of referenced schemas (Optional). To learn more, see Schema references.
+
+schema – The schema string
+
+metadata – Specifies the user-defined metadata for the schema (Optional). To learn more, see Metadata properties and Configuration enhancements in Data Contracts.
+
+ruleSet – Specifies the ruleSet for the schema (Optional). To learn more, see Rules in Data Contracts.
+
+schemaTagsToAdd (array) – (Optional) Schema Tags to add to the schema. Array of objects (Schema Tags).
+
+schemaTagsToRemove (array) – (Optional) Schema Tags to remove from the schema. Array of strings (Schema Tags).
+
+propagatedTags (boolean) – Indicates whether to propagate the schema tags from a previous schema version during registration.
+
+Response Body
+
+Response JSON Object:
+
+is_compatible (boolean) – True, if compatible. False otherwise
+
+messages (array) – An array of error messages (strings) explaining why the schema is incompatible (only returned if verbose=true)
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40401 – Subject not found
+
+422 Unprocessable Entity – 
+
+Error code 42201 – Invalid schema
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+POST /compatibility/subjects/test/versions
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "schema": "{\"type\": \"record\",\"name\": \"test\",\"fields\":[{\"type\": \"string\",\"name\": \"field1\"},{\"type\": \"int\",\"name\": \"field2\"}]}"
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "is_compatible": true
+}
+
+## Config
+
+The config resource allows you to inspect and update the cluster-level configuration values as well as subject overrides.
+
+## Get cluster level configuration
+
+GET /config
+
+Get configuration for global compatibility level, compatibility group, normalization, default metadata, and rule set.
+
+Response Body
+
+Response JSON Object:
+
+normalize (boolean) – If true, then schemas are automatically normalized when registered or when passed during lookups. The default is false. To learn more, see Schema normalization.
+
+compatibilityLevel (string) – Shows global compatibility level for the subject. Returns one of BACKWARD, BACKWARD_TRANSITIVE, FORWARD, FORWARD_TRANSITIVE, FULL,`` FULL_TRANSITIVE``, or NONE.
+
+compatibilityGroup (string) – Shows the compatibility group, if any is specified. Only schemas that belong to the same compatibility group are checked for compatibility. To learn more, see Configuration Enhancements in Data Contracts.
+
+defaultMetadata (object) – Default value for the metadata to be used during schema registration. To learn more, see Metadata properties and Configuration enhancements in Data Contracts.
+
+overrideMetadata (object) – Override value for the metadata to be used during schema registration. To learn more, see Metadata properties and Configuration enhancements in Data Contracts.
+
+defaultRuleSet (object) – Default value for the ruleSet to be used during schema registration. To learn more, see Rules and Configuration enhancements in Data Contracts.
+
+overrideRuleSet (object) – Override value for the ruleSet to be used during schema registration. To learn more, see Rules and Configuration enhancements in Data Contracts.
+
+Status Codes
+
+Status Codes:
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /config HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "compatibilityLevel": "FULL"
+}
+
+## Get compatibility level for a subject
+
+GET /config/(string: subject)
+
+Get compatibility level for a subject. For more usage examples, see Get compatibility requirements on a subject.
+
+Path Parameters
+
+Parameters:
+
+subject (string) – Name of the subject
+
+Query Parameters
+
+Parameters:
+
+defaultToGlobal (boolean) – Add ?defaultToGlobal=false at the end of this request to show the compatibility, if any, set at the subject level. Add ?defaultToGlobal=true to show what requirements are used for compatibility checks. For examples, see Show compatibility requirements in effect for a subject.
+
+Response Body
+
+Response JSON Object:
+
+alias (string) – If alias is specified, shows the alias for the subject. References to this subject will be replaced by the alias. To learn more, see Subject aliases.
+
+normalize (boolean) – If true, then schemas are automatically normalized when registered or when passed during lookups. The default is false. To learn more, see Schema normalization.
+
+compatibilityLevel (string) – Shows compatibility level level for the subject. Returns one of BACKWARD, BACKWARD_TRANSITIVE, FORWARD, FORWARD_TRANSITIVE, FULL, FULL_TRANSITIVE, NONE
+
+compatibilityGroup (string) – Shows compatibility group, if any is specified. Only schemas that belong to the same compatibility group will be checked for compatibility. To learn more, see Configuration enhancements in Data Contracts.
+
+defaultMetadata (object) – Default value for the metadata to be used during schema registration. To learn more, see Configuration enhancements in Data Contracts.
+
+overrideMetadata (object) – Override value for the metadata to be used during schema registration. To learn more, see Configuration enhancements in Data Contracts.
+
+defaultRuleSet (object) – Default value for the ruleSet to be used during schema registration. To learn more, see Configuration enhancements in Data Contracts.
+
+overrideRuleSet (object) – Override value for the ruleSet to be used during schema registration. To learn more, see Configuration enhancements in Data Contracts.
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – Subject not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /config/test HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "compatibilityLevel": "FULL"
+}
+
+## Update compatibility level for a subject
+
+PUT /config/(string: subject)
+
+Update compatibility level for the specified subject. For more usage examples, see Update compatibility requirements on a subject.
+
+Path Parameters
+
+Parameters:
+
+subject (string) – Name of the subject
+
+Request Body
+
+Request JSON Object:
+
+alias (string) – If alias is specified, then this subject is an alias for the subject named by the alias. References to this subject are replaced by the alias. To learn more, see Subject aliases.
+
+normalize (boolean) – If true, then schemas are automatically normalized when registered or when passed during lookups. This means that clients do not have to pass the “normalize” query parameter to have normalization occur. To learn more, see Schema normalization.
+
+compatibility (string) – New compatibility level for the subject. Must be one of BACKWARD, BACKWARD_TRANSITIVE, FORWARD, FORWARD_TRANSITIVE, FULL, FULL_TRANSITIVE, NONE
+
+compatibilityGroup (string) – Only schemas that belong to the same compatibility group will be checked for compatibility. To learn more, see Configuration enhancements in Data Contracts.
+
+defaultMetadata (object) – Default value for the metadata to be used during schema registration. To learn more, see Metadata properties and Configuration enhancements in Data Contracts.
+
+overrideMetadata (object) – Override value for the metadata to be used during schema registration. To learn more, see Metadata properties and Configuration enhancements in Data Contracts.
+
+defaultRuleSet (object) – Default value for the ruleSet to be used during schema registration. To learn more, see Rules and Configuration enhancements in Data Contracts.
+
+overrideRuleSet (object) – Override value for the ruleSet to be used during schema registration. To learn more, see Rules and Configuration enhancements in Data Contracts.
+
+Status Codes
+
+Status Codes:
+
+422 Unprocessable Entity – 
+
+Error code 42203 – Invalid compatibility level
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Error code 50003 – Error while forwarding the request to the primary
+
+Example request:
+
+PUT /config/test HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "compatibility": "FULL"
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "compatibility": "FULL"
+}
+
+## Delete compatibility level for a subject
+
+DELETE /config/(string: subject)
+
+Deletes the specified subject-level compatibility configuration and reverts to the global default.
+
+Path Parameters
+
+Parameters:
+
+subject (string) – Name of the subject
+
+Response Body
+
+Response JSON Object:
+
+compatibility (string) – The global compatibility level that was deleted. Returns one of BACKWARD, BACKWARD_TRANSITIVE, FORWARD, FORWARD_TRANSITIVE, FULL, FULL_TRANSITIVE, or NONE.
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – Subject not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+DELETE /config/test HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "compatibility": "NONE"
+}
+
+## Update global compatibility level
+
+PUT /config
+
+Update the configuration for global compatibility level, compatibility group, schema normalization, default metadata, and rule set.
+
+When there are multiple instances of Schema Registry running in the same cluster, the update request will be forwarded to one of the instances designated as the primary. If the primary is not available, the client will get an error code indicating that the forwarding has failed.
+
+Request Body
+
+Request JSON Object:
+
+alias (string) – If alias is specified, then this subject is an alias for the subject named by the alias. That means that any reference to this subject will be replaced by the alias. To learn more, see Subject aliases.
+
+normalize (boolean) – If true, then schemas are automatically normalized when registered or when passed during lookups. This means that clients do not have to pass the “normalize” query parameter to have normalization occur. To learn more, see Schema normalization.
+
+compatibility (string) – New global compatibility level for the subject. Must be one of BACKWARD, BACKWARD_TRANSITIVE, FORWARD, FORWARD_TRANSITIVE, FULL, FULL_TRANSITIVE, NONE
+
+compatibilityGroup (string) – Only schemas that belong to the same compatibility group will be checked for compatibility. To learn more, see Configuration Enhancements in Data Contracts.
+
+defaultMetadata (object) – Default value for the metadata to be used during schema registration. To learn more, see Metadata properties and Configuration enhancements in Data Contracts.
+
+overrideMetadata (object) – Override value for the metadata to be used during schema registration. To learn more, see Metadata properties and Configuration enhancements in Data Contracts.
+
+defaultRuleSet (object) – Default value for the ruleSet to be used during schema registration. To learn more, see Rules and Configuration enhancements in Data Contracts.
+
+overrideRuleSet (object) – Override value for the ruleSet to be used during schema registration. To learn more, see Rules and Configuration enhancements in Data Contracts.
+
+Status Codes
+
+Status Codes:
+
+422 Unprocessable Entity – 
+
+Error code 42203 – Invalid compatibility level
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Error code 50003 – Error while forwarding the request to the primary
+
+Example request:
+
+PUT /config HTTP/1.1
+Host: kafkaproxy.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "compatibility": "FULL"
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "compatibility": "FULL"
+}
+
+## Delete global compatibility level
+
+DELETE /config
+
+Deletes the global compatibility level configuratino and reverts to the default.
+
+Response Body
+
+Response JSON Object:
+
+compatibility (string) – The global compatibility level that was deleted. Returns one of BACKWARD, BACKWARD_TRANSITIVE, FORWARD, FORWARD_TRANSITIVE, FULL, FULL_TRANSITIVE, or NONE.
+
+Status Codes
+
+Status Codes:
+
+200 OK – Successful response
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+DELETE /config HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "compatibility": "BACKWARD"
+}
+
+## Contexts
+
+A schema context is a logical grouping of schema IDs and subject names. If not explicitly specified, all schemas are in the default context.
+Contexts provide the ability to have multiple schemas with the same subject names and IDs existing as unique entities within their different contexts.
+This is useful for Schema Linking for sharing schemas across registries, but also in other scenarios that
+can benefit from this flexibility.
+
+Exporters and Importers make use of schema contexts.
+To learn more, see Use Schema Contexts in Confluent Platform.
+
+## List contexts
+
+GET /contexts
+
+Gets a list of contexts. The list will always include the default context, and any custom contexts that were created in the registry.
+
+Query Parameters
+
+Query Parameters:
+
+contextPrefix (string) – Filters the results to only return contexts with names that start with the specified prefix. For example, ?contextPrefix=.ctx returns only contexts starting with .ctx.
+
+Response Body
+
+Response JSON Array of Objects:
+
+contexts (array) – Array of strings (context names)
+
+Status Codes
+
+Status Codes:
+
+500 Internal Server Error – 
+
+Error code 50001 internal server error – Error in the backend datastore
+
+Example request:
+
+GET /contexts HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+[":.:", ".mycontext"]
+
+## Exporters
+
+These APIs support both Schema Linking on Confluent Platform and Schema Linking on Confluent Cloud.
+
+To enable Schema Linking for Confluent Platform, set the configuration properties shown below.
+
+resource.extension.class=io.confluent.schema.exporter.SchemaExporterResourceExtension
+kafkastore.update.handlers=io.confluent.schema.exporter.storage.SchemaExporterUpdateHandler
+password.encoder.secret=mysecret
+
+Also, to allow for more than 10 exporters (the default maximum) to be created, you can set
+
+exporter.max.exporters=1000
+
+The exporters resource allows you to query the information or manipulate the lifecycle of schema exporters.
+
+## Get all schema exporters
+
+GET /exporters
+
+Gets a list of schema exporters that have been created.
+
+Response Body
+
+Response JSON Array of Objects:
+
+name (string) – Names of all existing exporters.
+
+Example request:
+
+GET /exporters HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+["exporter1", "exporter2"]
+
+## Create a new schema exporter
+
+POST /exporters
+
+Creates a new schema exporter. All attributes in request body are optional except config.
+
+Request Body
+
+Request JSON Object:
+
+name (string) – Name of the exporter
+
+contextType (string) – Context type of the exporter. One of CUSTOM, NONE or AUTO (default)
+
+context (string) – Context of the exporter if contextType equals CUSTOM
+
+subjects[i] (string) – Name of each exporter subject
+
+kekRenameFormat (string) – Format string for the KEK name in the destination cluster, which may contain ${kek} as a placeholder for the originating KEK name. For example, dc_${kek} for the KEK aws_key will map to the destination KEK name dc_aws_key.
+
+subjectRenameFormat (string) – Format string for the subject name in the destination cluster, which may contain ${subject} as a placeholder for the originating subject name. For example, dc_${subject} for the subject orders will map to the destination subject name dc_orders.
+
+config (map) – The map containing exporter’s configurations
+
+Response Body
+
+Response JSON Object:
+
+name (string) – Name of the exporter
+
+Status Codes
+
+Status Codes:
+
+409 Conflict – 
+
+Error code 40950 – Missing or invalid exporter name
+
+Error code 40951 – Missing or invalid exporter config
+
+Error code 40952 – Invalid exporter subjects
+
+Error code 40960 – Exporter already exists
+
+Error code 40964 – Too many exporters
+
+Example request:
+
+POST /exporters HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "name": "test-exporter",
+ "contextType": "CUSTOM",
+ "context": "test-context",
+ "subjects": ["foo"],
+ "config": {
+ "schema.registry.url": "<Physical SR Endpoint>",
+ "basic.auth.credentials.source": "USER_INFO",
+ "basic.auth.user.info": "<SR Credentials>"
+ }
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-exporter"
+}
+
+## Get schema exporter by name
+
+GET /exporters/(string: name)
+
+Gets the information of the schema exporter.
+
+Path Parameters
+
+Parameters:
+
+name (string) – Name of the exporter
+
+Response Body
+
+Response JSON Object:
+
+name (string) – Name of the exporter
+
+contextType (string) – Context type of the exporter. One of CUSTOM, NONE or AUTO (default)
+
+context (string) – Customized context of the exporter if contextType equals CUSTOM.
+
+subjects[i] (string) – Name of each exporter subject
+
+subjectRenameFormat (string) – Format string for the subject name in the destination cluster, which may contain ${subject} as a placeholder for the originating subject name
+
+config (map) – The map containing exporter’s configurations
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Exporter not found
+
+Example request:
+
+GET /exporters/test-exporter HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-exporter",
+ "contextType": "CUSTOM",
+ "context": "test-context",
+ "subjects": ["foo"],
+ "config": {
+ "schema.registry.url": "<Physical SR Endpoint>",
+ "basic.auth.credentials.source": "USER_INFO",
+ "basic.auth.user.info": "[hidden]"
+ }
+}
+
+Note
+
+The credentials in the response will be replaced with [hidden], meaning no one is able to query the credentials through the API.
+
+## Update a schema exporter by name
+
+PUT /exporters/(string: name)
+
+Updates the information or configurations of the schema exporter. All attributes
+in request body are optional.
+
+Path Parameters
+
+Parameters:
+
+name (string) – Name of the exporter
+
+Request Body
+
+Request JSON Object:
+
+contextType (string) – Context type of the exporter. One of CUSTOM, NONE or AUTO. Optional
+
+context (string) – Context of the exporter if contextType equals CUSTOM
+
+subjects[i] (string) – Name of each exporter subject
+
+kekRenameFormat (string) – Format string for the KEK name in the destination cluster, which may contain ${kek} as a placeholder for the originating KEK name. For example, dc_${kek} for the KEK aws_key will map to the destination KEK name dc_aws_key.
+
+subjectRenameFormat (string) – Format string for the subject name in the destination cluster, which may contain ${subject} as a placeholder for the originating subject name. For example, dc_${subject} for the subject orders will map to the destination subject name dc_orders.
+
+config (map) – The map containing exporter’s configurations
+
+Response Body
+
+Response JSON Object:
+
+name (string) – Name of the exporter
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Exporter not found
+
+409 Conflict – 
+
+Error code 40952 – Invalid exporter subjects
+
+Error code 40963 – Exporter not paused
+
+Example request:
+
+PUT /exporters/test-exporter HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "contextType": "CUSTOM",
+ "context": "test-context"
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-exporter"
+}
+
+## Delete a schema exporter by name
+
+DELETE /exporters/(string: name)
+
+Deletes the schema exporter.
+
+Path Parameters
+
+Parameters:
+
+name (string) – Name of the exporter
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Exporter not found
+
+Example request:
+
+DELETE /exporters/test-exporter HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 204 No Content
+
+## Get schema exporter status by name
+
+GET /exporters/(string: name)/status
+
+Gets the status of the schema exporter.
+
+Path Parameters
+
+Parameters:
+
+name (string) – Name of the exporter
+
+Response Body
+
+Response JSON Object:
+
+name (string) – Name of the exporter
+
+state (string) – State of the exporter. Could be STARTING, RUNNING or PAUSED
+
+offset (long) – Offset of the exporter
+
+ts (long) – Timestamp of the exporter
+
+trace (string) – Error trace of the exporter
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Exporter not found
+
+Example request:
+
+GET /exporters/test-exporter/status HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-exporter",
+ "state": "RUNNING",
+ "offset": 100,
+ "ts": 1631206325,
+ "trace": ""
+}
+
+## Get schema exporter configuration by name
+
+GET /exporters/(string: name)/config
+
+Gets the configurations of the schema exporter.
+
+Note
+
+The response payload is not wrapped in {"config": {}} as in the POST request. The configuration is directly provided.
+
+Path Parameters
+
+Parameters:
+
+name (string) – Name of the exporter
+
+Response Body
+
+Response JSON Object:
+
+config (map) – The map containing exporter’s configurations
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Exporter not found
+
+Example request:
+
+GET /exporters/test-exporter/config HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "schema.registry.url": "<Physical SR Endpoint>",
+ "basic.auth.credentials.source": "USER_INFO",
+ "basic.auth.user.info": "[hidden]"
+}
+
+## Update the schema exporter configuration by name
+
+PUT /exporters/(string: name)/config
+
+Updates the configurations of the schema exporter.
+
+Note
+
+The payload is not wrapped in {"config": {}} as in the POST request. The configuration is directly provided.
+
+Path Parameters
+
+Parameters:
+
+name (string) – Name of the exporter
+
+Request Body
+
+Request JSON Object:
+
+config (map) – The map containing exporter’s configurations
+
+Response Body
+
+Response JSON Object:
+
+name (string) – Name of the exporter
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Exporter not found
+
+Example request:
+
+PUT /exporters/test-exporter/config HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "schema.registry.url": "<Physical SR Endpoint>",
+ "basic.auth.credentials.source": "USER_INFO",
+ "basic.auth.user.info": "<SR Credentials>"
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-exporter"
+}
+
+## Pause a schema exporter by name
+
+PUT /exporters/(string: name)/pause
+
+Pauses the schema exporter.
+
+Path Parameters
+
+Parameters:
+
+name (string) – Name of the exporter
+
+Response Body
+
+Response JSON Object:
+
+name (string) – Name of the exporter
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Exporter not found
+
+409 Conflict – 
+
+Error code 40962 – Exporter already starting
+
+Example request:
+
+PUT /exporters/test-exporter/pause HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-exporter"
+}
+
+## Reset a schema exporter by name
+
+PUT /exporters/(string: name)/reset
+
+Resets the schema exporter.
+
+Path Parameters
+
+Parameters:
+
+name (string) – Name of the exporter
+
+Response Body
+
+Response JSON Object:
+
+name (string) – Name of the exporter
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Exporter not found
+
+409 Conflict – 
+
+Error code 40963 – Exporter not paused
+
+Example request:
+
+PUT /exporters/test-exporter/reset HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-exporter"
+}
+
+## Resume a schema exporter by name
+
+PUT /exporters/(string: name)/resume
+
+Resumes the schema exporter.
+
+Path Parameters
+
+Parameters:
+
+name (string) – Name of the exporter
+
+Response Body
+
+Response JSON Object:
+
+name (string) – Name of the exporter
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Exporter not found
+
+409 Conflict – 
+
+Error code 40961 – Exporter already running
+
+Example request:
+
+PUT /exporters/test-exporter/resume HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-exporter"
+}
+
+## Importers
+
+The importers resource allows you to query the information or manipulate the lifecycle of schema importers.
+These APIs are provided to support the Unified Stream Manager.
+
+## Get all schema importers
+
+GET /importers
+
+Gets a list of created schema importers.
+
+Response Body
+
+Response JSON Array of Objects:
+
+name (string) – The name of the importer.
+
+Example request:
+
+GET /importers HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+["importer1", "importer2"]
+
+## Create a new schema importer
+
+POST /importers
+
+Creates a new schema importer. The name and config attributes are required in the request body.
+
+Request Body
+
+Request JSON Object:
+
+name (string) – The name of the importer.
+
+context (string) – The context of the importer.
+
+subjects[i] (string) – The name of each subject for the importer. (Currently, only one subject is supported.)
+
+config (map) – A map that contains the importer’s configurations.
+
+Response Body
+
+Response JSON Object:
+
+name (string) – The name of the importer.
+
+Status Codes
+
+Status Codes:
+
+409 Conflict – 
+
+Error code 40950 – Missing or invalid importer name.
+
+Error code 40951 – Missing or invalid importer configuration.
+
+Error code 40952 – Invalid importer subjects.
+
+Error code 40960 – An importer with that name already exists.
+
+Error code 40964 – The maximum number of importers has been reached.
+
+Example request:
+
+POST /importers HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "name": "test-importer",
+ "context": "test-context",
+ "subjects": [".foo:*"],
+ "config": {
+ "schema.registry.url": "<Source SR Endpoint>",
+ "basic.auth.credentials.source": "USER_INFO",
+ "basic.auth.user.info": "<SR Credentials>"
+ }
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-importer"
+}
+
+## Get a schema importer by name
+
+GET /importers/(string: name)
+
+Gets the information for a specific schema importer.
+
+Path Parameters
+
+Parameters:
+
+name (string) – The name of the importer.
+
+Response Body
+
+Response JSON Object:
+
+name (string) – The name of the importer.
+
+context (string) – The context of the importer.
+
+subjects[i] (string) – The name of each subject for the importer.
+
+config (map) – A map that contains the importer’s configurations.
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Importer not found.
+
+Example request:
+
+GET /importers/test-importer HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-importer",
+ "context": "test-context",
+ "subjects": ["foo"],
+ "config": {
+ "schema.registry.url": "<Source SR Endpoint>",
+ "basic.auth.credentials.source": "USER_INFO",
+ "basic.auth.user.info": "[hidden]"
+ }
+}
+
+Note
+
+The credentials in the response are replaced with [hidden]. You cannot query the credentials through the API.
+
+## Update a schema importer by name
+
+PUT /importers/(string: name)
+
+Updates the information or configurations of the schema importer. All attributes
+in the request body are optional.
+
+Path Parameters
+
+Parameters:
+
+name (string) – The name of the importer.
+
+Request Body
+
+Request JSON Object:
+
+context (string) – The context of the importer.
+
+subjects[i] (string) – The name of each subject for the importer.
+
+config (map) – A map that contains the importer’s configurations.
+
+Response Body
+
+Response JSON Object:
+
+name (string) – The name of the importer.
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Importer not found.
+
+409 Conflict – 
+
+Error code 40952 – Invalid importer subjects.
+
+Error code 40963 – Importer is not in a PAUSED state.
+
+Example request:
+
+PUT /importers/test-importer HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "context": "test-context"
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-importer"
+}
+
+## Delete a schema importer by name
+
+DELETE /importers/(string: name)
+
+Deletes a schema importer.
+
+Path Parameters
+
+Parameters:
+
+name (string) – The name of the importer.
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Importer not found.
+
+Example request:
+
+DELETE /importers/test-importer HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 204 No Content
+
+## Get a schema importer status by name
+
+GET /importers/(string: name)/status
+
+Gets the status of a schema importer.
+
+Path Parameters
+
+Parameters:
+
+name (string) – The name of the importer.
+
+Response Body
+
+Response JSON Object:
+
+name (string) – The name of the importer.
+
+state (string) – The state of the importer, which can be UNASSIGNED, RUNNING, or PAUSED.
+
+retriable (boolean) – Indicates whether the importer supports retrying upon failure.
+
+ts (long) – The timestamp of the last status update.
+
+trace (string) – The error trace of the importer.
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Importer not found.
+
+404 Not Found – 
+
+Error code 40450 – Importer not found.
+
+Example request:
+
+GET /importers/test-importer/status HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-importer",
+ "state": "RUNNING",
+ "retriable": true,
+ "ts": 1631206325,
+ "trace": ""
+}
+
+## Get a schema importer configuration by name
+
+GET /importers/(string: name)/config
+
+Gets the configurations of a schema importer.
+
+Note
+
+The response payload is not wrapped in {"config": {}} as in the POST request. The configuration is directly provided.
+
+Path Parameters
+
+Parameters:
+
+name (string) – The name of the importer.
+
+Response Body
+
+Response JSON Object:
+
+config (map) – A map that contains the importer’s configurations.
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Importer not found.
+
+404 Not Found – 
+
+Error code 40450 – Importer not found.
+
+Example request:
+
+GET /importers/test-importer/config HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "schema.registry.url": "<Source SR Endpoint>",
+ "basic.auth.credentials.source": "USER_INFO",
+ "basic.auth.user.info": "[hidden]"
+}
+
+## Update a schema importer configuration by name
+
+PUT /importers/(string: name)/config
+
+Updates the configurations of a schema importer.
+
+Note
+
+The payload is not wrapped in {"config": {}} as in the POST request. The request body contains the configuration map directly.
+
+Path Parameters
+
+Parameters:
+
+name (string) – The name of the importer.
+
+Request Body
+
+Request JSON Object:
+
+config (map) – A map that contains the importer’s configurations.
+
+Response Body
+
+Response JSON Object:
+
+name (string) – The name of the importer.
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Importer not found.
+
+409 Conflict – 
+
+Error code 40963 – Importer is not in a PAUSED state.
+
+Example request:
+
+PUT /importers/test-importer/config HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "schema.registry.url": "<Source SR Endpoint>",
+ "basic.auth.credentials.source": "USER_INFO",
+ "basic.auth.user.info": "<SR Credentials>"
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-importer"
+}
+
+## Pause a schema importer by name
+
+PUT /importers/(string: name)/pause
+
+Pauses a schema importer.
+
+Path Parameters
+
+Parameters:
+
+name (string) – The name of the importer.
+
+Response Body
+
+Response JSON Object:
+
+name (string) – The name of the importer.
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Importer not found.
+
+409 Conflict – 
+
+Error code 40962 – Importer is not in a STARTING state.
+
+Example request:
+
+PUT /importers/test-importer/pause HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-importer"
+}
+
+## Reset a schema importer by name
+
+PUT /importers/(string: name)/reset
+
+Resets a schema importer.
+
+Path Parameters
+
+Parameters:
+
+name (string) – The name of the importer.
+
+Response Body
+
+Response JSON Object:
+
+name (string) – The name of the importer.
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Importer not found.
+
+409 Conflict – 
+
+Error code 40963 – Importer is not in a PAUSED state.
+
+Example request:
+
+PUT /importers/test-importer/reset HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-importer"
+}
+
+## Resume a schema importer by name
+
+PUT /importers/(string: name)/resume
+
+Resumes a schema importer.
+
+Path Parameters
+
+Parameters:
+
+name (string) – The name of the importer.
+
+Response Body
+
+Response JSON Object:
+
+name (string) – The name of the importer.
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40450 – Importer not found.
+
+409 Conflict – 
+
+Error code 40961 – Importer is already in a RUNNING state.
+
+Example request:
+
+PUT /importers/test-importer/resume HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "test-importer"
+}
+
+## Modes
+
+You can use the mode resource to set the mode on Schema Registry at a global level or to set the mode on a specific subject. The following modes are available:
+
+IMPORT
+
+READONLY
+
+READWRITE
+
+FORWARD
+
+Tip
+
+To enable mode changes on a Schema Registry cluster, you must also set mode.mutability=true in the Schema Registry properties file before starting Schema Registry.
+Examples of setting this property and changing the mode on Schema Registry at a global level and at the subject level are shown as a part of the procedure to Use Schema Registry to Migrate Schemas in Confluent Platform.
+
+## Get global mode
+
+GET /mode
+
+Get the current mode for Schema Registry at a global level.
+
+{"error_code":40409,"message":"Subject '<SubjectName' does not have subject-level mode configured"}
+
+Path Parameters
+
+Response JSON Object:
+
+mode (string) – Schema Registry mode. Returns one of IMPORT, READONLY, READWRITE (default), FORWARD
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40409 – SubjectName does not have subject-level mode configured.
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /mode HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "mode": "READWRITE"
+}
+
+## Update global mode
+
+PUT /mode
+
+Update the global Schema Registry mode. This will work only if Schema Registry was started with mode.mutability=true set in the Schema Registry properties file.
+
+Query Parameters
+
+Parameters:
+
+force (boolean) – Add ?force=true at the end of this request to force a mode change even if the Schema Registry has existing schemas. This can be useful in disaster recovery (DR) scenarios using Schema Linking. The default is false, which does not allow a mode change to IMPORT if Schema Registry has registered schemas.
+
+Response Body
+
+Request JSON Object:
+
+mode (string) – New mode. Must be one of IMPORT, READONLY, READWRITE (default), FORWARD
+
+Status Codes
+
+Status Codes:
+
+422 Unprocessable Entity – 
+
+Error code 42204 – Invalid mode
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+PUT /mode HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "mode": "IMPORT"
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "mode": "IMPORT"
+}
+
+## Get subject mode
+
+GET /mode/(string: subject)
+
+Retrieves the mode for a subject.
+
+Path Parameters
+
+Parameters:
+
+subject (string) – Name of the subject
+
+Query Parameters
+
+Query Parameters:
+
+defaultToGlobal (boolean) – Add ?defaultToGlobal=true at the end of this request to return the global mode if the subject-level mode is not found. The default is false.
+
+Response Body
+
+Response JSON Object:
+
+mode (string) – Mode for the subject. Returns one of IMPORT, READONLY, READWRITE (default), FORWARD
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – Subject not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /mode/test HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "mode": "READWRITE"
+}
+
+## Update subject mode
+
+PUT /mode/(string: subject)
+
+Update the mode for the specified subject. This will work only if Schema Registry was started with mode.mutability=true set in the Schema Registry properties file. On success, echoes the original request back to the client.
+
+Path Parameters
+
+Parameters:
+
+subject (string) – Name of the subject
+
+Query Parameters
+
+Parameters:
+
+force (boolean) – Add ?force=true at the end of this request to force a mode change even if the Schema Registry has existing schemas. This can be useful in disaster recovery (DR) scenarios using Schema Linking. The default is false, which does not allow a mode change to IMPORT if Schema Registry has registered schemas.
+
+Request JSON Object:
+
+mode (string) – New mode for the subject. Must be one of IMPORT, READONLY, READWRITE (default), FORWARD
+
+Status Codes
+
+Status Codes:
+
+422 Unprocessable Entity – 
+
+Error code 42204 – Invalid mode
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+PUT /mode/test HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "mode": "READONLY"
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "mode": "READONLY"
+}
+
+## Update context mode
+
+PUT /mode/(string: context)
+
+Update the mode for the specified context using the PUT /mode/(string: context) endpoint. To use this endpoint, set mode.mutability=true in the Schema Registry properties file before starting Schema Registry. To target a context, pass the qualified context name as the path parameter, such as :.mycontext:. The setting applies to every subject in that context that doesn’t have its own subject-level mode override.
+
+Path Parameters
+
+Parameters:
+
+context (string) – Qualified context name, such as :.mycontext:
+
+Query Parameters
+
+Parameters:
+
+force (boolean) – Add ?force=true to force a mode change, even if the context contains existing schemas. The default is false, which blocks mode changes to IMPORT when schemas exist in the context.
+
+Request JSON Object:
+
+mode (string) – New mode for the context. Must be one of IMPORT, READONLY, READWRITE (default), FORWARD
+
+Status Codes
+
+Status Codes:
+
+422 Unprocessable Entity – 
+
+Error code 42204 – Invalid mode
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+PUT /mode/:.mycontext: HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "mode": "IMPORT"
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "mode": "IMPORT"
+}
+
+## Delete subject mode
+
+DELETE /mode/(string: subject)
+
+Deletes the subject-level mode for the specified subject and reverts to the global default.
+
+Path Parameters
+
+Parameters:
+
+subject (string) – Name of the subject
+
+Query Parameters
+
+Query Parameters:
+
+recursive (boolean) – Add ?recursive=true to delete the subject mode and subject-level mode override for every subject in the same context. The default is false, which deletes only the specified subject’s mode.
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – Subject not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+DELETE /mode/test HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "mode": "READONLY"
+}
+
+## Delete global mode
+
+DELETE /mode
+
+Deletes the global Schema Registry mode override and reverts to the default READWRITE.
+
+Query Parameters
+
+Query Parameters:
+
+recursive (boolean) – Add ?recursive=true to delete the global Schema Registry mode override and the subject-level mode override for every subject in the default context. The default is false, which deletes only the global mode.
+
+Status Codes
+
+Status Codes:
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+DELETE /mode?recursive=true HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "mode": "READWRITE"
+}
+
+## Schemas
+
+## Get schema by ID
+
+GET /schemas/ids/{int: id}
+
+Get the schema identified by the input ID.
+
+Path Parameters
+
+Parameters:
+
+id (int) – the globally unique identifier of the schema
+
+Query Parameters
+
+Query Parameters:
+
+format (string) – Desired output format, dependent on schema type. For AVRO schemas, valid values are: "" (default) or resolved. For PROTOBUF schemas, valid values are: "" (default), ignore_extensions, or serialized. (The parameter does not apply to JSON schemas.)
+
+subject (string) – Add ?subject=<someSubjectName> at the end of this request to look for the subject in all contexts starting with the default context, and return the schema with the id from that context. To learn more about contexts, see the exporters API reference and the quick start and concepts guides for Schema Linking on Confluent Platform and Schema Linking on Confluent Cloud.
+
+Response Body
+
+Response JSON Object:
+
+subject (string) – Name of the subject that this schema is registered under
+
+version (int) – Version of the schema under this subject
+
+schema (string) – Schema string identified by the ID
+
+guid (string) – Globally unique identifier of the schema, including context (if applicable)
+
+ts (long) – Timestamp of the schema registration
+
+deleted (boolean) – Whether the schema has been soft-deleted
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40403 – Schema not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /schemas/ids/1 HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "subject": "test-subject",
+ "version": 1,
+ "schema": "{\"type\": \"string\"}",
+ "guid": "test-subject:1",
+ "ts": 1696522845123,
+ "deleted": false
+}
+
+## Get schema string by ID
+
+GET /schemas/ids/{int: id}/schema
+
+Get the schema string identified by the input ID.
+
+Path Parameters
+
+Parameters:
+
+id (int) – the globally unique identifier of the schema
+
+Query Parameters
+
+Parameters:
+
+format (string) – Desired output format, dependent on schema type. For AVRO schemas, valid values are: "" (default) or resolved. For PROTOBUF schemas, valid values are: "" (default), ignore_extensions, or serialized. (The parameter does not apply to JSON schemas.)
+
+subject (string) – Add ?subject=<someSubjectName> at the end of this request to look for the subject in all contexts starting with the default context, and return the schema with the ID from that context. To learn more about contexts, see the exporters API reference and the quick start and concepts guides for Schema Linking on Confluent Platform and Schema Linking on Confluent Cloud.
+
+Response Body
+
+Response JSON Object:
+
+schema (string) – Schema identified by the ID
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40403 – Schema not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /schemas/ids/1/schema HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+"string"
+
+## List supported schema types
+
+GET /schemas/types/
+
+Get the schema types that are registered with Schema Registry.
+
+Response Body
+
+Response JSON Object:
+
+schema (string) – Schema types currently available on Schema Registry.
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40403 – Schema not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /schemas/types HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ ["JSON", "PROTOBUF", "AVRO"]
+}
+
+## List schemas
+
+GET /schemas
+
+Get the schemas matching the specified parameters.
+
+Query Parameters
+
+Query Parameters:
+
+subjectPrefix (string) – Filters the result by the respective subject prefix.
+
+aliases (boolean) – Add ?aliases=true at the end of this request to include aliases in the search results. The default is false.
+
+deleted (boolean) – Add ?deleted=true at the end of this request to list both current and soft-deleted subjects. The default is false. If this flag is not included, only current subjects are listed (not those that have been soft-deleted).
+
+latestOnly (boolean) – Add ?latestOnly=true at the end of this request to return only latest schema versions for each matching subject. The default is false.
+
+ruletype (string) – Filters the results by given rule type.
+
+offset (integer) – Pagination offset for results. The default is 0.
+
+limit (integer) – Pagination size for results. Ignored if negative. The default is -1 (no limit).
+
+Response Body
+
+Response JSON Array of Objects:
+
+subject (string) – Name of the subject
+
+version (integer) – Version of the schema under this subject
+
+id (integer) – Globally unique identifier of the schema
+
+guid (string) – Globally unique identifier of the schema, including context (if applicable)
+
+schemaType (string) – The schema format: AVRO (default), PROTOBUF, or JSON
+
+references (array) – Array of references to other schemas
+
+schema (string) – The schema string
+
+metadata (object) – User-defined metadata associated with the schema
+
+ruleSet (object) – Schema rule set
+
+schemaTags (array) – Schema tags
+
+ts (long) – Timestamp of the schema registration
+
+deleted (boolean) – Whether the schema has been soft-deleted
+
+Status Codes
+
+Status Codes:
+
+200 OK – Successful response
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /schemas HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+[
+ {
+ "subject": "test-subject",
+ "version": 1,
+ "id": 1,
+ "guid": "test-subject:1",
+ "schemaType": "AVRO",
+ "schema": "{\"type\": \"string\"}",
+ "ts": 1696522845123,
+ "deleted": false
+ }
+]
+
+## List subjects associated with a given schema ID
+
+GET /schemas/ids/(int: id)/subjects
+
+Retrieves all the subjects associated with a particular schema ID.
+
+Path Parameters
+
+Parameters:
+
+id (int) – the globally unique identifier of the schema
+
+Query Parameters
+
+Query Parameters:
+
+subject (string) – Filters the result by the respective subject.
+
+format (string) – Desired output format, dependent on schema type. For AVRO schemas, valid values are: "" (default) or resolved. For PROTOBUF schemas, valid values are: "" (default), ignore_extensions, or serialized. (The parameter does not apply to JSON schemas.)
+
+deleted (boolean) – Add ?deleted=true at the end of this request to list both current and soft-deleted subjects. The default is false. If this flag is not included, only current subjects are listed (not those that have been soft-deleted).
+
+offset (integer) – Pagination offset for results. The default is 0.
+
+limit (integer) – Pagination size for results. Ignored if negative. The default is -1 (no limit).
+
+Response Body
+
+Response JSON Array of Objects:
+
+string – Name of a subject associated with the specified schema ID
+
+Status Codes
+
+Status Codes:
+
+200 OK – Successful response
+
+404 Not Found – 
+
+Error code 40403 – Schema not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /schemas/ids/1/subjects HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+["test-subject", "another-subject"]
+
+## List subject-version pairs associated with the schema ID
+
+GET /schemas/ids/{int:id}/versions
+
+Get the subject-version pairs identified by the input ID.
+
+Path Parameters
+
+Parameters:
+
+id (int) – the globally unique identifier of the schema
+
+Query Parameters
+
+Query Parameters:
+
+subject (string) – Filters the result by the respective subject.
+
+deleted (boolean) – Add ?deleted=true at the end of this request to list both current and soft-deleted subjects. The default is false. If this flag is not included, only current subjects are listed (not those that have been soft-deleted).
+
+Response Body
+
+Response JSON Array of Objects:
+
+subject (string) – Name of the subject
+
+version (int) – Version of the returned schema
+
+Status Codes
+
+Status Codes:
+
+200 OK – Successful response
+
+404 Not Found – 
+
+Error code 40403 – Schema not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /schemas/ids/1/versions HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+[{"subject":"test-subject1","version":1}]
+
+## Get schema by GUID
+
+GET /schemas/guids/(string: guid)
+
+Retrieves the schema identified by the input GUID. GUIDs are used when schema IDs are included in Kafka headers for data governance.
+
+Parameters:
+
+guid (string) – The globally unique identifier (GUID) for the schema
+
+Response JSON Object:
+
+subject (string) – Name of the subject
+
+version (int) – Version of the schema
+
+id (int) – Globally unique identifier of the schema
+
+schema (string) – The actual schema definition
+
+Status Codes:
+
+404 Not Found – Error code 40403 – Schema not found
+
+500 Internal Server Error – Internal server error
+
+Example request:
+
+GET /schemas/guids/a1b2c3d4-e5f6-7890-abcd-ef1234567890 HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "subject": "my-subject-value",
+ "version": 1,
+ "id": 100015,
+ "schema": "{\"type\":\"record\",\"name\":\"MyRecord\",\"fields\":[{\"name\":\"field1\",\"type\":\"string\"}]}"
+}
+
+## Get IDs by GUID
+
+GET /schemas/guids/(string: guid)/ids
+
+Retrieves the schema IDs identified by the input GUID. This is useful when working with schema IDs in Kafka headers.
+
+Parameters:
+
+guid (string) – The globally unique identifier (GUID) for the schema
+
+Response JSON Array of Objects:
+
+ids (int) – Array of schema IDs associated with the GUID
+
+Status Codes:
+
+404 Not Found – Error code 40403 – Schema not found
+
+500 Internal Server Error – Internal server error
+
+Example request:
+
+GET /schemas/guids/a1b2c3d4-e5f6-7890-abcd-ef1234567890/ids HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+[100015]
+
+## Subjects
+
+The subjects resource provides a list of all registered subjects across all contexts in your Schema Registry. A subject refers to the name under which the schema is registered. If you are using Schema Registry for Kafka, then a subject refers to either a “<topic>-value” or “<topic>-key” depending on whether you are registering the value schema for that topic or the key schema.
+To learn more about subject name strategies, see How the naming strategies work.
+
+Tip
+
+To find subjects for a given ID, see GET /schemas/ids/{int: id}/versions.
+
+You can specify a slash /, and other special characters, in a subject name. To do so, first URL-encode
+the subject name, and then replace non-valid characters in the output. For example, if you have a subject name such as path/to/my.proto,
+the URL encoding would produce something like %2Fpath%2Fto%2Fmy.proto, which you can then revise by replacing % with _x as follows:
+_x2Fpath_x2Fto_x2Fmy.proto (because % is not valid in an XML name). The reasoning behind this is that subject names must be specified as
+XML elements, but some characters, like slashes, are not valid characters in an XML name. For example, you might want to use slashes to register a
+Protobuf schema that is referenced by another schema, such as /path/to/my.proto for the subject. This workaround enables you to do that.
+
+## List subjects
+
+GET /subjects
+
+Get a list of registered subjects. (For API usage examples, see List all subjects.)
+
+Query Parameters
+
+Query Parameters:
+
+subjectPrefix (string) – Add ?subjectPrefix= (as an empty string) at the end of this request to list subjects in the default context. If this flag is not included, GET /subjects returns all subjects across all contexts. To learn more about contexts, see the exporters API reference and the quick start and concepts guides for Schema Linking on Confluent Platform and Schema Linking on Confluent Cloud.
+
+deleted (boolean) – Add ?deleted=true at the end of this request to list both current and soft-deleted subjects. The default is false. If this flag is not included, only current subjects are listed (not those that have been soft-deleted). Hard and soft delete are explained below in the description of the delete API.
+
+deletedOnly (boolean) – Add ?deletedOnly=true at the end of this request to list only soft-deleted subjects. The default is false.
+
+offset (integer) – Pagination offset for results. The default is 0.
+
+limit (integer) – Pagination size for results. Ignored if negative. The default is -1 (no limit).
+
+Response Body
+
+Response JSON Array of Objects:
+
+name (string) – Subject
+
+Status Codes
+
+Status Codes:
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /subjects HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+["subject1", "subject2"]
+
+GET /subjects/(string: subject)/versions
+
+Get a list of versions registered under the specified subject.
+
+Path Parameters
+
+Parameters:
+
+subject (string) – the name of the subject
+
+Query Parameters
+
+Query Parameters:
+
+deleted (boolean) – Add ?deleted=true at the end of this request to list both current and soft-deleted subjects. The default is false. If this flag is not included, only current subjects are listed (not those that have been soft-deleted). Hard and soft delete are explained below in the description of the delete API.
+
+deletedOnly (boolean) – Add ?deletedOnly=true at the end of this request to list only soft-deleted subjects. The default is false.
+
+offset (integer) – Pagination offset for results. The default is 0.
+
+limit (integer) – Pagination size for results. Ignored if negative. The default is -1 (no limit).
+
+Response Body
+
+Response JSON Array of Objects:
+
+version (int) – version of the schema registered under this subject
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40401 – Subject not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /subjects/test/versions HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+[
+ 1, 2, 3, 4
+]
+
+## Delete subject
+
+DELETE /subjects/(string: subject)
+
+Deletes the specified subject and its associated compatibility level if registered. It is recommended to use this API only when a topic needs to be recycled or in a development environment. To learn more, see Delete Schemas in Confluent Platform.
+
+Path Parameters
+
+Parameters:
+
+subject (string) – the name of the subject
+
+Query Parameters
+
+Query Parameters:
+
+permanent (boolean) – Add ?permanent=true at the end of this request to specify a hard delete of the subject, which removes all associated metadata including the schema ID. The default is false. If the flag is not included, a soft delete is performed. You must perform a soft delete first, then the hard delete. This flag is now supported on both Confluent Platform and Confluent Cloud, which sets limits on the number of schema versions supported in the registry. A hard delete frees up space in a way that a soft delete does not. To learn more, see Hard delete a schema in Delete Schemas in Confluent Platform.
+
+Response Body
+
+Response JSON Array of Objects:
+
+version (int) – version of the schema deleted under this subject
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40401 – Subject not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+DELETE /subjects/test HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+[
+ 1, 2, 3, 4
+]
+
+## Get schema by version
+
+GET /subjects/(string: subject)/versions/(versionId: version)
+
+Get a specific version of the schema registered under this subject
+
+Path Parameters
+
+Parameters:
+
+subject (string) – Name of the subject
+
+version (versionId) – Version of the schema to be returned. Valid values for versionId are between [1,2^31-1] or the string latest, which returns the last registered schema under the specified subject. The value -1 is equivalent to latest. Note that there may be a new latest schema that gets registered right after this request is served.
+
+Query Parameters
+
+Query Parameters:
+
+format (string) – Desired output format, dependent on schema type. For AVRO schemas, valid values are: "" (default) or resolved. For PROTOBUF schemas, valid values are: "" (default), ignore_extensions, or serialized. (The parameter does not apply to JSON schemas.)
+
+deleted (boolean) – Add ?deleted=true at the end of this request to list both current and soft-deleted subjects. The default is false. If this flag is not included, only current subjects are listed (not those that have been soft-deleted). Hard and soft delete are explained below in the description of the delete API.
+
+Response Body
+
+Response JSON Object:
+
+subject (string) – Name of the subject that this schema is registered under
+
+id (int) – Globally unique identifier of the schema
+
+version (int) – Version of the returned schema
+
+schemaType (string) – The schema format: AVRO is the default (if no schema type is shown on the response, the type is AVRO), PROTOBUF, JSON
+
+schema (string) – The schema string
+
+guid (string) – Globally unique identifier of the schema, including context (if applicable)
+
+ts (long) – Timestamp of the schema registration
+
+deleted (boolean) – Whether the schema has been soft-deleted
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40401 – Subject not found
+
+Error code 40402 – Version not found
+
+422 Unprocessable Entity – 
+
+Error code 42202 – Invalid version
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /subjects/test/versions/1 HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response (AVRO):
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "subject": "test",
+ "id": 1,
+ "version": 1,
+ "schema": "{\"type\": \"string\"}",
+ "guid": "test:1",
+ "ts": 1696522845123,
+ "deleted": false
+}
+
+Example response (PROTOBUF):
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "subject": "test",
+ "id": 1,
+ "version": 1,
+ "schemaType": "PROTOBUF",
+ "schema": "{\"type\": \"string\"}",
+ "guid": "test:1",
+ "ts": 1696522845123,
+ "deleted": false
+}
+
+## Get schema string by version
+
+GET /subjects/(string: subject)/versions/(versionId: version)/schema
+
+Get the schema for the specified version of this subject. Only the unescaped schema string is returned.
+
+Path Parameters
+
+Parameters:
+
+subject (string) – Name of the subject
+
+version (versionId) – Version of the schema to be returned. Valid values for versionId are between [1,2^31-1] or the string latest, which returns the last registered schema under the specified subject. The value -1 is equivalent to latest. Note that there may be a new latest schema that gets registered right after this request is served.
+
+Query Parameters
+
+Query Parameters:
+
+format (string) – Desired output format, dependent on schema type. For AVRO schemas, valid values are: "" (default) or resolved. For PROTOBUF schemas, valid values are: "" (default), ignore_extensions, or serialized. (The parameter does not apply to JSON schemas.)
+
+deleted (boolean) – Add ?deleted=true at the end of this request to list both current and soft-deleted subjects. The default is false. If this flag is not included, only current subjects are listed (not those that have been soft-deleted). Hard and soft delete are explained below in the description of the delete API.
+
+Response Body
+
+Response JSON Object:
+
+schema (string) – The schema string (unescaped)
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40401 – Subject not found
+
+Error code 40402 – Version not found
+
+422 Unprocessable Entity – 
+
+Error code 42202 – Invalid version
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /subjects/test/versions/1/schema HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{"type": "string"}
+
+## Register a new schema under a subject
+
+POST /subjects/(string: subject)/versions
+
+Register a new schema under the specified subject. (Essentially, create a new schema.) If successfully registered, this returns the unique identifier of this schema in the registry. The returned identifier should be used to retrieve this schema from the schemas resource and is different from the schema’s version which is associated with the subject.
+If the same schema is registered under a different subject, the same identifier will be returned. However, the version of the schema may be different under different subjects.
+
+A schema should be compatible with the previously registered schema or schemas (if there are any) as per the configured compatibility level. If a compatibility level has been set on a subject, the configured compatibility level can be obtained by issuing a GET http:get:: /config/(string: subject).
+If this returns an error, it means that no subject-specific compatibility level is set for the subject. In that case, use GET http:get:: /config to find the global compatibility level, which applies to all subjects. (Subject-specific compatibility, when configured, overrides global.) For examples,
+see Update compatibility requirements on a subject and Get compatibility requirements on a subject.
+
+If you register a schema that is identical to an existing schema in Schema Registry, a new version isn’t created. Instead, Schema Registry recognizes the schema as already existing and returns the existing schema’s ID and its current version number. The latest version number increments only if the schema being registered is different from any existing schema under that subject.
+
+To force a schema to become the latest version regardless of whether it already exists, pass version: -1 in the request body. This is useful for infrastructure-as-code (IaC) scenarios where you need to ensure a specific schema version becomes the latest. For example, if you have schema versions v1, v2, and v3, and want to make v1 the latest version again, re-register v1 with version: -1. When you use this parameter, Schema Registry adds a confluent:version key to the schema’s metadata section.
+
+When there are multiple instances of Schema Registry running in the same cluster, the schema registration request will be forwarded to one of the instances designated as the primary. If the primary is not available, the client will get an error code indicating that the forwarding has failed.
+
+If no schemaType is supplied, schemaType is assumed to be AVRO.
+
+Path Parameters
+
+Parameters:
+
+subject (string) – Subject under which the schema will be registered
+
+Query Parameters
+
+Query Parameters:
+
+normalize (boolean) – Add ?normalize=true at the end of this request to normalize the schema. The default is false. To learn more, see Schema normalization.
+
+format (string) – Desired output format, dependent on schema type. For AVRO schemas, valid values are: "" (default) or resolved. For PROTOBUF schemas, valid values are: "" (default), ignore_extensions, or serialized. (The parameter does not apply to JSON schemas.)
+
+Request Body
+
+Request JSON Object:
+
+version (integer) – Version number of the schema (Optional). Pass -1 to force the schema to become the latest version, even if it already exists as an earlier version. This is useful for IaC workflows where you need to revert to a previous schema as the latest
+
+schema (string) – The schema string
+
+stringschemaType – Defines the schema format: AVRO (default), PROTOBUF, JSON (Optional)
+
+references – Specifies the names of referenced schemas (Optional). To learn more, see Schema references.
+
+metadata – Specifies the user-defined metadata for the schema (Optional). To learn more, see Metadata properties and Configuration enhancements in Data Contracts.
+
+ruleSet – Specifies the ruleSet for the schema (Optional). To learn more, see Rules and Configuration enhancements in Data Contracts.
+
+schemaTagsToAdd (array) – Schema Tags to add to the schema (Optional). Array of objects (Schema Tags)
+
+schemaTagsToRemove (array) – Schema Tags to remove from the schema (Optional). Array of strings (Schema Tags)
+
+propagatedTags (boolean) – Indicates whether to propagate the schema tags from a previous schema version during registration.
+
+Response Body
+
+Response JSON Object:
+
+id (int) – Globally unique identifier of the schema
+
+version (int) – Version of the schema under this subject
+
+guid (string) – Globally unique identifier of the schema, including context (if applicable)
+
+schema (string) – The schema string
+
+schemaType (string) – The schema format: AVRO (default), PROTOBUF, or JSON
+
+references (array) – Array of references to other schemas
+
+ts (long) – Timestamp of the schema registration
+
+deleted (boolean) – Whether the schema has been soft-deleted
+
+Status Codes
+
+Status Codes:
+
+409 Conflict – Incompatible schema
+
+422 Unprocessable Entity – 
+
+Error code 42201 – Invalid schema
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Error code 50002 – Operation timed out
+
+Error code 50003 – Error while forwarding the request to the primary
+
+Example request:
+
+POST /subjects/test/versions HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "schema":
+ "{
+ \"type\": \"record\",
+ \"name\": \"test\",
+ \"fields\":
+ [
+ {
+ \"type\": \"string\",
+ \"name\": \"field1\"
+ },
+ {
+ \"type\": \"com.acme.Referenced\",
+ \"name\": \"int\"
+ }
+ ]
+ }",
+ "schemaType": "AVRO",
+ "references": [
+ {
+ "name": "com.acme.Referenced",
+ "subject": "childSubject",
+ "version": 1
+ }
+ ]
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "id": 1,
+ "version": 1,
+ "guid": "test:1",
+ "schema": "{\"type\": \"record\", \"name\": \"test\", \"fields\": [{\"type\": \"string\", \"name\": \"field1\"}, {\"type\": \"com.acme.Referenced\", \"name\": \"int\"}]}",
+ "schemaType": "AVRO",
+ "references": [{"name": "com.acme.Referenced", "subject": "childSubject", "version": 1}],
+ "ts": 1696522845123,
+ "deleted": false
+}
+
+## Look up a schema under a subject to see if it’s already registered
+
+POST /subjects/(string: subject)
+
+Check if a schema has already been registered under the specified subject. If so, this returns the schema string along with its globally unique identifier, its version under this subject and the subject name.
+
+Path Parameters
+
+Parameters:
+
+subject (string) – Subject under which the schema will be registered
+
+Query Parameters
+
+Query Parameters:
+
+normalize (boolean) – Add ?normalize=true at the end of this request to normalize the schema. The default is false. To learn more, see Schema normalization.
+
+format (string) – Desired output format, dependent on schema type. For AVRO schemas, valid values are: "" (default) or resolved. For PROTOBUF schemas, valid values are: "" (default), ignore_extensions, or serialized. (The parameter does not apply to JSON schemas.)
+
+deleted (boolean) – Add ?deleted=true at the end of this request to list both current and soft-deleted subjects. The default is false. If this flag is not included, only current subjects are listed (not those that have been soft-deleted). Hard and soft delete are explained below in the description of the delete API.
+
+Request Body
+
+Request JSON Object:
+
+version (integer) – Version number of the schema
+
+id (integer) – Globally unique identifier of the schema
+
+schema (string) – The schema string
+
+schemaType (string) – Defines the schema format: AVRO (default), PROTOBUF, JSON (Optional)
+
+references (array) – Specifies the names of referenced schemas (Optional). To learn more, see Schema references.
+
+metadata (object) – Specifies the user-defined metadata for the schema (Optional). Object or null. To learn more, see Metadata properties and Configuration enhancements in Data Contracts.
+
+ruleSet (ruleset) – Specifies the ruleSet for the schema (Optional). Object or null. To learn more, see Rules and Configuration enhancements in Data Contracts.
+
+schemaTagsToAdd (array) – Schema Tags to add to the schema (Optional). Array of objects (Schema Tags)
+
+schemaTagsToRemove (array) – Schema Tags to remove from the schema (Optional). Array of strings (Schema Tags)
+
+propagatedTags (boolean) – Indicates whether to propagate the schema tags from a previous schema version during registration.
+
+Response Body
+
+Response JSON Object:
+
+subject (string) – Name of the subject that this schema is registered under
+
+id (int) – Globally unique identifier of the schema
+
+version (int) – Version of the returned schema
+
+schema (string) – The schema string
+
+guid (string) – Globally unique identifier of the schema, including context (if applicable)
+
+ts (long) – Timestamp of the schema registration
+
+deleted (boolean) – Whether the schema has been soft-deleted
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40401 – Subject not found
+
+Error code 40403 – Schema not found
+
+500 Internal Server Error – Internal server error
+
+Example request:
+
+POST /subjects/test HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "schema":
+ "{
+ \"type\": \"record\",
+ \"name\": \"test\",
+ \"fields\":
+ [
+ {
+ \"type\": \"string\",
+ \"name\": \"field1\"
+ },
+ {
+ \"type\": \"int\",
+ \"name\": \"field2\"
+ }
+ ]
+ }"
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "subject": "test",
+ "id": 1,
+ "version": 3,
+ "schema": "{\"type\": \"record\", \"name\": \"test\", \"fields\": [{\"type\": \"string\", \"name\": \"field1\"}, {\"type\": \"int\", \"name\": \"field2\"}]}",
+ "guid": "test:3",
+ "ts": 1696522845123,
+ "deleted": false
+}
+
+## Delete schema version
+
+DELETE /subjects/(string: subject)/versions/(versionId: version)
+
+Deletes a specific version of the schema registered under this subject. Unless you perform a hard delete (with ?permanent=true as noted below), this only deletes the version, leaving the schema ID intact and making it still possible to decode data using the schema ID. This API is recommended to be used only in development environments or under extreme circumstances where-in, its required to delete a previously registered schema for compatibility purposes or re-register previously registered schema.
+
+Path Parameters
+
+Parameters:
+
+subject (string) – Name of the subject
+
+version (versionId) – Version of the schema to be deleted. Valid values for versionId are between [1,2^31-1] or the string latest, which deletes the last registered schema under the specified subject. The value -1 is equivalent to latest. Note that there may be a new latest schema that gets registered right after this request is served. Note that there may be a new latest schema that gets registered right after this request is served. For hard-delete of a schema version, you must provide a version number as input; not version:latest, which results in a soft delete only, even with the ?permanent=true flag appended. To learn more, see Delete Schemas in Confluent Platform.
+
+Query Parameters
+
+Query Parameters:
+
+permanent (boolean) – Add ?permanent=true at the end of this request to specify a hard delete for a specific version of the subject, which removes all associated metadata including the schema ID. The default is false. If the flag is not included, a soft delete is performed. You must perform a soft delete first, then the hard delete. This flag is now supported on both Confluent Platform and Confluent Cloud, which sets limits on the number of schema versions supported in the registry. A hard delete frees up space in a way that a soft delete does not. To learn more, see Hard delete a schema in Delete Schemas in Confluent Platform.
+
+Response Body
+
+Response JSON Object:
+
+int – Version of the deleted schema
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40401 – Subject not found
+
+Error code 40402 – Version not found
+
+422 Unprocessable Entity – 
+
+Error code 42202 – Invalid version
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+DELETE /subjects/test/versions/1 HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+1
+
+## List schemas referencing a schema
+
+GET /subjects/(string: subject)/versions/{versionId: version}/referencedby
+
+Get a list of IDs of schemas that reference the schema with the given subject and version.
+
+Path Parameters
+
+Parameters:
+
+subject (string) – Name of the subject
+
+version (versionId) – Version of the schema to be returned. Valid values for versionId are between [1,2^31-1] or the string latest, which returns the last registered schema under the specified subject. The value -1 is equivalent to latest. Note that there may be a new latest schema that gets registered right after this request is served. Note that there may be a new latest schema that gets registered right after this request is served.
+
+Query Parameters
+
+Parameters:
+
+offset (integer) – Pagination offset for results. The default is 0.
+
+limit (integer) – Pagination size for results. Ignored if negative. The default is -1 (no limit).
+
+Response Body
+
+Response JSON Array of Objects:
+
+id (int) – Globally unique identifier of the schema
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40401 – Subject not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /subjects/test/versions/1/referencedby HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+[
+ 1, 2, 3, 4
+]
+
+## Retrieve the latest version with the given metadata
+
+GET /subjects/(string: subject)/metadata
+
+Retrieve the latest version with the given metadata. The given metadata takes the form of key-value pairs.
+
+Path Parameters
+
+Parameters:
+
+subject (string) – Name of the subject under which the schema is registered.
+
+Query Parameters
+
+Query Parameters:
+
+key (string) – Add ?key=<key> at the end of this request to match a metadata key. This query parameter can appear multiple times. Each instance is matched with a corresponding value query parameter, in order.
+
+value (string) – Add ?value=<value> at the end of this request to match a metadata value. This query parameter can appear multiple times. Each instance is matched with a corresponding key query parameter, in order.
+
+format (string) – Desired output format, dependent on schema type. For AVRO schemas, valid values are: "" (default) or resolved. For PROTOBUF schemas, valid values are: "" (default), ignore_extensions, or serialized. (The parameter does not apply to JSON schemas.)
+
+deleted (boolean) – Add ?deleted=true at the end of this request to list both current and soft-deleted subjects. The default is false. If this flag is not included, only current subjects are listed (not those that have been soft-deleted). Hard and soft delete are explained below in the description of the delete API.
+
+Response Body
+
+Response JSON Object:
+
+subject (string) – Name of the subject that this schema is registered under
+
+id (int) – Globally unique identifier of the schema
+
+version (int) – Version of the returned schema
+
+schemaType (string) – The schema format: AVRO is the default (if no schema type is shown on the response, the type is AVRO), PROTOBUF, JSON
+
+schema (string) – The schema string
+
+guid (string) – Globally unique identifier of the schema, including context (if applicable)
+
+ts (long) – Timestamp of the schema registration
+
+deleted (boolean) – Whether the schema has been soft-deleted
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40401 – Subject not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+## Key Encryption Keys
+
+Key Encryption Keys (KEKs) are master keys used to securely manage Data Encryption
+Keys (DEKs). KEKs are typically stored in external Key Management Services (KMS)
+such as AWS KMS, Azure Key Vault, or Google Cloud KMS. While the KEK itself is not
+stored in the Schema Registry, metadata about the KEK (such as its name and key
+identifier) is registered to facilitate encryption and decryption operations.
+For an overview of how KEKs and DEKs are used for Client-Side Field-Level Encryption
+(CSFLE), see Use Client-Side Field Level Encryption on Confluent Platform.
+
+## Get a list of KEK names
+
+GET /dek-registry/v1/keks
+
+Get a list of all registered Key Encryption Keys.
+
+Query Parameters
+
+Query Parameters:
+
+name (string) – Filter KEKs by name (optional)
+
+deleted (boolean) – Include deleted KEKs in the response (optional, default: false)
+
+Response Body
+
+Response JSON Array of Objects:
+
+name (string) – Name of the KEK
+
+kmsType (string) – Type of Key Management Service (e.g., “aws-kms”, “azure-kv”, “gcp-kms”)
+
+kmsKeyId (string) – Key identifier from the KMS provider
+
+doc (string) – Description of the KEK
+
+shared (boolean) – Whether the KEK is shared across multiple subjects
+
+deleted (boolean) – Whether the KEK has been deleted
+
+ts (object) – Timestamp information
+
+Status Codes
+
+Status Codes:
+
+200 OK – Operation successful
+
+401 Unauthorized – Unauthorized
+
+403 Forbidden – Forbidden
+
+500 Internal Server Error – Internal server error
+
+Example request:
+
+GET /dek-registry/v1/keks HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+[
+ {
+ "name": "my-kek",
+ "kmsType": "aws-kms",
+ "kmsKeyId": "arn:aws:kms:us-west-2:123456789012:key/12345678-1234-1234-1234-123456789012",
+ "doc": "KEK for customer data encryption",
+ "shared": false,
+ "deleted": false,
+ "ts": {
+ "timestamp": 1631206325000
+ }
+ }
+]
+
+## Create a KEK
+
+POST /dek-registry/v1/keks
+
+Create a new Key Encryption Key.
+
+Query Parameters
+
+Query Parameters:
+
+testSharing (boolean) – Whether to test KEK sharing. The default is false.
+
+Request Body
+
+Request JSON Object:
+
+name (string) – Name of the KEK
+
+kmsType (string) – Type of Key Management Service (for example, “aws-kms”, “azure-kv”, “gcp-kms”)
+
+kmsKeyId (string) – Identifier of the key in the KMS
+
+kmsProps (object) – KMS-specific properties
+
+doc (string) – Description of the KEK (optional)
+
+shared (boolean) – Whether the KEK is shared across multiple subjects (optional)
+
+deleted (boolean) – Whether the KEK has been deleted (optional)
+
+Response Body
+
+Response JSON Object:
+
+name (string) – Name of the created KEK
+
+kmsType (string) – Type of Key Management Service
+
+kmsKeyId (string) – Identifier of the key in the KMS
+
+kmsProps (object) – KMS-specific properties
+
+doc (string) – Description of the KEK
+
+shared (boolean) – Whether the KEK is shared across multiple subjects
+
+deleted (boolean) – Whether the KEK has been deleted
+
+ts (object) – Timestamp information
+
+Status Codes
+
+Status Codes:
+
+201 Created – KEK successfully created
+
+400 Bad Request – Bad request (invalid parameters)
+
+401 Unauthorized – Unauthorized
+
+403 Forbidden – Forbidden
+
+409 Conflict – Conflict (KEK already exists)
+
+500 Internal Server Error – Internal server error
+
+Example request:
+
+POST /dek-registry/v1/keks HTTP/1.1
+Host: schemaregistry.example.com
+Content-Type: application/vnd.schemaregistry.v1+json
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "name": "my-kek",
+ "kmsType": "aws-kms",
+ "kmsKeyId": "arn:aws:kms:us-west-2:123456789012:key/12345678-1234-1234-1234-123456789012",
+ "kmsProps": {
+ "region": "us-west-2"
+ },
+ "doc": "KEK for customer data encryption",
+ "shared": false
+}
+
+Example response:
+
+HTTP/1.1 201 Created
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "my-kek",
+ "kmsType": "aws-kms",
+ "kmsKeyId": "arn:aws:kms:us-west-2:123456789012:key/12345678-1234-1234-1234-123456789012",
+ "kmsProps": {
+ "region": "us-west-2"
+ },
+ "doc": "KEK for customer data encryption",
+ "shared": false,
+ "deleted": false,
+ "ts": {
+ "timestamp": 1631206325000
+ }
+}
+
+## Delete a KEK
+
+DELETE /dek-registry/v1/keks/(string: name)
+
+Delete a key encryption key.
+
+Path Parameters
+
+Parameters:
+
+name (string) – Name of the KEK
+
+Query Parameters
+
+Parameters:
+
+permanent (boolean) – Add ?permanent=true at the end of this request to specify a hard delete of the KEK. The default is false (soft delete).
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40470 – KEK not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+DELETE /dek-registry/v1/keks/my-kek HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 204 No Content
+
+Permanent delete example request:
+
+DELETE /dek-registry/v1/keks/my-kek?permanent=true HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+## Get a KEK by name
+
+GET /dek-registry/v1/keks/(string: name)
+
+Get a specific key encryption key by name.
+
+Path Parameters
+
+Parameters:
+
+name (string) – Name of the KEK
+
+Query Parameters
+
+Parameters:
+
+deleted (boolean) – Add ?deleted=true at the end of this request to include soft-deleted KEKs. The default is false.
+
+Response Body
+
+Response JSON Object:
+
+name (string) – Name of the KEK
+
+kmsType (string) – Type of Key Management Service
+
+kmsKeyId (string) – Identifier of the key in the KMS
+
+kmsProps (string) – KMS-specific properties
+
+doc (string) – Documentation for the KEK
+
+shared (boolean) – Whether the KEK is shared across multiple subjects
+
+ts (long) – Timestamp of the KEK creation
+
+deleted (boolean) – Whether the KEK has been soft-deleted
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40470 – KEK not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /dek-registry/v1/keks/my-kek HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "my-kek",
+ "kmsType": "aws-kms",
+ "kmsKeyId": "arn:aws:kms:us-west-2:123456789012:key/12345678-1234-1234-1234-123456789012",
+ "kmsProps": {
+ "region": "us-west-2"
+ },
+ "doc": "KEK for customer data encryption",
+ "shared": false,
+ "deleted": false,
+ "ts": {
+ "timestamp": 1631206325000
+ }
+}
+
+## Update a KEK
+
+PUT /dek-registry/v1/keks/(string: name)
+
+Update a key encryption key.
+
+Path Parameters
+
+Parameters:
+
+name (string) – Name of the KEK
+
+Query Parameters
+
+Parameters:
+
+testSharing (boolean) – Add ?testSharing=true at the end of this request to test KEK sharing. The default is false.
+
+Request Body
+
+Request JSON Object:
+
+kmsProps (object) – KMS-specific properties (Optional)
+
+doc (string) – Documentation for the KEK (Optional)
+
+shared (boolean) – Whether the KEK should be shared across multiple subjects (Optional)
+
+Response Body
+
+Response JSON Object:
+
+name (string) – Name of the updated KEK
+
+kmsType (string) – Type of Key Management Service
+
+kmsKeyId (string) – Identifier of the key in the KMS
+
+kmsProps (string) – KMS-specific properties
+
+doc (string) – Documentation for the KEK
+
+shared (boolean) – Whether the KEK is shared across multiple subjects
+
+ts (long) – Timestamp of the KEK creation
+
+deleted (boolean) – Whether the KEK has been soft-deleted
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40470 – KEK not found
+
+422 Unprocessable Entity – 
+
+Error code 42201 – Invalid KEK specification
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+PUT /dek-registry/v1/keks/my-kek HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "doc": "Updated KEK for customer data encryption",
+ "shared": true
+}
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "my-kek"
+}
+
+## Undelete a KEK
+
+PUT /dek-registry/v1/keks/(string: name)/undelete
+
+Undelete a soft-deleted key encryption key.
+
+Path Parameters
+
+Parameters:
+
+name (string) – Name of the KEK
+
+Response Body
+
+Response JSON Object:
+
+name (string) – Name of the undeleted KEK
+
+Status Codes
+
+Status Codes:
+
+404 Not Found – 
+
+Error code 40470 – KEK not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+PUT /dek-registry/v1/keks/my-kek/undelete HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "name": "my-kek"
+}
+
+## Test a KEK
+
+POST /kek-registry/v1/keks/(string: name)/test
+
+Tests the connection to the KMS for a specific Key Encryption Key (KEK).
+
+Path Parameters
+
+Parameters:
+
+name (string) – The name of the KEK to test
+
+Response Body
+
+Response JSON Object:
+
+name (string) – Name of the KEK
+
+kmsType (string) – Type of Key Management Service
+
+kmsKeyId (string) – Identifier of the key in the KMS
+
+kmsProps (string) – KMS-specific properties
+
+doc (string) – Documentation for the KEK
+
+shared (boolean) – Whether the KEK is shared across multiple subjects
+
+ts (long) – Timestamp of the KEK creation
+
+deleted (boolean) – Whether the KEK has been soft-deleted
+
+Status Codes
+
+Status Codes:
+
+200 OK – Successful response; the connection to the KMS is valid
+
+404 Not Found – 
+
+Error code 40401 – KEK not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore or KMS connection failure
+
+Example request:
+
+POST /kek-registry/v1/keks/my-kms-key/test HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{}
+
+## Data Encryption Keys
+
+Data Encryption Keys (DEKs) are used to encrypt and decrypt sensitive data in
+data fields within Confluent Platform resources. DEKs are encrypted using KEKs to ensure that
+only authorized users with access to the KEK can decrypt the DEK and, consequently,
+the sensitive data. The Schema Registry manages the lifecycle of DEKs, including their creation,
+storage, and deletion. For end-to-end context, see Use Client-Side Field Level Encryption on Confluent Platform.
+
+## Get a list of DEK subjects
+
+GET /dek-registry/v1/keks/(string: kek-name)/deks
+
+Get a list of all Data Encryption Keys for a specific KEK.
+
+Path Parameters
+
+Parameters:
+
+kek-name (string) – Name of the KEK
+
+Query Parameters
+
+Query Parameters:
+
+subject (string) – Filter DEKs by subject (optional)
+
+version (int) – Filter DEKs by version (optional)
+
+algorithm (string) – Filter DEKs by algorithm (optional)
+
+deleted (boolean) – Include deleted DEKs in the response (optional, default: false)
+
+offset (int) – Starting point for the list of DEKs (optional, default: 0)
+
+limit (int) – Maximum number of DEKs to return (optional, default: 10)
+
+Response Body
+
+Response JSON Array of Objects:
+
+string – Array of strings, where each string is a subject name.
+
+Status Codes
+
+Status Codes:
+
+200 OK – Operation successful
+
+401 Unauthorized – Unauthorized
+
+403 Forbidden – Forbidden
+
+404 Not Found – KEK not found
+
+500 Internal Server Error – Internal server error
+
+Example request:
+
+GET /dek-registry/v1/keks/my-kek/deks HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+[
+ {
+ "kekName": "my-kek",
+ "subject": "my-subject",
+ "version": 1,
+ "algorithm": "AES256_GCM",
+ "encryptedKeyMaterial": "AQECAHjKlL...",
+ "deleted": false,
+ "ts": {
+ "timestamp": 1234567890
+ }
+ }
+]
+
+Filtered example request:
+
+GET /dek-registry/v1/keks/my-kek/deks?subject=my-subject&deleted=true HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+## Create a DEK
+
+POST /dek-registry/v1/keks/(string: kek-name)/deks
+
+Create a new Data Encryption Key.
+
+Path Parameters
+
+Parameters:
+
+kek-name (string) – Name of the KEK to use for encrypting the DEK
+
+Request Body
+
+Request JSON Object:
+
+subject (string) – Subject to associate with the DEK (optional)
+
+version (int) – Version of the DEK (optional, auto-incremented if not specified)
+
+algorithm (string) – Encryption algorithm (optional), can be AES256_GCM, AES128_GCM, or AES256_SIV, or default: AES256_GCM
+
+encryptedKeyMaterial (string) – Pre-encrypted key material. Required when the KEK isn’t shared. Optional when the KEK is shared, because the DEK Registry generates and encrypts the key itself.
+
+deleted (boolean) – Whether the DEK has been deleted (optional)
+
+Response Body
+
+Response JSON Object:
+
+kekName (string) – Name of the associated KEK
+
+subject (string) – Subject associated with the DEK
+
+version (int) – Version of the DEK
+
+algorithm (string) – Encryption algorithm used
+
+encryptedKeyMaterial (string) – Encrypted key material (base64 encoded)
+
+keyMaterial (string) – Raw material of the DEK
+
+ts (object) – Timestamp information
+
+deleted (boolean) – Whether the DEK has been deleted
+
+Status Codes
+
+Status Codes:
+
+201 Created – DEK successfully created
+
+400 Bad Request – Bad request (invalid parameters)
+
+401 Unauthorized – Unauthorized
+
+403 Forbidden – Forbidden
+
+404 Not Found – KEK not found
+
+409 Conflict – Conflict (DEK already exists)
+
+500 Internal Server Error – Internal server error
+
+Example request:
+
+POST /dek-registry/v1/keks/my-kek/deks HTTP/1.1
+Host: schemaregistry.example.com
+Content-Type: application/vnd.schemaregistry.v1+json
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+{
+ "subject": "my-subject",
+ "algorithm": "AES256_GCM"
+}
+
+Example response:
+
+HTTP/1.1 201 Created
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "kekName": "my-kek",
+ "subject": "my-subject",
+ "version": 1,
+ "algorithm": "AES256_GCM",
+ "encryptedKeyMaterial": "AQECAHjKlL...",
+ "deleted": false,
+ "ts": {
+ "timestamp": 1234567890
+ }
+}
+
+## Delete all versions of a DEK
+
+DELETE /dek-registry/v1/keks/(string: kek-name)/deks/(string: subject)
+
+Delete all versions of a Data Encryption Key for a specific subject.
+
+Path Parameters
+
+Parameters:
+
+kek-name (string) – Name of the KEK
+
+subject (string) – Subject name
+
+Query Parameters
+
+Query Parameters:
+
+algorithm (string) – Filter DEKs by algorithm, Enum: AES128_GCM, AES256_GCM, or AES256_SIV
+
+permanent (boolean) – Permanently delete the DEKs (optional, default: false)
+
+Response Body
+
+This request does not return a response body.
+
+Status Codes
+
+Status Codes:
+
+204 No Content – DEKs successfully deleted
+
+401 Unauthorized – Unauthorized
+
+403 Forbidden – Forbidden
+
+404 Not Found – KEK or subject not found
+
+500 Internal Server Error – Internal server error
+
+Example request:
+
+DELETE /dek-registry/v1/keks/my-kek/deks/my-subject HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 204 No Content
+
+Permanent delete example request:
+
+DELETE /dek-registry/v1/keks/my-kek/deks/my-subject?permanent=true HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+## Get a DEK by subject
+
+GET /dek-registry/v1/keks/(string: kek-name)/deks/(string: subject)
+
+Get all versions of a Data Encryption Key for a specific subject.
+
+Path Parameters
+
+Parameters:
+
+kek-name (string) – Name of the KEK
+
+subject (string) – Subject name
+
+Query Parameters
+
+Query Parameters:
+
+algorithm (string) – Filter DEKs by algorithm, Enum: AES128_GCM, AES256_GCM, or AES256_SIV
+
+deleted (boolean) – Include deleted DEKs in the response (optional, default: false)
+
+Response Body
+
+Response JSON Array of Objects:
+
+kekName (string) – Name of the associated KEK
+
+subject (string) – Subject associated with the DEK
+
+version (int) – Version of the DEK
+
+algorithm (string) – Encryption algorithm used
+
+encryptedKeyMaterial (string) – Encrypted key material (base64 encoded)
+
+keyMaterial (string) – Raw material of the DEK
+
+ts (object) – Timestamp information
+
+deleted (boolean) – Whether the DEK has been deleted
+
+Status Codes
+
+Status Codes:
+
+200 OK – Operation successful
+
+401 Unauthorized – Unauthorized
+
+403 Forbidden – Forbidden
+
+404 Not Found – KEK or subject not found
+
+500 Internal Server Error – Internal server error
+
+Example request:
+
+GET /dek-registry/v1/keks/my-kek/deks/my-subject HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+[
+ {
+ "kekName": "my-kek",
+ "subject": "my-subject",
+ "version": 1,
+ "algorithm": "AES256_GCM",
+ "encryptedKeyMaterial": "AQECAHjKlL...",
+ "deleted": false,
+ "ts": {
+ "timestamp": 1234567890
+ }
+ }
+]
+
+## Delete a DEK version
+
+DELETE /dek-registry/v1/keks/(string: kek-name)/deks/(string: subject)/versions/(int: version)
+
+Delete a specific version of a Data Encryption Key.
+
+Path Parameters
+
+Parameters:
+
+kek-name (string) – Name of the KEK
+
+subject (string) – Subject name
+
+version (int) – Version number of the DEK to delete
+
+Query Parameters
+
+Query Parameters:
+
+algorithm (string) – Filter DEKs by algorithm, Enum: AES128_GCM, AES256_GCM, or AES256_SIV
+
+permanent (boolean) – Permanently delete the DEK (optional, default: false)
+
+Response Body
+
+This request does not return a response body.
+
+Status Codes
+
+Status Codes:
+
+204 No Content – DEK successfully deleted
+
+401 Unauthorized – Unauthorized
+
+403 Forbidden – Forbidden
+
+404 Not Found – KEK, subject, or version not found
+
+500 Internal Server Error – Internal server error
+
+Example request:
+
+DELETE /dek-registry/v1/keks/my-kek/deks/my-subject/versions/1 HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 204 No Content
+
+Permanent delete example request:
+
+DELETE /dek-registry/v1/keks/my-kek/deks/my-subject/versions/1?permanent=true HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+## Get a DEK version by subject and version
+
+GET /dek-registry/v1/keks/(string: kek-name)/deks/(string: subject)/versions/(int: version)
+
+Get a specific version of a Data Encryption Key.
+
+Parameters:
+
+kek-name (string) – Name of the KEK
+
+subject (string) – Subject name
+
+version (int) – Version number of the DEK
+
+Query Parameters:
+
+deleted (boolean) – Include deleted DEKs in the response (optional, default: false)
+
+offset (int) – Starting point for the list of DEK versions (optional, default: 0)
+
+limit (int) – Maximum number of DEK versions to return (optional, default: 10)
+
+Response Body
+
+Response JSON Object:
+
+kekName (string) – Name of the associated KEK
+
+subject (string) – Subject associated with the DEK
+
+version (int) – Version of the DEK
+
+algorithm (string) – Encryption algorithm used
+
+encryptedKeyMaterial (string) – Encrypted key material (base64 encoded)
+
+deleted (boolean) – Whether the DEK has been deleted
+
+ts (object) – Timestamp information
+
+Status Codes
+
+Status Codes:
+
+200 OK – Operation successful
+
+401 Unauthorized – Unauthorized
+
+403 Forbidden – Forbidden
+
+404 Not Found – KEK, subject, or version not found
+
+500 Internal Server Error – Internal server error
+
+Example request:
+
+GET /dek-registry/v1/keks/my-kek/deks/my-subject/versions/1 HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "kekName": "my-kek",
+ "subject": "my-subject",
+ "version": 1,
+ "algorithm": "AES256_GCM",
+ "encryptedKeyMaterial": "AQECAHjKlL...",
+ "deleted": false,
+ "ts": {
+ "timestamp": 1234567890
+ }
+}
+
+## List versions of DEK
+
+GET /dek-registry/v1/keks/(string: kekName)/deks/(string: subject)/versions
+
+Get all versions of a Data Encryption Key (DEK) for the specified KEK and subject.
+
+Path Parameters
+
+Parameters:
+
+kekName (string) – Name of the Key Encryption Key (KEK)
+
+subject (string) – Name of the subject associated with the DEK
+
+Query Parameters
+
+Query Parameters:
+
+algorithm (string) – Filter DEKs by algorithm, Enum: AES128_GCM, AES256_GCM, or AES256_SIV
+
+deleted (boolean) – Include deleted DEKs in the response (optional, default: false)
+
+offset (int) – Starting point for the list of DEK versions (optional, default: 0)
+
+limit (int) – Maximum number of DEK versions to return (optional, default: -1)
+
+Response Body
+
+Response JSON Array of Objects:
+
+integer – A list of version numbers for the specified DEK.
+
+Status Codes
+
+Status Codes:
+
+200 OK – Successful response
+
+404 Not Found – 
+
+Error code 40401 – KEK not found
+
+Error code 40404 – DEK not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+GET /dek-registry/v1/keks/my-kek/deks/my-subject/versions HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+[
+ {
+ "kekName": "my-kek",
+ "subject": "my-subject",
+ "version": 1,
+ "algorithm": "AES256_GCM",
+ "encryptedKeyMaterial": "eyJhcmciOiJBRVMyNTZfR0NNIiwia2V5Ijoia2V5In0=",
+ "keyVersion": 1,
+ "deleted": false
+ }
+]
+
+## Undelete DEK version
+
+POST /dek-registry/v1/keks/(string: kekName)/deks/(string: subject)/versions/(int: version)/undelete
+
+Restores a previously soft-deleted version of a Data Encryption Key (DEK).
+
+Path Parameters
+
+Parameters:
+
+kekName (string) – Name of the Key Encryption Key (KEK)
+
+subject (string) – Name of the subject associated with the DEK
+
+version (int) – The version number of the DEK to restore
+
+Response Body
+
+This request does not return a response body.
+
+Status Codes
+
+Status Codes:
+
+200 OK – Successful response; DEK version restored
+
+404 Not Found – 
+
+Error code 40401 – KEK not found
+
+Error code 40404 – DEK version not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+POST /dek-registry/v1/keks/my-kek/deks/my-subject/versions/1/undelete HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.schemaregistry.v1+json
+
+{
+ "kekName": "my-kek",
+ "subject": "my-subject",
+ "version": 1,
+ "algorithm": "AES256_GCM",
+ "encryptedKeyMaterial": "eyJhcmciOiJBRVMyNTZfR0NNIiwia2V5Ijoia2V5In0=",
+ "keyVersion": 1,
+ "deleted": false
+}
+
+## Undelete all DEK versions
+
+POST /dek-registry/v1/keks/(string: kekName)/deks/(string: subject)/undelete
+
+Restores all previously soft-deleted versions of a Data Encryption Key (DEK) for the specified KEK and subject.
+
+Path Parameters
+
+Parameters:
+
+kekName (string) – Name of the Key Encryption Key (KEK)
+
+subject (string) – Name of the subject associated with the DEK
+
+Response Body
+
+This request does not return a response body.
+
+Status Codes
+
+Status Codes:
+
+204 No Content – Successful response; all DEK versions restored.
+
+404 Not Found – 
+
+Error code 40401 – KEK not found
+
+Error code 40404 – DEK not found
+
+500 Internal Server Error – 
+
+Error code 50001 – Error in the backend datastore
+
+Example request:
+
+POST /dek-registry/v1/keks/my-kek/deks/my-subject/undelete HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/json
+
+Example response:
+
+HTTP/1.1 204 No Content
+
+## Policy
+
+These endpoints manage the cluster-level CSFLE policy used by Schema Registry to determine
+how fields are encrypted and which KEKs/DEKs to use. For policy authoring guidance,
+see Use Client-Side Field Level Encryption on Confluent Platform.
+
+GET /dek-registry/v1/policy
+
+Get the current CSFLE policy.
+
+Response JSON Object:
+
+policy (object) – The policy definition as a JSON object
+
+Status Codes:
+
+200 OK – Operation successful
+
+401 Unauthorized – Unauthorized
+
+403 Forbidden – Forbidden
+
+500 Internal Server Error – Internal server error
+
+Example request:
+
+GET /dek-registry/v1/policy HTTP/1.1
+Host: schemaregistry.example.com
+Accept: application/json
+
+Example response:
+
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+ "rules": []
+}
+
+## Related Content
+
+Schema Registry API Usage Examples for Confluent Platform
+
+Tutorial: Use Schema Registry on Confluent Platform to define schemas for a client application
+
+ Ask the community
+
+ Confluent Support Portal
+
+ Last published: Aug 06, 2026
+
+ Terms & Conditions
+ |
+ Privacy Policy
+ |
+ Do Not Sell My Information
+ |
+ Modern Slavery Policy
+ |
+ Cookie Settings
+ |
+ Feedback
+
+ Copyright © Confluent, Inc. 2014-
+
+ Apache®, Apache Kafka®, Kafka®, Apache Flink®, Flink®, Apache
+ Iceberg®, Iceberg® and associated open source project names are trademarks of the
+ Apache Software Foundation
+
+ Give feedback about this page
+
+ Schema Registry API Reference for Confluent Platform
+
+ Get started
+
+ Search the docs or ask a question
+

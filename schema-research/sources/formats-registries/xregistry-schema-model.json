@@ -1,0 +1,47 @@
+{
+  "$schema": "https://xregistry.io/xregistryspecs/core-v1/schemas/model.schema.json",
+  "groups": {
+    "schemagroups": {
+      "singular": "schemagroup",
+      "modelversion": "1.0-rc4",
+      "modelcompatiblewith": "https://xregistry.io/xreg/domains/schema/specs/model.json",
+
+      "attributes": {
+        "format": {
+          "type": "string"
+        },
+        "*": {
+          "type": "any"
+        }
+      },
+
+      "constraints": {
+        "schemas.format": {
+          "equals": "format"
+        }
+      },
+
+      "resources": {
+        "schemas": {
+          "singular": "schema",
+          "modelversion": "1.0-rc4",
+          "modelcompatiblewith": "https://xregistry.io/xreg/domains/schema/specs/model.json",
+          "validateformat": true,
+          "validatecompatibility": true,
+          "strictvalidation": false,
+          "attributes": {
+            "format": {
+              "type": "string",
+              "required": true,
+              "matchversions": true
+            },
+            "*": {
+              "name": "*",
+              "type": "any"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,181 @@
+# DBOS Documentation
+
+This file contains links to documentation sections following the llmstxt.org standard.
+
+## Table of Contents
+
+- [AI Quickstart](https://docs.dbos.dev/ai/ai-quickstart.md): You can integrate DBOS durable workflows with your AI agents (or other AI systems) to make them reliable, observable, and resilient to failures.
+- [Observability & Reproducibility](https://docs.dbos.dev/ai/debugging.md): One of the most common problems you encounter building and operating agents is **debugging failures**, particularly those caused by unexpected agen...
+- [Parallelizing & Scaling Agents](https://docs.dbos.dev/ai/distributing-agents.md): AI agents and applications often need to **run many tasks in parallel**.
+- [Reliable Human-in-the-Loop](https://docs.dbos.dev/ai/hitl.md): Many agents need a **human in the loop** for decisions that are too important to fully trust an LLM.
+- [Streaming Responses](https://docs.dbos.dev/ai/streaming.md): AI agents often need to **stream output to clients in real time**, for example, to display LLM output as it is generated, surface intermediate tool...
+- [DBOS Architecture](https://docs.dbos.dev/architecture.md): DBOS provides a high-performance, easy-to-use library for durable workflows built on top of Postgres.
+- [Alerting](https://docs.dbos.dev/conductor/alerting.md): If you are using [Conductor](./overview.md), you can configure automatic alerts when certain failure conditions are met.
+- [Audit Logs](https://docs.dbos.dev/conductor/audit-logs.md): If you are using [Conductor](./overview.md), you can retrieve an **audit log** of the mutating operations performed against your organization: regi...
+- [Autoscaling and Version Management](https://docs.dbos.dev/conductor/autoscaling.md): [Conductor](./overview.md) lets you attach autoscaling policies to your applications. An autoscaling policy computes how many executors your applic...
+- [Distributed Recovery](https://docs.dbos.dev/conductor/distributed-recovery.md): If your application is connected to [DBOS Conductor](./overview.md), workflow recovery is automatic.
+- [Metrics](https://docs.dbos.dev/conductor/metrics.md): If you are using [Conductor](./overview.md), you can scrape metrics about your applications' workflows, steps, and executors from a [Prometheus](ht...
+- [DBOS Conductor Overview](https://docs.dbos.dev/conductor/overview.md): When operating DBOS durable workflows in production, we strongly recommend connecting your application to Conductor.
+- [Permissions and API Keys](https://docs.dbos.dev/conductor/permissions.md): DBOS Conductor controls access to your organization's applications, workflows, and settings using **role-based access control (RBAC)** for users an...
+- [Conductor API](https://docs.dbos.dev/conductor/reference/conductor-api.md): Conductor is the control plane for your durable workflows, and this HTTP API is how you drive it programmatically: register applications with Condu...
+- [Account Management](https://docs.dbos.dev/conductor/reference/dbos-cloud/account-management.md): Learn how to manage DBOS Cloud users
+- [Application Management](https://docs.dbos.dev/conductor/reference/dbos-cloud/application-management.md): To deploy your application to DBOS Cloud or update an existing application, run this command in its root directory:
+- [Bringing Your Own Database](https://docs.dbos.dev/conductor/reference/dbos-cloud/byod-management.md): In this guide, you'll learn how to bring your own Postgres database instance to DBOS Cloud and deploy your applications to it.
+- [CI/CD Best Practices](https://docs.dbos.dev/conductor/reference/dbos-cloud/cicd.md): To make it easy to test changes to your application without affecting your production users, we recommend using separate staging and production env...
+- [Cloud CLI Reference](https://docs.dbos.dev/conductor/reference/dbos-cloud/cloud-cli.md): DBOS Cloud CLI reference
+- [Database Management](https://docs.dbos.dev/conductor/reference/dbos-cloud/database-management.md): Learn how to manage DBOS Cloud database instances
+- [Deploying to DBOS Cloud](https://docs.dbos.dev/conductor/reference/dbos-cloud/deploying-to-cloud.md): :::info
+- [Monitoring Your Applications](https://docs.dbos.dev/conductor/reference/dbos-cloud/monitoring-dashboard.md): The [DBOS Cloud Console](https://console.dbos.dev) provides several tools to monitor your applications.
+- [Export Logs and Traces](https://docs.dbos.dev/conductor/reference/dbos-cloud/otel-integration.md): This tutorial shows how to configure your DBOS Cloud application to export OpenTelemetry logs and traces to a third party observability service. If...
+- [Workflow Retention Policies](https://docs.dbos.dev/conductor/reference/dbos-cloud/retention.md): You can configure workflow history retention policies for your application from the Retention Policy page of the DBOS Console.
+- [Secrets and Environment Variables](https://docs.dbos.dev/conductor/reference/dbos-cloud/secrets.md): We recommend using _secrets_ to securely manage your application's secrets and environment variables in DBOS Cloud.
+- [Workflow Management](https://docs.dbos.dev/conductor/reference/dbos-cloud/workflow-management.md): Navigate to the workflows tab of your application's page on the DBOS Console to see a list of its workflows:
+- [dbosctl CLI Reference](https://docs.dbos.dev/conductor/reference/dbosctl.md): `dbosctl` is a command-line client for the [Conductor API](./conductor-api.md). It manages workflows, queues, schedules, applications, and API keys...
+- [Workflow Retention Policies](https://docs.dbos.dev/conductor/retention.md): If you are using [Conductor](./overview.md), you can configure workflow history retention policies for your application from the Retention Policy p...
+- [Deploying Conductor on Kubernetes](https://docs.dbos.dev/conductor/self-hosting/hosting-conductor-with-kubernetes.md): :::info
+- [Self-Hosting Guide](https://docs.dbos.dev/conductor/self-hosting/hosting-conductor.md): :::info
+- [Workflow Management](https://docs.dbos.dev/conductor/workflow-management.md): :::info
+- [DBOS Examples](https://docs.dbos.dev/examples.md): Example applications built with DBOS
+- [Comparing DBOS and Temporal](https://docs.dbos.dev/explanations/comparing-temporal.md): DBOS and Temporal both provide durable workflows.
+- [Concurrent Executions](https://docs.dbos.dev/explanations/concurrent-executions.md): How DBOS detects concurrent executions of the same workflow and converges every observer on a single recorded outcome
+- [DBOSify: Drop-in Temporal Replacement](https://docs.dbos.dev/explanations/dbosify.md): You can run your existing Temporal code on DBOS with [**DBOSify**](https://github.com/dbos-inc/dbosify-py).
+- [Migrating From Temporal](https://docs.dbos.dev/explanations/migrating-from-temporal.md): This guide explains how to migrate a Temporal application to DBOS, with a focus on how each major Temporal feature translates to DBOS.
+- [Cross-Language Interaction](https://docs.dbos.dev/explanations/portable-workflows.md): DBOS applications and clients in different languages can interoperate using portable JSON serialization
+- [Sharing a System Database](https://docs.dbos.dev/explanations/sharing-a-system-database.md): Multiple DBOS applications, potentially in different languages, can share a single system database.
+- [DBOS System Database](https://docs.dbos.dev/explanations/system-tables.md): DBOS system database reference
+- [Troubleshooting & FAQ](https://docs.dbos.dev/faq.md): DBOS checkpoints information about your workflows in an isolated _system database_ in your Postgres database server.
+- [Fault-Tolerant Checkout](https://docs.dbos.dev/golang/examples/widget-store.md): :::info
+- [Add DBOS To Your App](https://docs.dbos.dev/golang/integrating-dbos.md): This guide shows you how to add the open-source [DBOS Transact](https://github.com/dbos-inc/dbos-transact-golang) library to your existing applicat...
+- [Learn DBOS Go](https://docs.dbos.dev/golang/programming-guide.md): This guide shows you how to use DBOS to build Go apps that are **resilient to any failure**.
+- [AI Model Prompting](https://docs.dbos.dev/golang/prompting.md): You may want assistance from an AI model in building a DBOS application.
+- [DBOS CLI](https://docs.dbos.dev/golang/reference/cli.md): <RedirectToGitHub url="https://pkg.go.dev/github.com/dbos-inc/dbos-transact-golang/cmd/dbos" />
+- [Configuration](https://docs.dbos.dev/golang/reference/configuration.md): To configure DBOS, pass a `Config` object to [`NewContext`](./dbos-context.md#newcontext).
+- [Datasources](https://docs.dbos.dev/golang/reference/datasources.md): A datasource is a handle to a database **you** own, over which DBOS can run durable transactions.
+- [DBOS Context & Client](https://docs.dbos.dev/golang/reference/dbos-context.md): A DBOS Context is at the center of a DBOS-enabled application. Use it to register [workflows](../tutorials/workflow-tutorial.md), [queues](../tutor...
+- [DBOS Methods & Variables](https://docs.dbos.dev/golang/reference/methods.md): This page documents the package-level functions for interacting with workflows: communication, streams, management, schedules, and application vers...
+- [Queues](https://docs.dbos.dev/golang/reference/queues.md): Workflow queues allow you to ensure that workflow functions will be run, without starting them immediately.
+- [Workflows & Steps](https://docs.dbos.dev/golang/reference/workflows-steps.md): ```go
+- [Queues & Concurrency](https://docs.dbos.dev/golang/tutorials/queue-tutorial.md): You can use queues to run many workflows at once with managed concurrency.
+- [Scheduling Workflows](https://docs.dbos.dev/golang/tutorials/scheduled-workflows.md): You can schedule DBOS [workflows](./workflow-tutorial.md) to run on a cron schedule.
+- [Steps](https://docs.dbos.dev/golang/tutorials/step-tutorial.md): When using DBOS workflows, you should call any function that performs complex operations or accesses external APIs or services as a _step_.
+- [Testing & Mocking](https://docs.dbos.dev/golang/tutorials/testing.md): [`Context`](../reference/dbos-context) is a fully mockable interface, which you manually mock, or can generate mocks using tools like [mockery](htt...
+- [Transactions & Datasources](https://docs.dbos.dev/golang/tutorials/transaction-tutorial.md): Learn how to perform database operations durably
+- [Upgrading Workflow Code](https://docs.dbos.dev/golang/tutorials/upgrading-workflows.md): A challenge encountered when operating long-running durable workflows in production is **how to deploy breaking changes without disrupting in-progr...
+- [Communicating with Workflows](https://docs.dbos.dev/golang/tutorials/workflow-communication.md): DBOS provides a few different ways to communicate with your workflows.
+- [Workflow Management](https://docs.dbos.dev/golang/tutorials/workflow-management.md): You can view and manage your durable workflow executions via the [DBOS Console](../../conductor/workflow-management.md) or programmatically.
+- [Workflows](https://docs.dbos.dev/golang/tutorials/workflow-tutorial.md): Workflows provide **durable execution** so you can write programs that are **resilient to any failure**.
+- [Upgrading](https://docs.dbos.dev/golang/upgrading.md): This guide covers migrating an application from the last v0.x release to v1.0.0:
+- [Welcome to DBOS!](https://docs.dbos.dev/index.md): DBOS is a library for building reliable programs.
+- [CockroachDB](https://docs.dbos.dev/integrations/cockroachdb.md): Here's how to connect your DBOS application running on your computer or cloud environment to your CockroachDB database.
+- [Django](https://docs.dbos.dev/integrations/django.md): This guide shows you how to add DBOS durable workflows to your existing Django application to make it resilient to any failure.
+- [Google ADK](https://docs.dbos.dev/integrations/google-adk.md): You can use DBOS to add durable execution to an agent built with [Google ADK](https://adk.dev/).
+- [Lakebase](https://docs.dbos.dev/integrations/lakebase.md): Here's how to connect your DBOS application running on your computer or cloud environment to your Databricks Lakebase Postgres database.
+- [LlamaIndex](https://docs.dbos.dev/integrations/llamaindex.md): [LlamaIndex Workflows](https://developers.llamaindex.ai/python/llamaagents/workflows/) is a Python framework for orchestrating AI agents by composi...
+- [Logfire](https://docs.dbos.dev/integrations/logfire.md): [Pydantic Logfire](https://logfire.pydantic.dev/docs/) is an observability platform built on OpenTelemetry that makes it easy to monitor your appli...
+- [DBOS MCP Server](https://docs.dbos.dev/integrations/mcp.md): You can use the [DBOS Model Context Protocol (MCP) server](https://github.com/dbos-inc/dbos-mcp) to augment your LLM or agent with tools that can a...
+- [Neon](https://docs.dbos.dev/integrations/neon.md): Here's how to connect your DBOS application running on your computer or cloud environment to your Neon database.
+- [Nest.js](https://docs.dbos.dev/integrations/nestjs.md): This guide shows you how to add DBOS durable workflows to your existing [Nest.js](https://nestjs.com/) application to make it resilient to any fail...
+- [Next.js](https://docs.dbos.dev/integrations/nextjs.md): :::info
+- [OpenAI Agents SDK](https://docs.dbos.dev/integrations/openai-agents.md): You can use DBOS to add durable execution to an agent built with the [OpenAI Agents SDK](https://platform.openai.com/docs/guides/agents-sdk).
+- [Parseable](https://docs.dbos.dev/integrations/parseable.md): [Parseable](https://www.parseable.com/) can ingest OpenTelemetry logs and traces from DBOS application processes as well as [Conductor Metrics](../...
+- [Pydantic AI](https://docs.dbos.dev/integrations/pydantic-ai.md): [Pydantic AI](https://ai.pydantic.dev/) is a Python agent framework for building production-grade applications and workflows powered by Generative AI.
+- [Supabase Edge Functions](https://docs.dbos.dev/integrations/supabase-edge-functions.md): You can use DBOS to add durable workflows, background jobs, or AI agents to your Supabase project.
+- [Supabase](https://docs.dbos.dev/integrations/supabase.md): :::info
+- [Tiger Data](https://docs.dbos.dev/integrations/tigerdata.md): Here's how to connect your DBOS application running on your computer or cloud environment to a Postgres or TimescaleDB database running in Tiger Cl...
+- [Vercel AI SDK](https://docs.dbos.dev/integrations/vercel-ai.md): You can use DBOS to add [durable execution](../typescript/tutorials/workflow-tutorial.md) to agents built with the [Vercel AI SDK](https://ai-sdk.d...
+- [Vercel](https://docs.dbos.dev/integrations/vercel.md): You can use DBOS to add durable workflows, background jobs, or AI agents to your Next.js app hosted on Vercel.
+- [Fault-Tolerant Checkout](https://docs.dbos.dev/java/examples/widget-store.md): :::info
+- [Add DBOS To Your App](https://docs.dbos.dev/java/integrating-dbos.md): This guide shows you how to add the open-source [DBOS Transact](https://github.com/dbos-inc/dbos-transact-java) library to your existing applicatio...
+- [Learn DBOS Java](https://docs.dbos.dev/java/programming-guide.md): This guide shows you how to use DBOS to build Java apps that are **resilient to any failure**.
+- [AI Model Prompting](https://docs.dbos.dev/java/prompting.md): You may want assistance from an AI model in building a DBOS application.
+- [DBOS Client](https://docs.dbos.dev/java/reference/client.md): `DBOSClient` provides a programmatic way to interact with your DBOS application from external code.
+- [Kotlin Extensions](https://docs.dbos.dev/java/reference/kotlin.md): DBOS ships Kotlin extension functions on the `DBOS` class in the `dev.dbos.transact` package.
+- [DBOS Lifecycle](https://docs.dbos.dev/java/reference/lifecycle.md): You create a `DBOS` instance exactly once in a program's lifetime, register your workflows, then launch it.
+- [DBOS Methods & Variables](https://docs.dbos.dev/java/reference/methods.md): ```java
+- [DBOS Plugin Architecture](https://docs.dbos.dev/java/reference/plugins.md): :::tip
+- [Queues](https://docs.dbos.dev/java/reference/queues.md): Workflow queues ensure that workflow functions will be run, without starting them immediately.
+- [Spring Boot Starter](https://docs.dbos.dev/java/reference/spring-boot-starter.md): The `transact-spring-boot-starter` provides Spring Boot auto-configuration for DBOS Transact.
+- [Workflows & Steps](https://docs.dbos.dev/java/reference/workflows-steps.md): ```java
+- [Using DBOS with Kotlin](https://docs.dbos.dev/java/tutorials/kotlin.md): Write DBOS workflows and steps in Kotlin using idiomatic trailing lambda syntax.
+- [Queues & Concurrency](https://docs.dbos.dev/java/tutorials/queue-tutorial.md): You can use queues to run many workflows at once with managed concurrency.
+- [Scheduled Workflows](https://docs.dbos.dev/java/tutorials/scheduled-workflows.md): Learn how to run DBOS workflows on a schedule.
+- [Spring Boot Integration](https://docs.dbos.dev/java/tutorials/spring-boot-integration.md): Add DBOS durable workflows to a Spring Boot application.
+- [Transactional Steps](https://docs.dbos.dev/java/tutorials/step-factory-tutorial.md): Regular DBOS steps checkpoint their output _after_ the step body completes.
+- [Steps](https://docs.dbos.dev/java/tutorials/step-tutorial.md): When using DBOS workflows, you should call any method that performs complex operations or accesses external APIs or services as a _step_.
+- [Testing Workflows](https://docs.dbos.dev/java/tutorials/testing.md): Unit test DBOS workflows by mocking the DBOS instance.
+- [Upgrading Workflow Code](https://docs.dbos.dev/java/tutorials/upgrading-workflows.md): A challenge encountered when operating long-running durable workflows in production is **how to deploy breaking changes without disrupting in-progr...
+- [Workflows on Class Instances](https://docs.dbos.dev/java/tutorials/workflow-classes.md): Register multiple instances of a workflow class to share logic with per-instance configuration.
+- [Communicating with Workflows](https://docs.dbos.dev/java/tutorials/workflow-communication.md): DBOS provides a few different ways to communicate with your workflows.
+- [Workflow Management](https://docs.dbos.dev/java/tutorials/workflow-management.md): You can view and manage your durable workflow executions via the [DBOS Console](../../conductor/workflow-management.md) or programmatically.
+- [Workflows](https://docs.dbos.dev/java/tutorials/workflow-tutorial.md): Workflows provide **durable execution** so you can write programs that are **resilient to any failure**.
+- [Upgrading](https://docs.dbos.dev/java/upgrading.md): For every DBOS upgrade, migrate the system database before anything that needs the new schema runs.
+- [Production Checklist](https://docs.dbos.dev/production/checklist.md): This page describes best practices you should follow when operating a DBOS application in production.
+- [Deploying With Google Cloud Run](https://docs.dbos.dev/production/hosting-with-cloud-run.md): This guide covers deploying a DBOS application to [Google Cloud Run](https://cloud.google.com/run) with a [Cloud SQL for PostgreSQL](https://cloud....
+- [Deploying With Kubernetes](https://docs.dbos.dev/production/hosting-with-kubernetes.md): This guide covers deploying a DBOS application on Kubernetes.
+- [Workflow Recovery](https://docs.dbos.dev/production/workflow-recovery.md): When the execution of a durable workflow is interrupted (for example, if its executor is restarted, interrupted, or crashes), another executor must...
+- [Human-in-the-Loop](https://docs.dbos.dev/python/examples/agent-inbox.md): This example shows how to use DBOS to add **human-in-the-loop** to your AI agent.
+- [Reliable Customer Service Agent](https://docs.dbos.dev/python/examples/customer-service.md): In this example, you'll learn how to build a reliable AI-powered customer service agent with DBOS and [LangGraph](https://langchain-ai.github.io/la...
+- [CI/CD Slackbot](https://docs.dbos.dev/python/examples/deploy-tracker-slackbot.md): In this example, we use DBOS and [Bolt](https://slack.dev/bolt-python) to build a CI/CD Slackbot that helps you trigger application deployments and...
+- [Document Ingestion Pipeline](https://docs.dbos.dev/python/examples/document-detective.md): In this example, we'll use DBOS to build a **reliable and scalable data processing pipeline**.
+- [Hacker News Research Agent](https://docs.dbos.dev/python/examples/hacker-news-agent.md): :::info
+- [Transactional Outbox](https://docs.dbos.dev/python/examples/outbox.md): A **transactional outbox** is a common pattern that solves an important problem: how to reliably update a database record and send a message to ano...
+- [Advanced Queue Patterns](https://docs.dbos.dev/python/examples/queue-patterns.md): This example demonstrates how to build several advanced queue patterns with DBOS.
+- [Queue Worker](https://docs.dbos.dev/python/examples/queue-worker.md): :::info
+- [S3 Mirror](https://docs.dbos.dev/python/examples/s3mirror.md): S3Mirror is a DBOS-powered utility for performant, durable and observable data transfers between S3 buckets. This app was created in collaboration ...
+- [Fault-Tolerant Checkout](https://docs.dbos.dev/python/examples/widget-store.md): :::info
+- [Add DBOS To Your App](https://docs.dbos.dev/python/integrating-dbos.md): This guide shows you how to add the open-source [DBOS Transact](https://github.com/dbos-inc/dbos-transact-py) library to your existing application ...
+- [Learn DBOS Python](https://docs.dbos.dev/python/programming-guide.md): This guide shows you how to use DBOS to build Python apps that are **resilient to any failure**.
+- [AI-Assisted Development](https://docs.dbos.dev/python/prompting.md): If you're using an AI coding agent to build a DBOS application, make sure it has the latest information on DBOS by either:
+- [DBOS CLI](https://docs.dbos.dev/python/reference/cli.md): These commands all require the URL of your DBOS system database.
+- [DBOS Client](https://docs.dbos.dev/python/reference/client.md): `DBOSClient` provides a programmatic way to interact with your DBOS application from external code or from another DBOS application.
+- [Configuration](https://docs.dbos.dev/python/reference/configuration.md): To configure DBOS, pass a `DBOSConfig` object to its constructor.
+- [DBOS Methods & Variables](https://docs.dbos.dev/python/reference/contexts.md): DBOS provides a number of useful context methods and variables.
+- [Datasources](https://docs.dbos.dev/python/reference/datasources.md): Datasources wrap a SQLAlchemy engine so that database transactions run inside DBOS workflows are tracked and replayed with exactly-once guarantees....
+- [DBOS Class](https://docs.dbos.dev/python/reference/dbos-class.md): The DBOS class is a singleton&mdash;you must instantiate it (by calling its constructor) exactly once in a program's lifetime.
+- [Workflows & Steps](https://docs.dbos.dev/python/reference/decorators.md): ```python
+- [Queues](https://docs.dbos.dev/python/reference/queues.md): Queues let you submit functions for durable execution without starting them immediately.
+- [Workflow Handles](https://docs.dbos.dev/python/reference/workflow_handles.md): API reference for DBOS workflow handles
+- [Authentication and Authorization](https://docs.dbos.dev/python/tutorials/authentication-authorization.md): Use declarative security and authentication middleware in DBOS
+- [Working With Python Classes](https://docs.dbos.dev/python/tutorials/classes.md): You can add DBOS decorators to your Python class instance methods.
+- [DBOS Database Connections](https://docs.dbos.dev/python/tutorials/database-connection.md): DBOS uses a database to durably store workflow and step state.
+- [Integrating with Kafka](https://docs.dbos.dev/python/tutorials/kafka-integration.md): Overview of using DBOS with Kafka
+- [Logging & Tracing](https://docs.dbos.dev/python/tutorials/logging-and-tracing.md): For convenience, DBOS provides a pre-configured logger for you to use available at [`DBOS.logger`](../reference/contexts.md#logger).
+- [Queues & Concurrency](https://docs.dbos.dev/python/tutorials/queue-tutorial.md): You can use queues to run many workflows at once with managed concurrency.
+- [Scheduling Workflows](https://docs.dbos.dev/python/tutorials/scheduled-workflows.md): You can schedule DBOS [workflows](./workflow-tutorial.md) to run on a cron schedule.
+- [Steps](https://docs.dbos.dev/python/tutorials/step-tutorial.md): When using DBOS workflows, you should annotate any function that performs complex operations or accesses external APIs or services as a _step_.
+- [Testing Your App](https://docs.dbos.dev/python/tutorials/testing.md): Because DBOS workflows, steps, and transactions are ordinary Python functions, you can unit test them using any Python testing framework, like [pyt...
+- [Transactions & Datasources](https://docs.dbos.dev/python/tutorials/transaction-tutorial.md): Learn how to perform database operations
+- [Upgrading Workflow Code](https://docs.dbos.dev/python/tutorials/upgrading-workflows.md): One challenge you may encounter when operating long-running durable workflows in production is **how to deploy breaking changes without disrupting ...
+- [Communicating with Workflows](https://docs.dbos.dev/python/tutorials/workflow-communication.md): DBOS provides a few different ways to communicate with your workflows.
+- [Workflow Management](https://docs.dbos.dev/python/tutorials/workflow-management.md): You can view and manage your durable workflow executions via the [DBOS Console](../../conductor/workflow-management.md), programmatically, or via c...
+- [Workflows](https://docs.dbos.dev/python/tutorials/workflow-tutorial.md): Workflows provide **durable execution** so you can write programs that are **resilient to any failure**.
+- [Upgrading to 3.0](https://docs.dbos.dev/python/upgrading.md): DBOS Python 3.0 removes features that were deprecated in DBOS 2.x.
+- [Get Started with DBOS](https://docs.dbos.dev/quickstart.md): DBOS is a library for building reliable programs.
+- [Fault-Tolerant Checkout](https://docs.dbos.dev/typescript/examples/checkout-tutorial.md): :::info
+- [Hacker News Research Agent](https://docs.dbos.dev/typescript/examples/hacker-news-agent.md): :::info
+- [Queue Worker](https://docs.dbos.dev/typescript/examples/queue-worker.md): :::info
+- [Add DBOS To Your App](https://docs.dbos.dev/typescript/integrating-dbos.md): This guide shows you how to add the open-source [DBOS Transact](https://github.com/dbos-inc/dbos-transact-ts) library to your existing application ...
+- [Learn DBOS TypeScript](https://docs.dbos.dev/typescript/programming-guide.md): This guide shows you how to use DBOS to build TypeScript apps that are **resilient to any failure**.
+- [AI-Assisted Development](https://docs.dbos.dev/typescript/prompting.md): If you're using an AI coding agent to build a DBOS application, make sure it has the latest information on DBOS by either:
+- [DBOS CLI](https://docs.dbos.dev/typescript/reference/cli.md): These commands all require the URL of your DBOS system database.
+- [DBOS Client](https://docs.dbos.dev/typescript/reference/client.md): `DBOSClient` provides a programmatic way to interact with your DBOS application from external code.
+- [Configuration](https://docs.dbos.dev/typescript/reference/configuration.md): To configure DBOS, pass in a configuration with `DBOS.setConfig` before you call `DBOS.launch`.
+- [Transactions & Datasources](https://docs.dbos.dev/typescript/reference/datasource.md): Different JavaScript libraries have different mechanisms for starting transactions and accessing the database. The *DBOS datasource* layer provides...
+- [DBOS Lifecycle](https://docs.dbos.dev/typescript/reference/dbos-class.md): The DBOS class is a singleton&mdash;it must be configured and launched exactly once in a program's lifetime, before running any DBOS workflows.
+- [DBOS Methods & Variables](https://docs.dbos.dev/typescript/reference/methods.md): ```typescript
+- [Queues](https://docs.dbos.dev/typescript/reference/queues.md): Workflow queues allow you to ensure that workflow functions will be run, without starting them immediately.
+- [Workflows & Steps](https://docs.dbos.dev/typescript/reference/workflows-steps.md): ```typescript
+- [Kafka Integration](https://docs.dbos.dev/typescript/tutorials/externalmessages.md): In this guide, you'll learn how to use DBOS [workflows](./workflow-tutorial.md) to process [Kafka](https://kafka.apache.org/) messages with exactly...
+- [Using Typescript Objects](https://docs.dbos.dev/typescript/tutorials/instantiated-objects.md): You can use class instance methods as workflows and steps.
+- [Logging & Tracing](https://docs.dbos.dev/typescript/tutorials/logging.md): For convenience, DBOS provides a logging facility accessed via [`DBOS.logger`](../reference/methods.md#dboslogger).
+- [Queues & Concurrency](https://docs.dbos.dev/typescript/tutorials/queue-tutorial.md): You can use queues to run many workflows at once with managed concurrency.
+- [Scheduling Workflows](https://docs.dbos.dev/typescript/tutorials/scheduled-workflows.md): You can schedule DBOS [workflows](./workflow-tutorial.md) to run on a cron schedule.
+- [Steps](https://docs.dbos.dev/typescript/tutorials/step-tutorial.md): Learn how to communicate with external APIs and services
+- [Testing & Mocking](https://docs.dbos.dev/typescript/tutorials/testing.md): You can test DBOS workflows and steps using any JavaScript or TypeScript testing framework, like [Jest](https://jestjs.io/) or [Vitest](https://vit...
+- [Transactions & Datasources](https://docs.dbos.dev/typescript/tutorials/transaction-tutorial.md): Learn how to perform database operations
+- [Upgrading Workflow Code](https://docs.dbos.dev/typescript/tutorials/upgrading-workflows.md): A challenge encountered when operating long-running durable workflows in production is **how to deploy breaking changes without disrupting in-progr...
+- [Communicating with Workflows](https://docs.dbos.dev/typescript/tutorials/workflow-communication.md): DBOS provides a few different ways to communicate with your workflows.
+- [Workflow Management](https://docs.dbos.dev/typescript/tutorials/workflow-management.md): You can view and manage your durable workflow executions via the [DBOS Console](../../conductor/workflow-management.md), programmatically, or via c...
+- [Workflows](https://docs.dbos.dev/typescript/tutorials/workflow-tutorial.md): Workflows provide **durable execution** so you can write programs that are **resilient to any failure**.
+- [Upgrading to 5.0](https://docs.dbos.dev/typescript/upgrading.md): DBOS TypeScript 5.0 removes features that were deprecated in DBOS TypeScript 4.x.
+- [Why DBOS?](https://docs.dbos.dev/why-dbos.md): :::info

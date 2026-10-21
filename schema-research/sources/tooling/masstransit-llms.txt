@@ -1,0 +1,29 @@
+# MassTransit Agent Instructions
+
+> Curated, version-aware guidance for coding agents building MassTransit v9 applications. Follow these links selectively; canonical MassTransit documentation and
+> the application's existing code take precedence over these focused skills.
+
+Use the skill that matches the requested change. Verify APIs against the linked documentation and the MassTransit version referenced by the target application.
+The skills express recommended defaults, not restrictions imposed by MassTransit. For example, records are preferred contracts, but MassTransit also supports
+classes and interfaces.
+
+## Agent Skills
+
+- [Skills Runbook](https://masstransit.massient.com/skills/README.md): Select skills and apply shared guidance.
+- [Consumer Foundation](https://masstransit.massient.com/skills/consumer-foundation.md): Implement focused consumers and consumer definitions.
+- [Saga State Machine Foundation](https://masstransit.massient.com/skills/saga-state-machine-foundation.md): Implement state-machine sagas, correlation, persistence, and scheduling.
+- [Routing Slip Activity Foundation](https://masstransit.massient.com/skills/routing-slip-activity-foundation.md): Implement compensating routing-slip activities.
+- [Request Response Foundation](https://masstransit.massient.com/skills/request-response-foundation.md): Implement request clients and explicit business responses.
+- [Test Harness Foundation](https://masstransit.massient.com/skills/test-harness-foundation.md): Test consumers, sagas, and request/response flows.
+- [Outbox Foundation](https://masstransit.massient.com/skills/outbox-foundation.md): Select and configure in-memory, Consumer, and Bus Outbox behavior.
+- [Endpoint Configuration Foundation](https://masstransit.massient.com/skills/endpoint-configuration-foundation.md): Configure endpoint naming, concurrency, and middleware.
+
+## Canonical Documentation
+
+- [MassTransit Documentation](https://masstransit.massient.com/): Concepts, configuration, and guides.
+- [Outbox Selection Guide](https://masstransit.massient.com/concepts/outbox/#choose-an-outbox): Choose retry, redelivery, in-memory outbox, Consumer Outbox, or Bus Outbox.
+- [Middleware Concepts](https://masstransit.massient.com/concepts/middleware/): Built-in middleware and custom filters.
+
+## Optional
+
+- [Coding-Agent Guidance](https://masstransit.massient.com/guides/coding-agents/): Human-facing discovery and usage guidance for these skills.
