@@ -125,3 +125,26 @@ const runtimeStore = getPostgreSQLEventStore(connectionString, {
 const runtimeConsumer = runtimeStore.consumer();
 await runtimeConsumer.start();
 // #endregion projection-migrations-setup
+
+// #region processor-migrations-setup
+import { SQL, sqlMigration } from '@event-driven-io/dumbo';
+
+const notificationsConsumer = eventStore.consumer();
+
+// the consumer creates this table together with the event store schema
+notificationsConsumer.reactor<ShoppingCartEvent>({
+  processorId: 'cart-confirmation-emails',
+  migrations: [
+    sqlMigration('sent_emails:create', [
+      SQL`CREATE TABLE IF NOT EXISTS sent_emails (cart_id TEXT PRIMARY KEY)`,
+    ]),
+  ],
+  eachMessage: async (event, context) => {
+    if (event.type !== 'ShoppingCartConfirmed') return;
+
+    await context.execute.command(
+      SQL`INSERT INTO sent_emails (cart_id) VALUES (${event.data.shoppingCartId})`,
+    );
+  },
+});
+// #endregion processor-migrations-setup

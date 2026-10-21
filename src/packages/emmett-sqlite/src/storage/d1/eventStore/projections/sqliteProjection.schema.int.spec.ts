@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import {
   count,
+  dumboSchema,
   mapRows,
   PendingMigrationsError,
   SQL,
@@ -8,6 +9,7 @@ import {
 } from '@event-driven-io/dumbo';
 import {
   d1Pool,
+  sqliteTableName,
   tableExists,
   type D1ConnectionPool,
 } from '@event-driven-io/dumbo/cloudflare';
@@ -32,6 +34,9 @@ import { sqliteRawSQLProjection } from '../../../../eventStore/projections/sqlit
 import { pongoSingleStreamProjection } from '../../../../eventStore/projections/pongo/pongoProjections';
 
 const withDeadline = { timeout: 30000 };
+
+const { column, table } = dumboSchema;
+const { Integer, Text } = SQL.column.type;
 
 void describe('SQLite projection schema', () => {
   const collectionName = 'shopping_cart_summary';
@@ -58,7 +63,7 @@ void describe('SQLite projection schema', () => {
   const eventStore = (
     options: Pick<
       SQLiteEventStoreOptions<typeof d1EventStoreDriver>,
-      'schema' | 'projections'
+      'schema' | 'projections' | 'hooks'
     >,
   ) =>
     getSQLiteEventStore({
@@ -79,6 +84,37 @@ void describe('SQLite projection schema', () => {
       });
 
       try {
+        await store.schema.migrate();
+      } finally {
+        await store.close();
+      }
+
+      assertTrue(await tableExists(pool.execute, collectionName));
+    },
+  );
+
+  void it(
+    'migrates the schema on the next call after a failed migration',
+    withDeadline,
+    async () => {
+      const failure = new Error('Transient failure');
+      let attempts = 0;
+      const store = eventStore({
+        schema: { autoMigration: 'None' },
+        projections: [
+          { type: 'async', projection: shoppingCartProjection(collectionName) },
+        ],
+        hooks: {
+          onBeforeSchemaCreated: () => {
+            attempts++;
+            if (attempts === 1) throw failure;
+          },
+        },
+      });
+
+      try {
+        await assertRejects(store.schema.migrate(), failure);
+
         await store.schema.migrate();
       } finally {
         await store.close();
@@ -125,6 +161,138 @@ void describe('SQLite projection schema', () => {
   );
 
   void it(
+    'creates the raw SQL projection tables from the schema the user provided',
+    withDeadline,
+    async () => {
+      const projectionsDatabaseSchemaName = 'read_models';
+      const salesTableName = 'product_sales';
+      const totalsTableName = 'product_totals';
+      const store = eventStore({
+        schema: { autoMigration: 'None', databaseSchemaName: 'events' },
+        projections: [
+          {
+            type: 'inline',
+            projection: sqliteRawSQLProjection<ProductItemAdded>({
+              name: salesTableName,
+              canHandle: ['ProductItemAdded'],
+              schema: {
+                definition: dumboSchema.schema(projectionsDatabaseSchemaName, {
+                  sales: table(salesTableName, {
+                    columns: {
+                      productId: column('product_id', Text, {
+                        primaryKey: true,
+                        notNull: true,
+                      }),
+                      totalAmount: column('total_amount', Integer),
+                    },
+                  }),
+                  totals: table(totalsTableName, {
+                    columns: {
+                      productId: column('product_id', Text, {
+                        primaryKey: true,
+                        notNull: true,
+                      }),
+                    },
+                  }),
+                }),
+              },
+              evolve: () => SQL`SELECT 1;`,
+            }),
+          },
+        ],
+      });
+
+      try {
+        await store.schema.migrate();
+      } finally {
+        await store.close();
+      }
+
+      assertTrue(
+        await tableExists(
+          pool.execute,
+          sqliteTableName({
+            databaseSchemaName: projectionsDatabaseSchemaName,
+            tableName: salesTableName,
+          }),
+        ),
+      );
+      assertTrue(
+        await tableExists(
+          pool.execute,
+          sqliteTableName({
+            databaseSchemaName: projectionsDatabaseSchemaName,
+            tableName: totalsTableName,
+          }),
+        ),
+      );
+    },
+  );
+
+  void it(
+    'creates the raw SQL projection tables in the projections schema when the user provides a database component',
+    withDeadline,
+    async () => {
+      const databaseSchemaName = 'events';
+      const projectionsDatabaseSchemaName = 'read_models';
+      const salesTableName = 'product_sales';
+      const store = eventStore({
+        schema: {
+          autoMigration: 'None',
+          databaseSchemaName,
+          projectionsDatabaseSchemaName,
+        },
+        projections: [
+          {
+            type: 'inline',
+            projection: sqliteRawSQLProjection<ProductItemAdded>({
+              name: salesTableName,
+              canHandle: ['ProductItemAdded'],
+              schema: {
+                definition: dumboSchema.database({
+                  tables: {
+                    sales: table(salesTableName, {
+                      columns: {
+                        productId: column('product_id', Text, {
+                          primaryKey: true,
+                          notNull: true,
+                        }),
+                      },
+                    }),
+                  },
+                }),
+              },
+              evolve: () => SQL`SELECT 1;`,
+            }),
+          },
+        ],
+      });
+
+      try {
+        await store.schema.migrate();
+      } finally {
+        await store.close();
+      }
+
+      assertTrue(
+        await tableExists(
+          pool.execute,
+          sqliteTableName({
+            databaseSchemaName: projectionsDatabaseSchemaName,
+            tableName: salesTableName,
+          }),
+        ),
+      );
+      assertFalse(
+        await tableExists(
+          pool.execute,
+          sqliteTableName({ databaseSchemaName, tableName: salesTableName }),
+        ),
+      );
+    },
+  );
+
+  void it(
     'rejects migrating when the user changes the SQL returned by init after it was applied',
     withDeadline,
     async () => {
@@ -158,6 +326,51 @@ void describe('SQLite projection schema', () => {
         await assertRejects(changed.schema.migrate(), (error: Error) =>
           error.message.includes('Migration hash mismatch'),
         );
+      } finally {
+        await changed.close();
+      }
+    },
+  );
+
+  void it(
+    'migrates when the user changes the SQL returned by init after it was applied and overrides migration hashes',
+    withDeadline,
+    async () => {
+      const tableName = 'product_sales';
+      const storeWith = (columns: SQL) =>
+        eventStore({
+          schema: { autoMigration: 'None' },
+          projections: [
+            {
+              type: 'inline',
+              projection: sqliteRawSQLProjection<ProductItemAdded>({
+                name: tableName,
+                canHandle: ['ProductItemAdded'],
+                init: () =>
+                  SQL`CREATE TABLE IF NOT EXISTS ${SQL.identifier(tableName)} (${columns})`,
+                evolve: () => SQL`SELECT 1;`,
+              }),
+            },
+          ],
+        });
+
+      const migrated = storeWith(SQL`id TEXT PRIMARY KEY`);
+      try {
+        await migrated.schema.migrate();
+      } finally {
+        await migrated.close();
+      }
+
+      const overridden = storeWith(SQL`id TEXT PRIMARY KEY, total INTEGER`);
+      try {
+        await overridden.schema.migrate({ overrideMigrationHashes: true });
+      } finally {
+        await overridden.close();
+      }
+
+      const changed = storeWith(SQL`id TEXT PRIMARY KEY, total INTEGER`);
+      try {
+        await changed.schema.migrate();
       } finally {
         await changed.close();
       }

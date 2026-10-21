@@ -8,6 +8,7 @@ import {
   type AnySchemaComponent,
   type MigrationStyle,
   type RunSQLMigrationsResult,
+  type SchemaComponentMigrateOptions,
   type SQLMigration,
 } from '@event-driven-io/dumbo';
 import type {
@@ -62,6 +63,7 @@ import {
 import {
   handleProjections,
   isPostgreSQLProjectionWithSchema,
+  postgreSQLProjectionWithDatabaseSchemaName,
   transactionToPostgreSQLProjectionHandlerContext,
   type PostgreSQLProjectionEnsureMigratedOptions,
   type PostgreSQLProjectionDefinition,
@@ -77,7 +79,6 @@ import {
   readStream,
   streamExists,
   type AppendToStreamBeforeCommitHook,
-  type CreateEventStoreSchemaOptions,
   type EventStoreDatabaseSchemaOptions,
   type PostgresStreamExistsOptions,
 } from './schema';
@@ -116,7 +117,7 @@ export interface PostgresEventStore
       options?: PostgreSQLProjectionEnsureMigratedOptions,
     ): Promise<void>;
     migrate(
-      options?: CreateEventStoreSchemaOptions,
+      options?: Omit<SchemaComponentMigrateOptions, 'execute'>,
     ): Promise<RunSQLMigrationsResult>;
     dangerous: {
       truncate(options?: {
@@ -367,29 +368,13 @@ export function getPostgreSQLEventStore(
     options.schema?.autoMigration !== 'None';
 
   const databaseSchema = eventStoreDatabaseSchema(options.schema);
-  const withProjectionsDatabaseSchemaName = (
-    registrations: NonNullable<typeof options.projections>,
-    projectionsDatabaseSchemaName: string | undefined,
-  ): NonNullable<typeof options.projections> =>
-    projectionsDatabaseSchemaName === undefined
-      ? registrations
-      : registrations.map((registration) =>
-          isPostgreSQLProjectionWithSchema(registration.projection)
-            ? {
-                ...registration,
-                projection: {
-                  ...registration.projection,
-                  schema: registration.projection.schema.withDatabaseSchemaName(
-                    projectionsDatabaseSchemaName,
-                  ),
-                },
-              }
-            : registration,
-        );
-  const projections = withProjectionsDatabaseSchemaName(
-    options.projections ?? [],
-    databaseSchema.projectionsDatabaseSchemaName,
-  );
+  const projections = (options.projections ?? []).map((registration) => ({
+    ...registration,
+    projection: postgreSQLProjectionWithDatabaseSchemaName(
+      registration.projection,
+      databaseSchema.projectionsDatabaseSchemaName,
+    ),
+  }));
   const inlineProjections = projections
     .filter(({ type }) => type === 'inline')
     .map(({ projection }) => projection);
@@ -414,15 +399,14 @@ export function getPostgreSQLEventStore(
   const observability = eventStoreObservability(options);
   const collector = eventStoreCollector(observability);
 
-  const migrate = async (migrationOptions?: CreateEventStoreSchemaOptions) => {
+  const migrate = async (
+    migrationOptions?: Omit<SchemaComponentMigrateOptions, 'execute'>,
+  ) => {
     if (!migrateSchema) {
-      const migrationSchemaOptions = {
+      const schemaMigrationOptions = {
         ...options.schema,
         ...migrationOptions,
-      };
-      const schemaMigrationOptions = {
-        ...migrationSchemaOptions,
-        ...eventStoreDatabaseSchema(migrationSchemaOptions),
+        ...databaseSchema,
       };
 
       // TODO: Fix this cast when introducing more drivers
@@ -455,23 +439,19 @@ export function getPostgreSQLEventStore(
           },
         },
         schema: schemaMigrationOptions,
-        components: projectionSchemaComponents(
-          schemaMigrationOptions.projectionsDatabaseSchemaName ===
-            databaseSchema.projectionsDatabaseSchemaName
-            ? projections
-            : withProjectionsDatabaseSchemaName(
-                projections,
-                schemaMigrationOptions.projectionsDatabaseSchemaName,
-              ),
-        ),
+        components: projectionSchemaComponents(projections),
       });
 
       if (migrationOptions?.dryRun) {
         return migration;
       }
 
-      migrateSchema = migration;
-      return migration;
+      const memoised = migration.catch((error: unknown) => {
+        if (migrateSchema === memoised) migrateSchema = undefined;
+        throw error;
+      });
+      migrateSchema = memoised;
+      return memoised;
     }
     const result = await migrateSchema;
 
@@ -735,6 +715,8 @@ export function getPostgreSQLEventStore(
     consumer: <ConsumerMessageType extends Message = AnyMessage>(
       consumerOptions?: PostgreSQLEventStoreConsumerConfig<ConsumerMessageType>,
     ): PostgreSQLEventStoreConsumer<ConsumerMessageType> => {
+      const storeMigrates =
+        consumerOptions?.schema?.autoMigration === undefined;
       const consumer = postgreSQLEventStoreConsumer<ConsumerMessageType>({
         ...consumerOptions,
         schema: {
@@ -754,6 +736,13 @@ export function getPostgreSQLEventStore(
          * specific, so it is read back out of the pg connection context.
          */
         connectionString: dumboOptions.connectionString,
+        hooks: storeMigrates
+          ? {
+              onInit: async () => {
+                await ensureSchemaExists();
+              },
+            }
+          : undefined,
       });
 
       if (!consumerOptions?.processors?.length)
@@ -763,6 +752,9 @@ export function getPostgreSQLEventStore(
             projection: projection as unknown as PostgreSQLProjectionDefinition<
               ConsumerMessageType & AnyEvent
             >,
+            migrationOptions: storeMigrates
+              ? { ...options.schema, ...databaseSchema, autoMigration: 'None' }
+              : undefined,
           });
 
       return consumer;

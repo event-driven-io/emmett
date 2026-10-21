@@ -1,10 +1,16 @@
-import { dumbo, type MigrationStyle } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  schemaComponentMigrator,
+  type AnySchemaComponent,
+  type MigrationStyle,
+} from '@event-driven-io/dumbo';
 import {
   consumer,
   type AnyCommand,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
+  type ConsumerHooks,
   type JSONSerializationOptions,
   type Message,
   type MessageConsumer,
@@ -20,8 +26,16 @@ import type {
   InferPoolFromEventStoreDriver,
 } from '../eventStoreDriver';
 import {
+  isSQLiteProjectionWithSchema,
+  sqliteProjectionWithDatabaseSchemaName,
+  sqliteSchemaOf,
+  type SQLiteProjectionSchema,
+} from '../projections';
+import {
   eventStoreDatabaseSchema,
+  eventStoreSchemaComponent,
   type EventStoreDatabaseSchemaOptions,
+  type EventStoreSchemaMigrationOptions,
 } from '../schema';
 import { sqliteMessageSource } from './messageSource';
 import {
@@ -61,6 +75,7 @@ export type SQLiteEventStoreConsumerConnectionOptions<
     ConsumerMessageType,
     ReadEventMetadataWithGlobalPosition
   >;
+  hooks?: Pick<ConsumerHooks, 'onInit'>;
 } & PoolOrConnectionOptions<Driver>;
 
 export type SQLiteEventStoreConsumerOptions<
@@ -137,6 +152,24 @@ export const sqliteEventStoreConsumer = <
     ...options.schema,
     ...databaseSchema,
   };
+  const autoMigration = options.schema?.autoMigration ?? 'CreateOrUpdate';
+  const processorSchemaComponents: AnySchemaComponent[] = [];
+  let schemaMigrator: ReturnType<typeof schemaComponentMigrator> | undefined;
+
+  const migrationOptionsFor = (
+    migrationOptions: NonNullable<
+      EventStoreSchemaMigrationOptions['migrationOptions']
+    >,
+    schema: SQLiteProjectionSchema | undefined,
+  ): NonNullable<EventStoreSchemaMigrationOptions['migrationOptions']> => {
+    const processorAutoMigration =
+      migrationOptions.autoMigration ?? autoMigration;
+    if (!schema || processorAutoMigration !== autoMigration)
+      return { ...migrationOptions, autoMigration: processorAutoMigration };
+
+    processorSchemaComponents.push(schema.component);
+    return { ...migrationOptions, autoMigration: 'None' };
+  };
   const isOwnPool = !options.pool;
   const dumboOptions = {
     serialization: options.serialization,
@@ -157,13 +190,22 @@ export const sqliteEventStoreConsumer = <
 
   const workflowProcessorFactory: SQLiteWorkflowProcessorFactory<
     ConsumerMessageType
-  > = (processorOptions) =>
-    sqliteWorkflowProcessor({
+  > = (processorOptions) => {
+    const migrationOptions =
+      processorOptions.migrationOptions ?? processorMetadataSchema;
+
+    return sqliteWorkflowProcessor({
       ...processorOptions,
       driver: options.driver,
-      migrationOptions:
-        processorOptions.migrationOptions ?? processorMetadataSchema,
+      migrationOptions: migrationOptionsFor(
+        migrationOptions,
+        sqliteSchemaOf(
+          processorOptions,
+          eventStoreDatabaseSchema(migrationOptions).databaseSchemaName,
+        ),
+      ),
     });
+  };
 
   const messageConsumer = consumer<
     ConsumerMessageType,
@@ -175,20 +217,42 @@ export const sqliteEventStoreConsumer = <
   >({
     ...options,
     source,
-    reactorFactory: (processorOptions) =>
-      sqliteReactor({
+    reactorFactory: (processorOptions) => {
+      const migrationOptions =
+        processorOptions.migrationOptions ?? processorMetadataSchema;
+
+      return sqliteReactor({
         ...processorOptions,
         driver: options.driver,
-        migrationOptions:
-          processorOptions.migrationOptions ?? processorMetadataSchema,
-      }),
-    projectorFactory: (processorOptions) =>
-      sqliteProjector({
+        migrationOptions: migrationOptionsFor(
+          migrationOptions,
+          sqliteSchemaOf(
+            processorOptions,
+            eventStoreDatabaseSchema(migrationOptions).databaseSchemaName,
+          ),
+        ),
+      });
+    },
+    projectorFactory: (processorOptions) => {
+      const migrationOptions =
+        processorOptions.migrationOptions ?? processorMetadataSchema;
+      const projection = sqliteProjectionWithDatabaseSchemaName(
+        processorOptions.projection,
+        eventStoreDatabaseSchema(migrationOptions)
+          .projectionsDatabaseSchemaName,
+      );
+
+      return sqliteProjector({
         ...processorOptions,
         driver: options.driver,
-        migrationOptions:
-          processorOptions.migrationOptions ?? processorMetadataSchema,
-      }),
+        migrationOptions: migrationOptionsFor(
+          migrationOptions,
+          isSQLiteProjectionWithSchema(projection)
+            ? projection.schema
+            : undefined,
+        ),
+      });
+    },
     workflowProcessorFactory,
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
@@ -207,6 +271,24 @@ export const sqliteEventStoreConsumer = <
         ? { noMessagesLeft: true }
         : undefined),
     hooks: {
+      onInit: async () => {
+        if (options.hooks?.onInit) await options.hooks.onInit();
+
+        if (autoMigration === 'None') return;
+
+        schemaMigrator ??= schemaComponentMigrator({
+          pool,
+          component: eventStoreSchemaComponent(
+            options.schema,
+            processorSchemaComponents,
+          ),
+          migrationTable: databaseSchema.migrationTable,
+        });
+
+        if (autoMigration === 'EnsureMigrated')
+          await schemaMigrator.ensureMigrated();
+        else await schemaMigrator.migrate();
+      },
       onClose: async () => {
         if (isOwnPool) await pool.close();
       },

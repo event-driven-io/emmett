@@ -1,10 +1,16 @@
-import { dumbo, type MigrationStyle } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  schemaComponentMigrator,
+  type AnySchemaComponent,
+  type MigrationStyle,
+} from '@event-driven-io/dumbo';
 import {
   consumer,
   type AnyCommand,
   type AnyEvent,
   type AnyMessage,
   type AnyRecordedMessageMetadata,
+  type ConsumerHooks,
   type JSONSerializationOptions,
   type Message,
   type MessageConsumer,
@@ -26,8 +32,16 @@ import type {
   PoolOrConnectionOptions,
 } from '../eventStoreDriver';
 import {
+  isPostgreSQLProjectionWithSchema,
+  postgreSQLProjectionWithDatabaseSchemaName,
+  postgreSQLSchemaOf,
+  type PostgreSQLProjectionSchema,
+} from '../projections';
+import {
   eventStoreDatabaseSchema,
+  eventStoreSchemaComponent,
   type EventStoreDatabaseSchemaOptions,
+  type EventStoreSchemaMigrationOptions,
 } from '../schema';
 import { postgreSQLMessageSource } from './messageSource';
 import {
@@ -66,6 +80,7 @@ export type PostgreSQLEventStoreConsumerConnectionOptions<
     NoInfer<ConsumerMessageType>,
     RecordedMessageMetadataWithGlobalPosition
   >;
+  hooks?: Pick<ConsumerHooks, 'onInit'>;
 } & {
   /**
    * @deprecated pass `driver` instead; this form is removed in the next major.
@@ -149,6 +164,24 @@ export const postgreSQLEventStoreConsumer = <
     ...options.schema,
     ...databaseSchema,
   };
+  const autoMigration = options.schema?.autoMigration ?? 'CreateOrUpdate';
+  const processorSchemaComponents: AnySchemaComponent[] = [];
+  let schemaMigrator: ReturnType<typeof schemaComponentMigrator> | undefined;
+
+  const migrationOptionsFor = (
+    migrationOptions: NonNullable<
+      EventStoreSchemaMigrationOptions['migrationOptions']
+    >,
+    schema: PostgreSQLProjectionSchema | undefined,
+  ): NonNullable<EventStoreSchemaMigrationOptions['migrationOptions']> => {
+    const processorAutoMigration =
+      migrationOptions.autoMigration ?? autoMigration;
+    if (!schema || processorAutoMigration !== autoMigration)
+      return { ...migrationOptions, autoMigration: processorAutoMigration };
+
+    processorSchemaComponents.push(schema.component);
+    return { ...migrationOptions, autoMigration: 'None' };
+  };
   const isOwnPool = !options.pool;
   const connectionOptions = {
     serialization: options.serialization,
@@ -191,27 +224,58 @@ export const postgreSQLEventStoreConsumer = <
   >({
     ...options,
     source,
-    reactorFactory: (processorOptions) =>
-      postgreSQLReactor({
+    reactorFactory: (processorOptions) => {
+      const migrationOptions =
+        processorOptions.migrationOptions ?? processorMetadataSchema;
+
+      return postgreSQLReactor({
         ...processorOptions,
         driver: options.driver,
-        migrationOptions:
-          processorOptions.migrationOptions ?? processorMetadataSchema,
-      }),
-    projectorFactory: (processorOptions) =>
-      postgreSQLProjector({
+        migrationOptions: migrationOptionsFor(
+          migrationOptions,
+          postgreSQLSchemaOf(
+            processorOptions,
+            eventStoreDatabaseSchema(migrationOptions).databaseSchemaName,
+          ),
+        ),
+      });
+    },
+    projectorFactory: (processorOptions) => {
+      const migrationOptions =
+        processorOptions.migrationOptions ?? processorMetadataSchema;
+      const projection = postgreSQLProjectionWithDatabaseSchemaName(
+        processorOptions.projection,
+        eventStoreDatabaseSchema(migrationOptions)
+          .projectionsDatabaseSchemaName,
+      );
+
+      return postgreSQLProjector({
         ...processorOptions,
         driver: options.driver,
-        migrationOptions:
-          processorOptions.migrationOptions ?? processorMetadataSchema,
-      }),
-    workflowProcessorFactory: (processorOptions) =>
-      postgreSQLWorkflowProcessor({
+        migrationOptions: migrationOptionsFor(
+          migrationOptions,
+          isPostgreSQLProjectionWithSchema(projection)
+            ? projection.schema
+            : undefined,
+        ),
+      });
+    },
+    workflowProcessorFactory: (processorOptions) => {
+      const migrationOptions =
+        processorOptions.migrationOptions ?? processorMetadataSchema;
+
+      return postgreSQLWorkflowProcessor({
         ...processorOptions,
         driver: options.driver,
-        migrationOptions:
-          processorOptions.migrationOptions ?? processorMetadataSchema,
-      }),
+        migrationOptions: migrationOptionsFor(
+          migrationOptions,
+          postgreSQLSchemaOf(
+            processorOptions,
+            eventStoreDatabaseSchema(migrationOptions).databaseSchemaName,
+          ),
+        ),
+      });
+    },
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
     scope: (handler) => handler(processorContext),
@@ -221,6 +285,24 @@ export const postgreSQLEventStoreConsumer = <
         ? { noMessagesLeft: true }
         : undefined),
     hooks: {
+      onInit: async () => {
+        if (options.hooks?.onInit) await options.hooks.onInit();
+
+        if (autoMigration === 'None') return;
+
+        schemaMigrator ??= schemaComponentMigrator({
+          pool,
+          component: eventStoreSchemaComponent(
+            options.schema,
+            processorSchemaComponents,
+          ),
+          migrationTable: databaseSchema.migrationTable,
+        });
+
+        if (autoMigration === 'EnsureMigrated')
+          await schemaMigrator.ensureMigrated();
+        else await schemaMigrator.migrate();
+      },
       onClose: async () => {
         if (isOwnPool) await pool.close();
       },
