@@ -201,6 +201,19 @@ export const isSQLiteProjectionWithSchema = <Projection extends object>(
   'component' in projection.schema &&
   isSchemaComponent(projection.schema.component);
 
+export const sqliteProjectionWithDatabaseSchemaName = <
+  Projection extends object,
+>(
+  projection: Projection,
+  databaseSchemaName: string | undefined,
+): Projection =>
+  databaseSchemaName !== undefined && isSQLiteProjectionWithSchema(projection)
+    ? {
+        ...projection,
+        schema: projection.schema.withDatabaseSchemaName(databaseSchemaName),
+      }
+    : projection;
+
 const hasDefaultSchemaName = (
   component: AnySchemaComponent,
 ): component is AnySchemaComponent & {
@@ -254,9 +267,35 @@ export const sqliteProjectionSchema = (
   return schema;
 };
 
+export type SQLiteSchemaOptions = {
+  schema?: { definition?: AnySchemaComponent };
+  migrations?: SQLMigration[];
+};
+
+export const sqliteSchemaOf = (
+  options: SQLiteSchemaOptions,
+  databaseSchemaName: string | undefined,
+): SQLiteProjectionSchema | undefined => {
+  const { migrations } = options;
+  const component =
+    options.schema?.definition ??
+    (migrations
+      ? schemaComponent('emt:processors:sqlite', {
+          migrations: () => migrations,
+        })
+      : undefined);
+
+  if (!component) return undefined;
+
+  const schema = sqliteProjectionSchema(component);
+
+  return databaseSchemaName !== undefined
+    ? schema.withDatabaseSchemaName(databaseSchemaName)
+    : schema;
+};
+
 export type SQLiteRawSQLProjectionSchemaOptions =
-  | { schema?: AnySchemaComponent; migrations?: never; init?: never }
-  | { schema?: never; migrations?: SQLMigration[]; init?: never }
+  | (SQLiteSchemaOptions & { init?: never })
   | {
       schema?: never;
       migrations?: never;
@@ -326,7 +365,7 @@ export const sqliteRawBatchSQLProjection = <
         ]
       : undefined;
   const component =
-    options.schema ??
+    options.schema?.definition ??
     (migrationsOf
       ? schemaComponent('emt:projections:sqlite:raw_sql', {
           migrations: migrationsOf,

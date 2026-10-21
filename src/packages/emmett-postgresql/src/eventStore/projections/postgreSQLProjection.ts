@@ -239,6 +239,20 @@ export const isPostgreSQLProjectionWithSchema = <Projection extends object>(
   'component' in projection.schema &&
   isSchemaComponent(projection.schema.component);
 
+export const postgreSQLProjectionWithDatabaseSchemaName = <
+  Projection extends object,
+>(
+  projection: Projection,
+  databaseSchemaName: string | undefined,
+): Projection =>
+  databaseSchemaName !== undefined &&
+  isPostgreSQLProjectionWithSchema(projection)
+    ? {
+        ...projection,
+        schema: projection.schema.withDatabaseSchemaName(databaseSchemaName),
+      }
+    : projection;
+
 const hasDefaultSchemaName = (
   component: AnySchemaComponent,
 ): component is AnySchemaComponent & {
@@ -292,9 +306,35 @@ export const postgreSQLProjectionSchema = (
   return schema;
 };
 
+export type PostgreSQLSchemaOptions = {
+  schema?: { definition?: AnySchemaComponent };
+  migrations?: SQLMigration[];
+};
+
+export const postgreSQLSchemaOf = (
+  options: PostgreSQLSchemaOptions,
+  databaseSchemaName: string | undefined,
+): PostgreSQLProjectionSchema | undefined => {
+  const { migrations } = options;
+  const component =
+    options.schema?.definition ??
+    (migrations
+      ? schemaComponent('emt:processors:postgresql', {
+          migrations: () => migrations,
+        })
+      : undefined);
+
+  if (!component) return undefined;
+
+  const schema = postgreSQLProjectionSchema(component);
+
+  return databaseSchemaName !== undefined
+    ? schema.withDatabaseSchemaName(databaseSchemaName)
+    : schema;
+};
+
 export type PostgreSQLRawSQLProjectionSchemaOptions =
-  | { schema?: AnySchemaComponent; migrations?: never; init?: never }
-  | { schema?: never; migrations?: SQLMigration[]; init?: never }
+  | (PostgreSQLSchemaOptions & { init?: never })
   | {
       schema?: never;
       migrations?: never;
@@ -362,7 +402,7 @@ export const postgreSQLRawBatchSQLProjection = <
         ]
       : undefined;
   const component =
-    options.schema ??
+    options.schema?.definition ??
     (migrationsOf
       ? schemaComponent('emt:projections:postgresql:raw_sql', {
           migrations: migrationsOf,

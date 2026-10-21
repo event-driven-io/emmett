@@ -53,7 +53,13 @@ import type {
   InferPoolFromEventStoreDriver,
   InferTransactionFromEventStoreDriver,
 } from '../eventStoreDriver';
-import { isSQLiteProjectionWithSchema } from '../projections';
+import {
+  isSQLiteProjectionWithSchema,
+  sqliteProjectionWithDatabaseSchemaName,
+  sqliteSchemaOf,
+  type SQLiteProjectionSchema,
+  type SQLiteSchemaOptions,
+} from '../projections';
 import {
   eventStoreDatabaseSchema,
   type EventStoreSchemaMigrationOptions,
@@ -146,7 +152,8 @@ export type SQLiteReactorOptions<
   SQLiteProcessorHandlerContext<Driver>,
   MessagePayloadType
 > &
-  SQLiteProcessorOptionsBase<Driver>;
+  SQLiteProcessorOptionsBase<Driver> &
+  SQLiteSchemaOptions;
 
 export type SQLiteProjectorOptions<
   EventType extends AnyEvent = AnyEvent,
@@ -176,7 +183,8 @@ export type SQLiteWorkflowProcessorOptions<
   HandlerContext,
   StoredMessage
 > &
-  SQLiteProcessorOptionsBase<Driver>;
+  SQLiteProcessorOptionsBase<Driver> &
+  SQLiteSchemaOptions;
 
 const sqliteProcessingScope = <
   Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
@@ -293,6 +301,58 @@ const getProcessorPool = <
   };
 };
 
+const sqliteReactorBase = <
+  Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
+>(
+  options: SQLiteProcessorOptionsBase<Driver> & {
+    processorId: string;
+    partition: string;
+    hooks?: ProcessorHooks<SQLiteProcessorHandlerContext<Driver>>;
+    schemaOf: (
+      migrationOptions: NonNullable<
+        EventStoreSchemaMigrationOptions['migrationOptions']
+      >,
+    ) => SQLiteProjectionSchema | undefined;
+  },
+) => {
+  const migrationOptions = {
+    ...options.migrationOptions,
+    ...eventStoreDatabaseSchema(options.migrationOptions),
+  };
+  const schema = options.schemaOf(migrationOptions);
+
+  const hooks: ProcessorHooks<SQLiteProcessorHandlerContext<Driver>> = {
+    ...(options.hooks ?? {}),
+    onInit:
+      schema || options.hooks?.onInit
+        ? async (context: SQLiteProcessorHandlerContext<Driver>) => {
+            const schemaContext = { ...context, migrationOptions };
+            if (schema) {
+              const autoMigration =
+                migrationOptions.autoMigration ?? 'CreateOrUpdate';
+              if (autoMigration === 'EnsureMigrated')
+                await schema.ensureMigrated(schemaContext);
+              else if (autoMigration === 'CreateOrUpdate')
+                await schema.migrate(schemaContext);
+            }
+            if (options.hooks?.onInit)
+              await options.hooks.onInit(schemaContext);
+          }
+        : undefined,
+  };
+
+  return {
+    hooks,
+    processingScope: sqliteProcessingScope<Driver>({
+      ...getProcessorPool<Driver>(options),
+      processorId: options.processorId,
+      partition: options.partition,
+      migrationOptions,
+      driver: options.driver,
+    }),
+  };
+};
+
 export const sqliteWorkflowProcessor = <
   Input extends AnyEvent | AnyCommand,
   State,
@@ -322,10 +382,15 @@ export const sqliteWorkflowProcessor = <
     partition = defaultProcessorPartition,
   } = options;
 
-  const hooks: ProcessorHooks<HandlerContext> = {
-    ...(options.hooks ?? {}),
-    onClose: options.hooks?.onClose,
-  };
+  const reactorBase = sqliteReactorBase({
+    ...options,
+    processorId,
+    partition,
+    hooks:
+      options.hooks as unknown as ProcessorHooks<SQLiteProcessorHandlerContext>,
+    schemaOf: (migrationOptions) =>
+      sqliteSchemaOf(options, migrationOptions.databaseSchemaName),
+  });
 
   return workflowProcessor({
     ...options,
@@ -333,14 +398,9 @@ export const sqliteWorkflowProcessor = <
     processorInstanceId,
     version,
     partition,
-    hooks,
-    processingScope: sqliteProcessingScope({
-      ...getProcessorPool(options),
-      processorId,
-      partition,
-      migrationOptions: options.migrationOptions,
-      driver: options.driver,
-    }) as unknown as MessageProcessingScope<HandlerContext>,
+    hooks: reactorBase.hooks,
+    processingScope:
+      reactorBase.processingScope as unknown as MessageProcessingScope<HandlerContext>,
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<Input | Output, MetaDataType, HandlerContext>()
@@ -364,7 +424,6 @@ export const sqliteReactor = <
     processorInstanceId = getProcessorInstanceId(processorId),
     version = defaultProcessorVersion,
     partition = defaultProcessorPartition,
-    hooks,
   } = options;
 
   return reactor({
@@ -373,15 +432,13 @@ export const sqliteReactor = <
     processorInstanceId,
     version,
     partition,
-    hooks,
-    processingScope: sqliteProcessingScope<Driver>({
-      ...getProcessorPool<Driver>(options),
+    ...sqliteReactorBase<Driver>({
+      ...options,
       processorId,
       partition,
-      migrationOptions: options.migrationOptions,
-      driver: options.driver,
+      schemaOf: (migrationOptions) =>
+        sqliteSchemaOf(options, migrationOptions.databaseSchemaName),
     }),
-
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<MessageType>()
@@ -405,55 +462,38 @@ export const sqliteProjector = <
     partition = defaultProcessorPartition,
   } = options;
 
-  const migrationOptions = {
-    ...options.migrationOptions,
-    ...eventStoreDatabaseSchema(options.migrationOptions),
-  };
-  const projectionSchema = isSQLiteProjectionWithSchema(options.projection)
-    ? migrationOptions.projectionsDatabaseSchemaName !== undefined
-      ? options.projection.schema.withDatabaseSchemaName(
-          migrationOptions.projectionsDatabaseSchemaName,
-        )
-      : options.projection.schema
-    : undefined;
-
-  const hooks: ProcessorHooks<SQLiteProcessorHandlerContext<Driver>> = {
-    ...(options.hooks ?? {}),
-    onInit:
-      options.projection.init !== undefined ||
-      projectionSchema ||
-      options.hooks?.onInit
-        ? async (context: SQLiteProcessorHandlerContext<Driver>) => {
-            const autoMigration =
-              options.migrationOptions?.autoMigration ?? 'CreateOrUpdate';
-            const projectionContext = { ...context, migrationOptions };
-            if (projectionSchema) {
-              if (autoMigration === 'EnsureMigrated')
-                await projectionSchema.ensureMigrated(projectionContext);
-              else if (autoMigration === 'CreateOrUpdate')
-                await projectionSchema.migrate(projectionContext);
+  const reactorBase = sqliteReactorBase<Driver>({
+    ...options,
+    processorId,
+    partition,
+    hooks: {
+      ...(options.hooks ?? {}),
+      onInit:
+        options.projection.init !== undefined || options.hooks?.onInit
+          ? async (context: SQLiteProcessorHandlerContext<Driver>) => {
+              if (options.projection.init)
+                await options.projection.init({
+                  version: options.projection.version ?? version,
+                  status: 'active',
+                  registrationType: 'async',
+                  context,
+                });
+              if (options.hooks?.onInit) await options.hooks.onInit(context);
             }
-            if (options.projection.init)
-              await options.projection.init({
-                version: options.projection.version ?? version,
-                status: 'active',
-                registrationType: 'async',
-                context: {
-                  ...context,
-                  migrationOptions: options.migrationOptions,
-                },
-              });
-            if (options.hooks?.onInit)
-              await options.hooks.onInit({
-                ...context,
-                migrationOptions: options.migrationOptions,
-              });
-          }
-        : options.hooks?.onInit,
-    onClose: options.hooks?.onClose,
-  };
+          : undefined,
+    },
+    schemaOf: (migrationOptions) => {
+      const projection = sqliteProjectionWithDatabaseSchemaName(
+        options.projection,
+        migrationOptions.projectionsDatabaseSchemaName,
+      );
+      return isSQLiteProjectionWithSchema(projection)
+        ? projection.schema
+        : undefined;
+    },
+  });
 
-  const processor = projector<
+  return projector<
     EventType,
     ReadEventMetadataWithGlobalPosition,
     SQLiteProcessorHandlerContext<Driver>,
@@ -464,19 +504,10 @@ export const sqliteProjector = <
     processorInstanceId,
     version,
     partition,
-    hooks,
-    processingScope: sqliteProcessingScope<Driver>({
-      ...getProcessorPool<Driver>(options),
-      processorId,
-      partition,
-      migrationOptions: options.migrationOptions,
-      driver: options.driver,
-    }),
+    ...reactorBase,
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<EventType>()
         : sqliteCheckpointer<EventType, Driver>(),
   });
-
-  return processor;
 };

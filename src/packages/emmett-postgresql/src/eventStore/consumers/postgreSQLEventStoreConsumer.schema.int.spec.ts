@@ -1,13 +1,16 @@
 import {
   count,
   dumbo,
+  dumboSchema,
   mapRows,
   PendingMigrationsError,
   SQL,
+  sqlMigration,
   SQLTableReference,
 } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
+  assertDeepEqual,
   assertEqual,
   assertFalse,
   assertIsNotNull,
@@ -15,7 +18,9 @@ import {
   assertTrue,
   assertThrows,
   EmmettError,
+  inMemoryReactor,
   type Event,
+  type WorkflowOptions,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
@@ -25,10 +30,17 @@ import {
 } from '../../testing/postgreSQLTestDatabase';
 import { tableExists } from '../../testing/schemaObjects';
 import type { ProductItemAdded } from '../../testing/shoppingCart.domain';
+import {
+  GroupCheckoutWorkflow,
+  type GroupCheckout,
+  type GroupCheckoutInput,
+  type GroupCheckoutOutput,
+} from '../../testing/groupCheckout.domain';
 import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
 import {
   pongoSingleStreamProjection,
   postgreSQLProjection,
+  postgreSQLRawSQLProjection,
   readProjectionInfo,
 } from '../projections';
 import { readProcessorCheckpoint } from '../schema';
@@ -42,6 +54,31 @@ import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
 import { pgEventStoreDriver } from '../../pg';
 
 const withDeadline = { timeout: 30000 };
+
+const { column, table } = dumboSchema;
+const { Text } = SQL.column.type;
+
+const workflowProcessorOptions: WorkflowOptions<
+  GroupCheckoutInput,
+  GroupCheckout,
+  GroupCheckoutOutput
+> = {
+  workflow: GroupCheckoutWorkflow,
+  getWorkflowId: (input) =>
+    (input.data as { groupCheckoutId?: string }).groupCheckoutId ?? null,
+  inputs: {
+    commands: ['InitiateGroupCheckout', 'TimeoutGroupCheckout'],
+    events: ['GuestCheckedOut', 'GuestCheckoutFailed'],
+  },
+  outputs: {
+    commands: ['CheckOut'],
+    events: [
+      'GroupCheckoutCompleted',
+      'GroupCheckoutFailed',
+      'GroupCheckoutTimedOut',
+    ],
+  },
+};
 
 void describe('PostgreSQL event store consumer schema configuration', () => {
   let database: PostgreSQLTestDatabase;
@@ -478,7 +515,52 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
   );
 
   void it(
-    'records projector migrations in the event-store schema when the projector sets its own schema names',
+    'records projector migrations in the event-store schema when the projector sets its own schema names and autoMigration',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const projectionSchemaName = schemaName('read_models');
+      const collectionName = schemaName('shopping_cart_summary');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+        });
+        consumer.projector({
+          processorId: `processor:${uuid()}`,
+          projection: shoppingCartSummaryProjection(collectionName),
+          migrationOptions: {
+            databaseSchemaName: eventSchemaName,
+            projectionsDatabaseSchemaName: projectionSchemaName,
+            autoMigration: 'CreateOrUpdate',
+          },
+        });
+
+        await consumer.start();
+
+        assertTrue(
+          await tableExists(pool.execute, collectionName, projectionSchemaName),
+        );
+        assertTrue(
+          (await migrationNames(eventSchemaName)).some((name) =>
+            name.includes(collectionName),
+          ),
+        );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'creates no projection tables when the projector sets its own schema names without autoMigration and the event store skips migrations',
     withDeadline,
     async () => {
       const eventSchemaName = schemaName('events');
@@ -507,17 +589,50 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
 
         await consumer.start();
 
-        assertTrue(
+        assertFalse(
           await tableExists(pool.execute, collectionName, projectionSchemaName),
-        );
-        assertTrue(
-          (await migrationNames(eventSchemaName)).some((name) =>
-            name.includes(collectionName),
-          ),
         );
       } finally {
         await store.close();
       }
+    },
+  );
+
+  void it(
+    "creates the projection in the projector's own projections schema when the projector sets its own schema names without autoMigration",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const projectionSchemaName = schemaName('read_models');
+      const collectionName = schemaName('shopping_cart_summary');
+      const consumer = postgreSQLEventStoreConsumer<ProductItemAdded>({
+        connectionString,
+        stopWhen: { noMessagesLeft: true },
+        schema: { databaseSchemaName: eventSchemaName },
+      });
+      consumer.projector({
+        processorId: `processor:${uuid()}`,
+        projection: shoppingCartSummaryProjection(collectionName),
+        migrationOptions: {
+          databaseSchemaName: eventSchemaName,
+          projectionsDatabaseSchemaName: projectionSchemaName,
+        },
+      });
+
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      assertTrue(
+        await tableExists(pool.execute, collectionName, projectionSchemaName),
+      );
+      assertTrue(
+        (await migrationNames(eventSchemaName)).some((name) =>
+          name.includes(collectionName),
+        ),
+      );
     },
   );
 
@@ -710,6 +825,815 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
     },
   );
 
+  void it(
+    "does not migrate the store's projections again when its consumer starts after the store migrated",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: eventSchemaName,
+        },
+        projections: [
+          {
+            type: 'async',
+            projection: shoppingCartSummaryProjection(collectionName),
+          },
+        ],
+      });
+
+      try {
+        await store.schema.migrate();
+        await dropTableWithMigrations(eventSchemaName, collectionName);
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+        });
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+
+        assertFalse(
+          await tableExists(pool.execute, collectionName, eventSchemaName),
+        );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    "migrates the store's projections when its consumer starts before the store migrated",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: eventSchemaName,
+        },
+        projections: [
+          {
+            type: 'async',
+            projection: shoppingCartSummaryProjection(collectionName),
+          },
+        ],
+      });
+
+      try {
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+        });
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+
+        assertTrue(
+          await tableExists(pool.execute, collectionName, eventSchemaName),
+        );
+        assertDeepEqual((await store.schema.migrate()).applied, []);
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    "migrates the store's projections when the consumer sets its own autoMigration and the store skips migrations",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const storeWithoutProjections = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+      });
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+        projections: [
+          {
+            type: 'async',
+            projection: shoppingCartSummaryProjection(collectionName),
+          },
+        ],
+      });
+
+      try {
+        await storeWithoutProjections.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+          schema: { autoMigration: 'CreateOrUpdate' },
+        });
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+
+        assertTrue(
+          await tableExists(pool.execute, collectionName, eventSchemaName),
+        );
+      } finally {
+        await storeWithoutProjections.close();
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    "fails to start the consumer when the store's projection migrations are pending and the store ensures migrations",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const storeWithoutProjections = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+      });
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: {
+          autoMigration: 'EnsureMigrated',
+          databaseSchemaName: eventSchemaName,
+        },
+        projections: [
+          {
+            type: 'async',
+            projection: shoppingCartSummaryProjection(collectionName),
+          },
+        ],
+      });
+
+      try {
+        await storeWithoutProjections.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+        });
+
+        try {
+          await assertRejects(
+            consumer.start(),
+            (error) =>
+              error instanceof PendingMigrationsError &&
+              error.pendingMigrations.some(({ name }) =>
+                name.includes(collectionName),
+              ),
+          );
+        } finally {
+          await consumer.close();
+        }
+        assertFalse(
+          await tableExists(pool.execute, collectionName, eventSchemaName),
+        );
+      } finally {
+        await storeWithoutProjections.close();
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    "migrates the store's projections when its consumer runs only the user's own processors",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: eventSchemaName,
+        },
+        projections: [
+          {
+            type: 'async',
+            projection: shoppingCartSummaryProjection(collectionName),
+          },
+        ],
+      });
+
+      try {
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+          processors: [
+            inMemoryReactor<ProductItemAdded>({
+              processorId: `processor:${uuid()}`,
+              eachMessage: () => {},
+            }),
+          ],
+        });
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+
+        assertTrue(
+          await tableExists(pool.execute, collectionName, eventSchemaName),
+        );
+        assertDeepEqual((await store.schema.migrate()).applied, []);
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    "creates the event store schema and its projectors' projections when a consumer created without the store starts",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const consumer = postgreSQLEventStoreConsumer<ProductItemAdded>({
+        connectionString,
+        stopWhen: { noMessagesLeft: true },
+        schema: { databaseSchemaName: eventSchemaName },
+      });
+      consumer.projector({
+        processorId: `processor:${uuid()}`,
+        projection: shoppingCartSummaryProjection(collectionName),
+      });
+
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      assertTrue(
+        await tableExists(pool.execute, messagesTable.name, eventSchemaName),
+      );
+      assertTrue(
+        await tableExists(pool.execute, collectionName, eventSchemaName),
+      );
+    },
+  );
+
+  void it(
+    "creates no event store schema when one of its projectors' projections fails to migrate",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const tableName = schemaName('product_sales');
+      const consumer = postgreSQLEventStoreConsumer<ProductItemAdded>({
+        connectionString,
+        stopWhen: { noMessagesLeft: true },
+        schema: { databaseSchemaName: eventSchemaName },
+      });
+      consumer.projector({
+        processorId: `processor:${uuid()}`,
+        projection: postgreSQLRawSQLProjection<ProductItemAdded>({
+          name: tableName,
+          canHandle: ['ProductItemAdded'],
+          migrations: [
+            sqlMigration(`test:${tableName}:invalid`, [
+              SQL`CREATE TABLE ${SQLTableReference.from({ databaseSchemaName: eventSchemaName, tableName })} (`,
+            ]),
+          ],
+          evolve: () => SQL`SELECT 1;`,
+        }),
+      });
+
+      try {
+        await assertRejects(consumer.start());
+      } finally {
+        await consumer.close();
+      }
+
+      assertFalse(
+        await tableExists(pool.execute, messagesTable.name, eventSchemaName),
+      );
+    },
+  );
+
+  void it(
+    'creates no event store schema when a projector with its own migration options fails to migrate its projection',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const projectionSchemaName = schemaName('read_models');
+      const tableName = schemaName('product_sales');
+      const consumer = postgreSQLEventStoreConsumer<ProductItemAdded>({
+        connectionString,
+        stopWhen: { noMessagesLeft: true },
+        schema: { databaseSchemaName: eventSchemaName },
+      });
+      consumer.projector({
+        processorId: `processor:${uuid()}`,
+        projection: postgreSQLRawSQLProjection<ProductItemAdded>({
+          name: tableName,
+          canHandle: ['ProductItemAdded'],
+          migrations: [
+            sqlMigration(`test:${tableName}:invalid`, [
+              SQL`CREATE TABLE ${SQLTableReference.from({ databaseSchemaName: projectionSchemaName, tableName })} (`,
+            ]),
+          ],
+          evolve: () => SQL`SELECT 1;`,
+        }),
+        migrationOptions: {
+          databaseSchemaName: eventSchemaName,
+          projectionsDatabaseSchemaName: projectionSchemaName,
+        },
+      });
+
+      try {
+        await assertRejects(consumer.start());
+      } finally {
+        await consumer.close();
+      }
+
+      assertFalse(
+        await tableExists(pool.execute, messagesTable.name, eventSchemaName),
+      );
+    },
+  );
+
+  void it(
+    'fails to start the consumer when a projector ensures migrations with its own migration options and its projection is not migrated',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const consumer = postgreSQLEventStoreConsumer<ProductItemAdded>({
+        connectionString,
+        stopWhen: { noMessagesLeft: true },
+        schema: { databaseSchemaName: eventSchemaName },
+      });
+      consumer.projector({
+        processorId: `processor:${uuid()}`,
+        projection: shoppingCartSummaryProjection(collectionName),
+        migrationOptions: {
+          databaseSchemaName: eventSchemaName,
+          autoMigration: 'EnsureMigrated',
+        },
+      });
+
+      try {
+        await assertRejects(
+          consumer.start(),
+          (error) =>
+            error instanceof PendingMigrationsError &&
+            error.pendingMigrations.some(({ name }) =>
+              name.includes(collectionName),
+            ),
+        );
+      } finally {
+        await consumer.close();
+      }
+
+      assertFalse(
+        await tableExists(pool.execute, collectionName, eventSchemaName),
+      );
+    },
+  );
+
+  void it(
+    'projects events when a projector ensures migrations with its own migration options and its projection is migrated',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const projection = shoppingCartSummaryProjection(collectionName);
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+        projections: [{ type: 'async', projection }],
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = postgreSQLEventStoreConsumer<ProductItemAdded>({
+          connectionString,
+          schema: { databaseSchemaName: eventSchemaName },
+        });
+        consumer.projector({
+          processorId: `processor:${uuid()}`,
+          projection,
+          migrationOptions: {
+            databaseSchemaName: eventSchemaName,
+            autoMigration: 'EnsureMigrated',
+          },
+        });
+
+        void consumer.start();
+        try {
+          await consumer.whenStarted();
+
+          await store.appendToStream(`shopping_cart-${uuid()}`, [
+            { type: 'ProductItemAdded', data: { productItem } },
+          ]);
+
+          await consumer.whenCaughtUp();
+        } finally {
+          await consumer.close();
+        }
+
+        assertEqual(1, await rowsInTable(eventSchemaName, collectionName));
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    "creates the reactor's tables in the event store schema when the event store's consumer starts",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const tableName = schemaName('sent_emails');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: eventSchemaName,
+        },
+      });
+
+      try {
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+        });
+        consumer.reactor({
+          processorId: `processor:${uuid()}`,
+          schema: { definition: sentEmailsSchema(tableName) },
+          eachMessage: () => {},
+        });
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+      } finally {
+        await store.close();
+      }
+
+      assertTrue(await tableExists(pool.execute, tableName, eventSchemaName));
+      assertFalse(await tableExists(pool.execute, tableName));
+    },
+  );
+
+  void it(
+    "creates the reactor's tables in the event store schema together with it when a consumer created without the store starts",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const tableName = schemaName('sent_emails');
+      const consumer = postgreSQLEventStoreConsumer<ProductItemAdded>({
+        connectionString,
+        stopWhen: { noMessagesLeft: true },
+        schema: { databaseSchemaName: eventSchemaName },
+      });
+      consumer.reactor({
+        processorId: `processor:${uuid()}`,
+        schema: { definition: sentEmailsSchema(tableName) },
+        eachMessage: () => {},
+      });
+
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      assertTrue(
+        await tableExists(pool.execute, messagesTable.name, eventSchemaName),
+      );
+      assertTrue(await tableExists(pool.execute, tableName, eventSchemaName));
+    },
+  );
+
+  void it(
+    "creates the reactor's tables in the schema that its component names",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const emailsSchemaName = schemaName('emails');
+      const tableName = schemaName('sent_emails');
+      const consumer = postgreSQLEventStoreConsumer<ProductItemAdded>({
+        connectionString,
+        stopWhen: { noMessagesLeft: true },
+        schema: { databaseSchemaName: eventSchemaName },
+      });
+      consumer.reactor({
+        processorId: `processor:${uuid()}`,
+        schema: {
+          definition: sentEmailsSchemaIn(emailsSchemaName, tableName),
+        },
+        eachMessage: () => {},
+      });
+
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      assertTrue(await tableExists(pool.execute, tableName, emailsSchemaName));
+      assertFalse(await tableExists(pool.execute, tableName, eventSchemaName));
+    },
+  );
+
+  void it(
+    "creates the reactor's tables from the migrations the user provided",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const tableName = schemaName('sent_emails');
+      const migrationName = `test:${tableName}:create`;
+      const consumer = postgreSQLEventStoreConsumer<ProductItemAdded>({
+        connectionString,
+        stopWhen: { noMessagesLeft: true },
+        schema: { databaseSchemaName: eventSchemaName },
+      });
+      consumer.reactor({
+        processorId: `processor:${uuid()}`,
+        migrations: [
+          sqlMigration(migrationName, [
+            SQL`CREATE TABLE ${SQLTableReference.from({ databaseSchemaName: eventSchemaName, tableName })} (id TEXT PRIMARY KEY)`,
+          ]),
+        ],
+        eachMessage: () => {},
+      });
+
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      assertTrue(await tableExists(pool.execute, tableName, eventSchemaName));
+      assertTrue(
+        (await migrationNames(eventSchemaName)).includes(migrationName),
+      );
+    },
+  );
+
+  void it(
+    'creates no reactor tables when the consumer skips migrations',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const tableName = schemaName('sent_emails');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+          schema: { autoMigration: 'None' },
+        });
+        consumer.reactor({
+          processorId: `processor:${uuid()}`,
+          schema: { definition: sentEmailsSchema(tableName) },
+          eachMessage: () => {},
+        });
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+      } finally {
+        await store.close();
+      }
+
+      assertFalse(await tableExists(pool.execute, tableName, eventSchemaName));
+    },
+  );
+
+  void it(
+    "creates the reactor's tables when the reactor sets its own autoMigration and the event store skips migrations",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const tableName = schemaName('sent_emails');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+        });
+        consumer.reactor({
+          processorId: `processor:${uuid()}`,
+          schema: { definition: sentEmailsSchema(tableName) },
+          migrationOptions: {
+            databaseSchemaName: eventSchemaName,
+            autoMigration: 'CreateOrUpdate',
+          },
+          eachMessage: () => {},
+        });
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+      } finally {
+        await store.close();
+      }
+
+      assertTrue(await tableExists(pool.execute, tableName, eventSchemaName));
+    },
+  );
+
+  void it(
+    'fails to start the consumer when a reactor ensures migrations and its tables are not migrated',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const tableName = schemaName('sent_emails');
+      const migrationName = `test:${tableName}:create`;
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+          schema: { autoMigration: 'EnsureMigrated' },
+        });
+        consumer.reactor({
+          processorId: `processor:${uuid()}`,
+          migrations: [
+            sqlMigration(migrationName, [
+              SQL`CREATE TABLE ${SQLTableReference.from({ databaseSchemaName: eventSchemaName, tableName })} (id TEXT PRIMARY KEY)`,
+            ]),
+          ],
+          eachMessage: () => {},
+        });
+        try {
+          await assertRejects(
+            consumer.start(),
+            (error) =>
+              error instanceof PendingMigrationsError &&
+              error.pendingMigrations.some(
+                ({ name }) => name === migrationName,
+              ),
+          );
+        } finally {
+          await consumer.close();
+        }
+      } finally {
+        await store.close();
+      }
+
+      assertFalse(await tableExists(pool.execute, tableName, eventSchemaName));
+    },
+  );
+
+  void it(
+    "creates no event store schema when a reactor's tables fail to migrate",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const tableName = schemaName('sent_emails');
+      const consumer = postgreSQLEventStoreConsumer<ProductItemAdded>({
+        connectionString,
+        stopWhen: { noMessagesLeft: true },
+        schema: { databaseSchemaName: eventSchemaName },
+      });
+      consumer.reactor({
+        processorId: `processor:${uuid()}`,
+        migrations: [
+          sqlMigration(`test:${tableName}:invalid`, [
+            SQL`CREATE TABLE ${SQLTableReference.from({ databaseSchemaName: eventSchemaName, tableName })} (`,
+          ]),
+        ],
+        eachMessage: () => {},
+      });
+
+      try {
+        await assertRejects(consumer.start());
+      } finally {
+        await consumer.close();
+      }
+
+      assertFalse(
+        await tableExists(pool.execute, messagesTable.name, eventSchemaName),
+      );
+    },
+  );
+
+  void it(
+    "creates the workflow processor's tables in the event store schema together with it when a consumer created without the store starts",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const tableName = schemaName('group_checkouts');
+      const consumer = postgreSQLEventStoreConsumer({
+        connectionString,
+        stopWhen: { noMessagesLeft: true },
+        schema: { databaseSchemaName: eventSchemaName },
+      });
+      consumer.workflowProcessor<
+        GroupCheckoutInput,
+        GroupCheckout,
+        GroupCheckoutOutput
+      >({
+        ...workflowProcessorOptions,
+        schema: { definition: sentEmailsSchema(tableName) },
+      });
+
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      assertTrue(
+        await tableExists(pool.execute, messagesTable.name, eventSchemaName),
+      );
+      assertTrue(await tableExists(pool.execute, tableName, eventSchemaName));
+    },
+  );
+
+  void it(
+    'creates no workflow processor tables when the consumer skips migrations',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const tableName = schemaName('group_checkouts');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer({
+          stopWhen: { noMessagesLeft: true },
+          schema: { autoMigration: 'None' },
+        });
+        consumer.workflowProcessor<
+          GroupCheckoutInput,
+          GroupCheckout,
+          GroupCheckoutOutput
+        >({
+          ...workflowProcessorOptions,
+          schema: { definition: sentEmailsSchema(tableName) },
+        });
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+      } finally {
+        await store.close();
+      }
+
+      assertFalse(await tableExists(pool.execute, tableName, eventSchemaName));
+    },
+  );
+
+  const dropTableWithMigrations = async (
+    databaseSchemaName: string,
+    tableName: string,
+  ): Promise<void> => {
+    await pool.execute.command(
+      SQL`DROP TABLE ${SQLTableReference.from({ databaseSchemaName, tableName })}`,
+    );
+    await pool.execute.command(
+      SQL`DELETE FROM ${SQLTableReference.from({ databaseSchemaName, tableName: 'dmb_migrations' })} WHERE name LIKE ${`%${tableName}%`}`,
+    );
+  };
+
   const messagesInStream = (
     databaseSchemaName: string,
     streamName: string,
@@ -769,6 +1693,20 @@ const shoppingCartSummaryProjection = (collectionName: string) =>
     }),
     initialState: () => ({ productItemsCount: 0 }),
   });
+
+const sentEmailsTables = (tableName: string) => ({
+  sentEmails: table(tableName, {
+    columns: {
+      id: column('id', Text, { primaryKey: true, notNull: true }),
+    },
+  }),
+});
+
+const sentEmailsSchema = (tableName: string) =>
+  dumboSchema.database({ tables: sentEmailsTables(tableName) });
+
+const sentEmailsSchemaIn = (databaseSchemaName: string, tableName: string) =>
+  dumboSchema.schema(databaseSchemaName, sentEmailsTables(tableName));
 
 const schemaName = (prefix: string): string =>
   `${prefix}_${uuid().replaceAll('-', '_')}`;

@@ -705,6 +705,68 @@ void describe('consumer', () => {
     assertEqual(sourceState.closed, 1);
     assertEqual(closeHookCalls, 1);
   });
+
+  void it('runs the init hook once before the processors initialise', async () => {
+    const { source } = testSource([caughtUpAt('0')]);
+    const { processor } = testProcessor('a');
+
+    const calls: string[] = [];
+    processor.init = () => {
+      calls.push('processor init');
+      return Promise.resolve();
+    };
+
+    const messageConsumer = testConsumer({
+      source,
+      processors: [processor],
+      until: { noMessagesLeft: true },
+      hooks: {
+        onInit: () => {
+          calls.push('init hook');
+          return Promise.resolve();
+        },
+      },
+    });
+
+    await messageConsumer.init();
+    await messageConsumer.start();
+
+    assertDeepEqual(calls, ['init hook', 'processor init']);
+  });
+
+  void it('lets the consumer start again after the init hook failed', async () => {
+    const { source } = testSource([caughtUpAt('0')]);
+    const { processor, state } = testProcessor('a');
+
+    const failure = new Error('Init hook failed');
+    let initHookCalls = 0;
+
+    const messageConsumer = testConsumer({
+      source,
+      processors: [processor],
+      until: { noMessagesLeft: true },
+      hooks: {
+        onInit: () => {
+          initHookCalls++;
+          return initHookCalls === 1
+            ? Promise.reject(failure)
+            : Promise.resolve();
+        },
+      },
+    });
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    try {
+      await assertRejects(messageConsumer.start(), failure);
+    } finally {
+      log.mockRestore();
+    }
+
+    await messageConsumer.start();
+
+    assertEqual(initHookCalls, 2);
+    assertEqual(state.inits, 1);
+  });
 });
 
 void describe('consumer observability', () => {

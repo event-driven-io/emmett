@@ -132,6 +132,7 @@ export const DefaultConsumerBatchSize = 100;
 export const DefaultConsumerBatchDeadlineInMs = 50;
 
 export type ConsumerHooks = {
+  onInit?: () => Promise<void>;
   onClose?: () => Promise<void>;
 };
 
@@ -300,6 +301,8 @@ export const consumer = <
     (observabilityScope ? withObservabilityScope(observabilityScope) : scope)(
       async (context) => {
         if (isInitialized) return;
+
+        if (hooks?.onInit) await hooks.onInit();
 
         for (const processor of processors) {
           try {

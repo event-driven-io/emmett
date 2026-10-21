@@ -69,6 +69,7 @@ void describe('PostgreSQL event store consumer', () => {
         source,
         processors: [collectingReactor(handled)],
         stopWhen: { noMessagesLeft: true },
+        schema: { autoMigration: 'None' },
       });
 
       try {
@@ -101,6 +102,7 @@ void describe('PostgreSQL event store consumer', () => {
         source: trackedSource,
         processors: [collectingReactor([])],
         stopWhen: { noMessagesLeft: true },
+        schema: { autoMigration: 'None' },
       });
 
       await consumer.start();

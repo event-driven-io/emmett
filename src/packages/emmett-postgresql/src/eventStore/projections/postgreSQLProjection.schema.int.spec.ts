@@ -82,6 +82,43 @@ void describe('PostgreSQL projection schema', () => {
   );
 
   void it(
+    'migrates the schema on the next call after a failed migration',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const failure = new Error('Transient failure');
+      let attempts = 0;
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+        projections: [
+          { type: 'async', projection: shoppingCartProjection(collectionName) },
+        ],
+        hooks: {
+          onBeforeSchemaCreated: () => {
+            attempts++;
+            if (attempts === 1) throw failure;
+          },
+        },
+      });
+
+      try {
+        await assertRejects(store.schema.migrate(), failure);
+
+        await store.schema.migrate();
+
+        assertTrue(
+          await tableExists(pool.execute, collectionName, eventSchemaName),
+        );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
     'creates the raw SQL projection table from the migrations the user provided',
     withDeadline,
     async () => {
@@ -140,25 +177,27 @@ void describe('PostgreSQL projection schema', () => {
             projection: postgreSQLRawSQLProjection<ProductItemAdded>({
               name: salesTableName,
               canHandle: ['ProductItemAdded'],
-              schema: dumboSchema.schema(projectionSchemaName, {
-                sales: table(salesTableName, {
-                  columns: {
-                    productId: column('product_id', Text, {
-                      primaryKey: true,
-                      notNull: true,
-                    }),
-                    totalAmount: column('total_amount', Integer),
-                  },
+              schema: {
+                definition: dumboSchema.schema(projectionSchemaName, {
+                  sales: table(salesTableName, {
+                    columns: {
+                      productId: column('product_id', Text, {
+                        primaryKey: true,
+                        notNull: true,
+                      }),
+                      totalAmount: column('total_amount', Integer),
+                    },
+                  }),
+                  totals: table(totalsTableName, {
+                    columns: {
+                      productId: column('product_id', Text, {
+                        primaryKey: true,
+                        notNull: true,
+                      }),
+                    },
+                  }),
                 }),
-                totals: table(totalsTableName, {
-                  columns: {
-                    productId: column('product_id', Text, {
-                      primaryKey: true,
-                      notNull: true,
-                    }),
-                  },
-                }),
-              }),
+              },
               evolve: () => SQL`SELECT 1;`,
             }),
           },
@@ -205,18 +244,20 @@ void describe('PostgreSQL projection schema', () => {
             projection: postgreSQLRawSQLProjection<ProductItemAdded>({
               name: salesTableName,
               canHandle: ['ProductItemAdded'],
-              schema: dumboSchema.database({
-                tables: {
-                  sales: table(salesTableName, {
-                    columns: {
-                      productId: column('product_id', Text, {
-                        primaryKey: true,
-                        notNull: true,
-                      }),
-                    },
-                  }),
-                },
-              }),
+              schema: {
+                definition: dumboSchema.database({
+                  tables: {
+                    sales: table(salesTableName, {
+                      columns: {
+                        productId: column('product_id', Text, {
+                          primaryKey: true,
+                          notNull: true,
+                        }),
+                      },
+                    }),
+                  },
+                }),
+              },
               evolve: () => SQL`SELECT 1;`,
             }),
           },
@@ -278,6 +319,57 @@ void describe('PostgreSQL projection schema', () => {
         await assertRejects(changed.schema.migrate(), (error: Error) =>
           error.message.includes('Migration hash mismatch'),
         );
+      } finally {
+        await changed.close();
+      }
+    },
+  );
+
+  void it(
+    'migrates when the user changes the SQL returned by init after it was applied and overrides migration hashes',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const tableName = schemaName('product_sales');
+      const storeWith = (columns: SQL) =>
+        getPostgreSQLEventStore({
+          driver: pgEventStoreDriver,
+          connectionString,
+          schema: {
+            autoMigration: 'None',
+            databaseSchemaName: eventSchemaName,
+          },
+          projections: [
+            {
+              type: 'inline',
+              projection: postgreSQLRawSQLProjection<ProductItemAdded>({
+                name: tableName,
+                canHandle: ['ProductItemAdded'],
+                init: () =>
+                  SQL`CREATE TABLE IF NOT EXISTS ${SQLTableReference.from({ databaseSchemaName: eventSchemaName, tableName })} (${columns})`,
+                evolve: () => SQL`SELECT 1;`,
+              }),
+            },
+          ],
+        });
+
+      const migrated = storeWith(SQL`id TEXT PRIMARY KEY`);
+      try {
+        await migrated.schema.migrate();
+      } finally {
+        await migrated.close();
+      }
+
+      const overridden = storeWith(SQL`id TEXT PRIMARY KEY, total INT`);
+      try {
+        await overridden.schema.migrate({ overrideMigrationHashes: true });
+      } finally {
+        await overridden.close();
+      }
+
+      const changed = storeWith(SQL`id TEXT PRIMARY KEY, total INT`);
+      try {
+        await changed.schema.migrate();
       } finally {
         await changed.close();
       }

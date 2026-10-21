@@ -39,7 +39,7 @@ You structure it with four parts:
 
 - `name` identifies the projection.
 - `canHandle` lists the event types it processes; the rest are ignored.
-- `migrations`, `schema` or `init` describe the tables the projection needs. Pass `migrations` as a list of Dumbo `sqlMigration`s, `schema` as a Dumbo schema component when the projection uses more than one table, or `init` as a function that returns the `CREATE TABLE` SQL. Emmett records each applied migration, so it runs only once.
+- `migrations`, `schema` or `init` describe the tables the projection needs. Pass `migrations` as a list of Dumbo `sqlMigration`s, `schema.definition` as a Dumbo schema component when the projection uses more than one table, or `init` as a function that returns the `CREATE TABLE` SQL. Emmett records each applied migration, so it runs only once.
 - `evolve` returns the SQL to run for each event. That can be an `INSERT` for the first event and an `UPDATE` or `DELETE` for later ones, or a single upsert (`INSERT ... ON CONFLICT ... DO UPDATE`) keyed on the row id when you'd rather not branch on whether the row exists yet.
 
 Build the statements with the `SQL` tagged template: wrap table and column names in `SQL.identifier(...)`, and interpolate values as `${value}` so they bind as parameters rather than concatenate into the string. Derive the row id from the event, the same way a Pongo projection derives its document id:
@@ -66,13 +66,28 @@ Use async when you need faster appends, when you're projecting to external syste
 
 Pongo and raw SQL projections declare the tables they need. The event store creates them together with its own tables when you call `eventStore.schema.migrate()`. That includes all projections registered in the event store, inline and async.
 
-`autoMigration` decides what happens without an explicit call:
+`autoMigration` decides what happens without an explicit call. It never changes what `eventStore.schema.migrate()` does:
 
-- `CreateOrUpdate` (default) creates or updates the tables on the first operation. A consumer does the same for its projectors when it starts.
+- `CreateOrUpdate` (default) creates or updates the tables on the first operation, or when a consumer starts. The event store and each consumer run this migration only once. If it fails, the next operation or start tries again.
 - `EnsureMigrated` only checks that all migrations are applied, and throws `PendingMigrationsError` if any are pending.
 - `None` runs no migration and no check.
 
-A consumer created with `eventStore.consumer()` uses the event store's `autoMigration`, unless you set its own in `schema.autoMigration`. If you don't pass `processors` to it, it runs all projections registered in the event store as async.
+When a consumer starts, it migrates the event store schema together with the tables of all its processors, in one transaction. A consumer that you create without the event store does the same.
+
+A consumer created with `eventStore.consumer()` uses the event store's migration. If the event store already migrated, the consumer doesn't migrate again. If you don't pass `processors` to it, it runs all projections registered in the event store as async, so it migrates them too.
+
+Each setting is inherited unless you set it explicitly:
+
+- A processor uses its own `migrationOptions.autoMigration`, otherwise the consumer's.
+- A consumer uses its own `schema.autoMigration`, otherwise the event store's.
+
+A processor with its own `autoMigration` that differs from the consumer's migrates its tables on its own, in a separate transaction.
+
+Reactors and workflow processors declare their tables the same way as raw SQL projections, with `migrations` or `schema.definition`:
+
+<<< ./projections/projectionSetup.snippet.ts#processor-migrations-setup
+
+A schema component that names its database schema keeps it. Otherwise, projection tables go to `projectionsDatabaseSchemaName`, and the tables of reactors and workflow processors go to `databaseSchemaName`, next to their checkpoints.
 
 Use `None` or `EnsureMigrated` when your runtime database role cannot create tables. Then migrate the schema in a separate step with a role that can:
 

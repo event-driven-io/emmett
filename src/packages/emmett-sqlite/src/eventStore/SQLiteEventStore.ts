@@ -9,6 +9,7 @@ import {
   type Dumbo,
   type MigrationStyle,
   type RunSQLMigrationsResult,
+  type SchemaComponentMigrateOptions,
   type SQLMigration,
 } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
@@ -58,6 +59,7 @@ import type {
 import {
   handleProjections,
   isSQLiteProjectionWithSchema,
+  sqliteProjectionWithDatabaseSchemaName,
   transactionToSQLiteProjectionHandlerContext,
   type SQLiteProjectionDefinition,
   type SQLiteProjectionEnsureMigratedOptions,
@@ -72,7 +74,6 @@ import {
   readStream,
   streamExists,
   unknownTag,
-  type CreateEventStoreSchemaOptions,
   type EventStoreDatabaseSchemaOptions,
   type SQLiteStreamExistsOptions,
 } from './schema';
@@ -113,7 +114,7 @@ export interface SQLiteEventStore
       options?: SQLiteProjectionEnsureMigratedOptions,
     ): Promise<void>;
     migrate(
-      options?: CreateEventStoreSchemaOptions,
+      options?: Omit<SchemaComponentMigrateOptions, 'execute'>,
     ): Promise<RunSQLMigrationsResult>;
     dangerous: {
       truncate(options?: { truncateProjections?: boolean }): Promise<void>;
@@ -194,29 +195,13 @@ export const getSQLiteEventStore = <
     connectionOptions: dumboOptions,
   };
   let migrateSchema: Promise<RunSQLMigrationsResult> | undefined = undefined;
-  const withProjectionsDatabaseSchemaName = (
-    registrations: NonNullable<typeof options.projections>,
-    projectionsDatabaseSchemaName: string | undefined,
-  ): NonNullable<typeof options.projections> =>
-    projectionsDatabaseSchemaName === undefined
-      ? registrations
-      : registrations.map((registration) =>
-          isSQLiteProjectionWithSchema(registration.projection)
-            ? {
-                ...registration,
-                projection: {
-                  ...registration.projection,
-                  schema: registration.projection.schema.withDatabaseSchemaName(
-                    projectionsDatabaseSchemaName,
-                  ),
-                },
-              }
-            : registration,
-        );
-  const projections = withProjectionsDatabaseSchemaName(
-    options.projections ?? [],
-    databaseSchema.projectionsDatabaseSchemaName,
-  );
+  const projections = (options.projections ?? []).map((registration) => ({
+    ...registration,
+    projection: sqliteProjectionWithDatabaseSchemaName(
+      registration.projection,
+      databaseSchema.projectionsDatabaseSchemaName,
+    ),
+  }));
   const projectionSchemaComponents = (
     registrations: NonNullable<typeof options.projections>,
   ): AnySchemaComponent[] =>
@@ -251,16 +236,13 @@ export const getSQLiteEventStore = <
   }
 
   const migrate = async (
-    migrationOptions?: CreateEventStoreSchemaOptions,
+    migrationOptions?: Omit<SchemaComponentMigrateOptions, 'execute'>,
   ): Promise<RunSQLMigrationsResult> => {
     if (!migrateSchema) {
-      const migrationSchemaOptions = {
+      const schemaMigrationOptions = {
         ...options.schema,
         ...migrationOptions,
-      };
-      const schemaMigrationOptions = {
-        ...migrationSchemaOptions,
-        ...eventStoreDatabaseSchema(migrationSchemaOptions),
+        ...databaseSchema,
       };
 
       const migration = createEventStoreSchema({
@@ -295,23 +277,19 @@ export const getSQLiteEventStore = <
           },
         },
         schema: schemaMigrationOptions,
-        components: projectionSchemaComponents(
-          schemaMigrationOptions.projectionsDatabaseSchemaName ===
-            databaseSchema.projectionsDatabaseSchemaName
-            ? projections
-            : withProjectionsDatabaseSchemaName(
-                projections,
-                schemaMigrationOptions.projectionsDatabaseSchemaName,
-              ),
-        ),
+        components: projectionSchemaComponents(projections),
       });
 
       if (migrationOptions?.dryRun) {
         return migration;
       }
 
-      migrateSchema = migration;
-      return migration;
+      const memoised = migration.catch((error: unknown) => {
+        if (migrateSchema === memoised) migrateSchema = undefined;
+        throw error;
+      });
+      migrateSchema = memoised;
+      return memoised;
     }
     const result = await migrateSchema;
 
@@ -518,6 +496,8 @@ export const getSQLiteEventStore = <
     consumer: <ConsumerMessageType extends Message = AnyMessage>(
       consumerOptions?: SQLiteEventStoreConsumerConfig<ConsumerMessageType>,
     ): SQLiteEventStoreConsumer<ConsumerMessageType> => {
+      const storeMigrates =
+        consumerOptions?.schema?.autoMigration === undefined;
       const consumer = sqliteEventStoreConsumer<ConsumerMessageType, Driver>({
         ...(options ?? {}),
         ...consumerOptions,
@@ -533,6 +513,13 @@ export const getSQLiteEventStore = <
           consumerOptions?.observability,
         ),
         pool,
+        hooks: storeMigrates
+          ? {
+              onInit: async () => {
+                await ensureSchemaExists();
+              },
+            }
+          : undefined,
       });
 
       if (!consumerOptions?.processors?.length)
@@ -542,6 +529,9 @@ export const getSQLiteEventStore = <
             projection: projection as unknown as SQLiteProjectionDefinition<
               ConsumerMessageType & AnyEvent
             >,
+            migrationOptions: storeMigrates
+              ? { ...options.schema, ...databaseSchema, autoMigration: 'None' }
+              : undefined,
           });
 
       return consumer;

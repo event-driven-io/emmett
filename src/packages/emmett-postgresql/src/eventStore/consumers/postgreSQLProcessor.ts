@@ -71,9 +71,14 @@ import {
 import {
   DefaultPostgreSQLProcessorLockPolicy,
   isPostgreSQLProjectionWithSchema,
+  postgreSQLProjectionWithDatabaseSchemaName,
   postgreSQLProcessorLock,
+  postgreSQLSchemaOf,
   type LockAcquisitionPolicy,
   type PostgreSQLProcessorLock,
+  type PostgreSQLProcessorLockOptions,
+  type PostgreSQLProjectionSchema,
+  type PostgreSQLSchemaOptions,
 } from '../projections';
 import {
   eventStoreDatabaseSchema,
@@ -272,7 +277,8 @@ export type PostgreSQLReactorOptions<
   PostgreSQLProcessorHandlerContext<Driver>,
   MessagePayloadType
 > &
-  PostgreSQLProcessorOptionsBase<Driver>;
+  PostgreSQLProcessorOptionsBase<Driver> &
+  PostgreSQLSchemaOptions;
 
 export type PostgreSQLProjectorOptions<
   EventType extends AnyEvent = AnyEvent,
@@ -303,7 +309,8 @@ export type PostgreSQLWorkflowProcessorOptions<
   HandlerContext,
   StoredMessage
 > &
-  PostgreSQLProcessorOptionsBase<Driver>;
+  PostgreSQLProcessorOptionsBase<Driver> &
+  PostgreSQLSchemaOptions;
 
 const postgreSQLProcessingScope = <
   Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
@@ -435,6 +442,84 @@ const toProcessorLockOptions = <
     lock?.acquisitionPolicy ?? DefaultPostgreSQLProcessorLockPolicy,
 });
 
+const postgreSQLReactorBase = <
+  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+>(
+  options: PostgreSQLProcessorOptionsBase<Driver> & {
+    processorId: string;
+    processorInstanceId: string;
+    version: number;
+    partition: string;
+    hooks?: ProcessorHooks<PostgreSQLProcessorHandlerContext<Driver>>;
+    projection?: PostgreSQLProcessorLockOptions['projection'];
+    schemaOf: (
+      migrationOptions: NonNullable<
+        EventStoreSchemaMigrationOptions['migrationOptions']
+      >,
+    ) => PostgreSQLProjectionSchema | undefined;
+  },
+) => {
+  const { processorId, processorInstanceId, version, partition, lock } =
+    options;
+
+  const { pool, connectionOptions, close } = getProcessorPool(options);
+
+  const processorLock = postgreSQLProcessorLock({
+    databaseSchemaName: options.migrationOptions?.databaseSchemaName,
+    processorId,
+    version,
+    partition,
+    processorInstanceId,
+    projection: options.projection,
+    lockTimeoutSeconds: lock?.timeoutSeconds,
+  });
+
+  const migrationOptions = {
+    ...options.migrationOptions,
+    ...eventStoreDatabaseSchema(options.migrationOptions),
+  };
+  const schema = options.schemaOf(migrationOptions);
+
+  const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext<Driver>> = {
+    ...(options.hooks ?? {}),
+    onInit:
+      schema || options.hooks?.onInit
+        ? async (context) => {
+            const schemaContext = { ...context, migrationOptions };
+            if (schema) {
+              const autoMigration =
+                migrationOptions.autoMigration ?? 'CreateOrUpdate';
+              if (autoMigration === 'EnsureMigrated')
+                await schema.ensureMigrated(schemaContext);
+              else if (autoMigration === 'CreateOrUpdate')
+                await schema.migrate(schemaContext);
+            }
+            if (options.hooks?.onInit)
+              await options.hooks.onInit(schemaContext);
+          }
+        : undefined,
+    onClose: close
+      ? async (context) => {
+          if (options.hooks?.onClose) await options.hooks?.onClose(context);
+          if (close) await close();
+        }
+      : options.hooks?.onClose,
+  };
+
+  return {
+    hooks,
+    lock: toProcessorLockOptions(processorLock, lock),
+    processingScope: postgreSQLProcessingScope<Driver>({
+      pool,
+      connectionOptions,
+      driver: options.driver,
+      processorId,
+      partition,
+      migrationOptions,
+    }),
+  };
+};
+
 export const postgreSQLProjector = <
   EventType extends Event = Event,
   EventPayloadType extends Event = EventType,
@@ -449,82 +534,48 @@ export const postgreSQLProjector = <
     processorInstanceId = getProcessorInstanceId(processorId),
     version = defaultProcessorVersion,
     partition = defaultProcessorPartition,
-    lock,
   } = options;
 
-  const { pool, connectionOptions, close } = getProcessorPool(options);
-
-  const processorLock = postgreSQLProcessorLock({
-    databaseSchemaName: options.migrationOptions?.databaseSchemaName,
+  const reactorBase = postgreSQLReactorBase<Driver>({
+    ...options,
     processorId,
+    processorInstanceId,
     version,
     partition,
-    processorInstanceId,
-    projection: options.projection
-      ? {
-          name: options.projection.name ?? unknownTag,
-          kind: options.projection.kind ?? unknownTag,
-          version: options.projection.version ?? version,
-          handlingType: 'async' as const,
-        }
-      : undefined,
-    lockTimeoutSeconds: lock?.timeoutSeconds,
+    projection: {
+      name: options.projection.name ?? unknownTag,
+      kind: options.projection.kind ?? unknownTag,
+      version: options.projection.version ?? version,
+      handlingType: 'async' as const,
+    },
+    hooks: {
+      ...(options.hooks ?? {}),
+      onInit:
+        options.projection.init !== undefined || options.hooks?.onInit
+          ? async (context) => {
+              if (options.projection.init)
+                await options.projection.init({
+                  version: options.projection.version ?? version,
+                  status: 'active',
+                  registrationType: 'async',
+                  context,
+                });
+              if (options.hooks?.onInit) await options.hooks.onInit(context);
+            }
+          : undefined,
+    },
+    schemaOf: (migrationOptions) => {
+      const projection = postgreSQLProjectionWithDatabaseSchemaName(
+        options.projection,
+        migrationOptions.projectionsDatabaseSchemaName,
+      );
+      return isPostgreSQLProjectionWithSchema(projection)
+        ? projection.schema
+        : undefined;
+    },
   });
 
-  const migrationOptions = {
-    ...options.migrationOptions,
-    ...eventStoreDatabaseSchema(options.migrationOptions),
-  };
-  const projectionSchema = isPostgreSQLProjectionWithSchema(options.projection)
-    ? migrationOptions.projectionsDatabaseSchemaName !== undefined
-      ? options.projection.schema.withDatabaseSchemaName(
-          migrationOptions.projectionsDatabaseSchemaName,
-        )
-      : options.projection.schema
-    : undefined;
-
-  const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext<Driver>> = {
-    ...(options.hooks ?? {}),
-    onInit:
-      options.projection.init !== undefined ||
-      projectionSchema ||
-      options.hooks?.onInit
-        ? async (context) => {
-            const autoMigration =
-              options.migrationOptions?.autoMigration ?? 'CreateOrUpdate';
-            const projectionContext = { ...context, migrationOptions };
-            if (projectionSchema) {
-              if (autoMigration === 'EnsureMigrated')
-                await projectionSchema.ensureMigrated(projectionContext);
-              else if (autoMigration === 'CreateOrUpdate')
-                await projectionSchema.migrate(projectionContext);
-            }
-            if (options.projection.init)
-              await options.projection.init({
-                version: options.projection.version ?? version,
-                status: 'active',
-                registrationType: 'async',
-                context: {
-                  ...context,
-                  migrationOptions: options.migrationOptions,
-                },
-              });
-            if (options.hooks?.onInit)
-              await options.hooks.onInit({
-                ...context,
-                migrationOptions: options.migrationOptions,
-              });
-          }
-        : options.hooks?.onInit,
-    onClose: close
-      ? async (context) => {
-          if (options.hooks?.onClose) await options.hooks?.onClose(context);
-          if (close) await close();
-        }
-      : options.hooks?.onClose,
-  };
-
-  const processor = projector<
+  return projector<
     EventType,
     ReadEventMetadataWithGlobalPosition,
     PostgreSQLProcessorHandlerContext<Driver>,
@@ -535,23 +586,12 @@ export const postgreSQLProjector = <
     processorInstanceId,
     version,
     partition,
-    hooks,
-    lock: toProcessorLockOptions(processorLock, lock),
-    processingScope: postgreSQLProcessingScope<Driver>({
-      pool,
-      connectionOptions,
-      driver: options.driver,
-      processorId,
-      partition,
-      migrationOptions: options.migrationOptions,
-    }),
+    ...reactorBase,
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<EventType>()
         : postgreSQLCheckpointer<EventType, Driver>(),
   });
-
-  return processor;
 };
 
 export const postgreSQLWorkflowProcessor = <
@@ -583,30 +623,20 @@ export const postgreSQLWorkflowProcessor = <
     processorInstanceId = getProcessorInstanceId(processorId),
     version = defaultProcessorVersion,
     partition = defaultProcessorPartition,
-    lock,
   } = options;
 
-  const { pool, connectionOptions, close } = getProcessorPool(options);
-
-  const processorLock = postgreSQLProcessorLock({
-    databaseSchemaName: options.migrationOptions?.databaseSchemaName,
+  const reactorBase = postgreSQLReactorBase<Driver>({
+    ...options,
     processorId,
+    processorInstanceId,
     version,
     partition,
-    processorInstanceId,
-    projection: undefined,
-    lockTimeoutSeconds: lock?.timeoutSeconds,
+    hooks: options.hooks as unknown as ProcessorHooks<
+      PostgreSQLProcessorHandlerContext<Driver>
+    >,
+    schemaOf: (migrationOptions) =>
+      postgreSQLSchemaOf(options, migrationOptions.databaseSchemaName),
   });
-
-  const hooks: ProcessorHooks<HandlerContext> = {
-    ...(options.hooks ?? {}),
-    onClose: close
-      ? async (context: HandlerContext) => {
-          if (options.hooks?.onClose) await options.hooks?.onClose(context);
-          if (close) await close();
-        }
-      : options.hooks?.onClose,
-  };
 
   return workflowProcessor({
     ...options,
@@ -614,16 +644,10 @@ export const postgreSQLWorkflowProcessor = <
     processorInstanceId,
     version,
     partition,
-    hooks,
-    lock: toProcessorLockOptions(processorLock, lock),
-    processingScope: postgreSQLProcessingScope<Driver>({
-      pool,
-      connectionOptions,
-      driver: options.driver,
-      processorId,
-      partition,
-      migrationOptions: options.migrationOptions,
-    }) as unknown as MessageProcessingScope<HandlerContext>,
+    hooks: reactorBase.hooks,
+    lock: reactorBase.lock,
+    processingScope:
+      reactorBase.processingScope as unknown as MessageProcessingScope<HandlerContext>,
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<Input | Output, MetaDataType, HandlerContext>()
@@ -647,30 +671,7 @@ export const postgreSQLReactor = <
     processorInstanceId = getProcessorInstanceId(processorId),
     version = defaultProcessorVersion,
     partition = defaultProcessorPartition,
-    lock,
   } = options;
-
-  const { pool, connectionOptions, close } = getProcessorPool(options);
-
-  const processorLock = postgreSQLProcessorLock({
-    databaseSchemaName: options.migrationOptions?.databaseSchemaName,
-    processorId,
-    version,
-    partition,
-    processorInstanceId,
-    projection: undefined,
-    lockTimeoutSeconds: lock?.timeoutSeconds,
-  });
-
-  const hooks: ProcessorHooks<PostgreSQLProcessorHandlerContext<Driver>> = {
-    ...(options.hooks ?? {}),
-    onClose: close
-      ? async (context) => {
-          if (options.hooks?.onClose) await options.hooks?.onClose(context);
-          if (close) await close();
-        }
-      : options.hooks?.onClose,
-  };
 
   return reactor({
     ...options,
@@ -678,15 +679,14 @@ export const postgreSQLReactor = <
     processorInstanceId,
     version,
     partition,
-    hooks,
-    lock: toProcessorLockOptions(processorLock, lock),
-    processingScope: postgreSQLProcessingScope<Driver>({
-      pool,
-      connectionOptions,
-      driver: options.driver,
+    ...postgreSQLReactorBase<Driver>({
+      ...options,
       processorId,
+      processorInstanceId,
+      version,
       partition,
-      migrationOptions: options.migrationOptions,
+      schemaOf: (migrationOptions) =>
+        postgreSQLSchemaOf(options, migrationOptions.databaseSchemaName),
     }),
     checkpoints:
       options.checkpoints === 'DISABLED'
