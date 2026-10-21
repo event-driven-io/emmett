@@ -1,0 +1,784 @@
+
+
+
+
+Building Blocks for HTTP APIs                                 C. Vasters
+Internet-Draft                                     Microsoft Corporation
+Intended status: Standards Track                             9 June 2026
+Expires: 11 December 2026
+
+
+       JSON Structure: Symbols, Scientific Units, and Currencies
+                 draft-vasters-json-structure-units-03
+
+Abstract
+
+   This document specifies "JSON Structure Symbols, Scientific Units,
+   and Currencies", an extension to JSON Structure Core.  This
+   specification defines a set of annotation keywords for associating
+   scientific unit and currency metadata and constraints, primarily for
+   use with numeric values.
+
+   This extension provides a mechanism for schema authors to explicitly
+   declare the unit associated with numeric data, thereby enabling
+   precise mapping between schema representations and external data
+   systems.
+
+About This Document
+
+   This note is to be removed before publishing as an RFC.
+
+   The latest revision of this draft can be found at https://json-
+   structure.github.io/units/draft-vasters-json-structure-units.html.
+   Status information for this document may be found at
+   https://datatracker.ietf.org/doc/draft-vasters-json-structure-units/.
+
+
+   Source for this draft and an issue tracker can be found at
+   https://github.com/json-structure/units.
+
+Status of This Memo
+
+   This Internet-Draft is submitted in full conformance with the
+   provisions of BCP 78 and BCP 79.
+
+   Internet-Drafts are working documents of the Internet Engineering
+   Task Force (IETF).  Note that other groups may also distribute
+   working documents as Internet-Drafts.  The list of current Internet-
+   Drafts is at https://datatracker.ietf.org/drafts/current/.
+
+
+
+
+
+
+
+Vasters                 Expires 11 December 2026                [Page 1]
+
+Internet-Draft            JSON Structure Units                 June 2026
+
+
+   Internet-Drafts are draft documents valid for a maximum of six months
+   and may be updated, replaced, or obsoleted by other documents at any
+   time.  It is inappropriate to use Internet-Drafts as reference
+   material or to cite them other than as "work in progress."
+
+   This Internet-Draft will expire on 11 December 2026.
+
+Copyright Notice
+
+   Copyright (c) 2026 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents (https://trustee.ietf.org/
+   license-info) in effect on the date of publication of this document.
+   Please review these documents carefully, as they describe your rights
+   and restrictions with respect to this document.  Code Components
+   extracted from this document must include Revised BSD License text as
+   described in Section 4.e of the Trust Legal Provisions and are
+   provided without warranty as described in the Revised BSD License.
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   3
+   2.  Conventions . . . . . . . . . . . . . . . . . . . . . . . . .   3
+   3.  Symbol Annotations  . . . . . . . . . . . . . . . . . . . . .   3
+     3.1.  The symbol Keyword  . . . . . . . . . . . . . . . . . . .   3
+       3.1.1.  The symbols Keyword . . . . . . . . . . . . . . . . .   4
+   4.  Scientific Unit Annotations . . . . . . . . . . . . . . . . .   5
+     4.1.  The unit Keyword  . . . . . . . . . . . . . . . . . . . .   5
+     4.2.  The ucumUnit Keyword  . . . . . . . . . . . . . . . . . .   6
+       4.2.1.  Compatibility with the unit Keyword . . . . . . . . .   7
+     4.3.  Unit Annotations  . . . . . . . . . . . . . . . . . . . .   7
+     4.4.  Unit Prefixes . . . . . . . . . . . . . . . . . . . . . .   9
+   5.  Currency Annotations  . . . . . . . . . . . . . . . . . . . .  10
+     5.1.  The currency Keyword  . . . . . . . . . . . . . . . . . .  10
+     5.2.  Enabling the Annotations  . . . . . . . . . . . . . . . .  10
+   6.  Security and Interoperability Considerations  . . . . . . . .  11
+   7.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .  11
+   8.  Normative References  . . . . . . . . . . . . . . . . . . . .  11
+   Changes from draft-vasters-json-structure-units-01  . . . . . . .  13
+   Changes from draft-vasters-json-structure-units-00  . . . . . . .  13
+   Acknowledgments . . . . . . . . . . . . . . . . . . . . . . . . .  13
+   Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .  14
+
+
+
+
+
+
+
+Vasters                 Expires 11 December 2026                [Page 2]
+
+Internet-Draft            JSON Structure Units                 June 2026
+
+
+1.  Introduction
+
+   This document is a companion specification to JSON Structure Core
+   [JSTRUCT-CORE].  It defines annotation keywords that allow numeric
+   types to be enriched with measurement unit or currency information.
+
+   The primary purpose of this extension is to help numeric values be
+   interpreted consistently by specifying their associated scientific
+   units or currencies.
+
+   This specification defines the syntax and semantics of the keywords
+   that annotate numeric types with scientific unit or currency
+   information.  Implementations of JSON Structure Core that support
+   this extension MUST process these keywords according to the rules
+   defined herein.
+
+2.  Conventions
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+3.  Symbol Annotations
+
+   This section defines the keywords used to annotate schema elements
+   with symbols that accompany values when presented to users.
+
+3.1.  The symbol Keyword
+
+   The symbol keyword provides a mechanism for annotating a schema
+   element with a symbol that annotates the value of the element when
+   presented to users.
+
+   The keyword MAY appear alongside the type keyword in object
+   properties or array items or map values.
+
+   *  The value of symbol MUST be a JSON string.
+
+   *  The string value of symbol SHOULD contain a Unicode character or a
+      multi-character symbol that represents the value of the annotated
+      element.
+
+   *  The symbol keyword MAY be used as an annotation on any schema
+      element.
+
+
+
+
+
+Vasters                 Expires 11 December 2026                [Page 3]
+
+Internet-Draft            JSON Structure Units                 June 2026
+
+
+   *  symbol MAY be used in conjunction with unit or currency
+      annotations or independently.
+
+   Example:
+
+   {
+     "type": "number",
+     "currency": "EUR",
+     "symbol": "€"
+   }
+
+   or
+
+   {
+     "type": "number",
+     "unit": "m/s^2",
+     "symbol": "m/s²"
+   }
+
+   or
+
+   {
+     "type": "number",
+     "description": "Number of bunnies",
+     "symbol": "bunnies"
+   }
+
+3.1.1.  The symbols Keyword
+
+   The symbols keyword provides a mechanism for annotating a schema
+   element with a set of symbols that annotate the value of the element
+   when presented to users.
+
+   The keyword MAY appear alongside the type keyword in object
+   properties or array items or map values.
+
+   *  The value of symbols MUST be a map.
+
+   *  The keys of the symbols map MUST be strings that represent a
+      purpose indicator.  The lang: prefix is reserved for language-
+      specific symbols.  The suffix after the colon specifies the
+      language tag.  The language tag MUST conform to BCP 47 [RFC5646].
+
+   *  The values of the symbols map MUST be strings that represent the
+      symbol.
+
+   *  The symbols keyword MAY be used as an annotation on any schema
+      element.
+
+
+
+Vasters                 Expires 11 December 2026                [Page 4]
+
+Internet-Draft            JSON Structure Units                 June 2026
+
+
+   Example:
+
+   {
+     "type": "number",
+     "description": "Number of bunnies",
+     "symbols": {
+       "lang:en": "Bunnies",
+       "lang:de": "Kaninchen",
+       "lang:fr": "Lapins"
+     }
+   }
+
+4.  Scientific Unit Annotations
+
+   This section defines the keywords used to annotate numeric types with
+   scientific unit information.
+
+4.1.  The unit Keyword
+
+   The unit keyword provides a mechanism for annotating a numeric schema
+   (or a schema based on a numeric extended type such as number, int32,
+   uint32, int64, uint64, int128, uint128, float, double, or decimal)
+   with its measurement unit.
+
+   The keyword MAY appear alongside the type keyword in object
+   properties or array items or map values.
+
+   *  The value of unit MUST be a JSON string.
+
+   *  The string value of unit SHOULD contain:
+
+      -  An SI unit symbol or derived unit symbol conforming to the
+         Bureau International des Poids et Mesures (BIPM) International
+         System of Units (SI) [IEEE_260.1_2024]
+
+      -  A unit symbol defined in ISO/IEC 80000 series
+         [IEC_80000-1_2025]
+
+      -  A non-SI unit symbol defined in NIST Handbook 44 Appendix C
+         [NIST_HB_44_2023]
+
+   For "derived" SI units that reflect a multiplication, the unit
+   symbols MUST be separated by the asterisk character (*).  For derived
+   units that reflect a division, the unit symbols MUST be separated by
+   the forward slash (/).  The notation for exponentiation MUST be
+   indicated using the caret (^).  For example, acceleration SHALL be
+   denoted as "m/s^2".
+
+
+
+
+Vasters                 Expires 11 December 2026                [Page 5]
+
+Internet-Draft            JSON Structure Units                 June 2026
+
+
+   Units that use Greek-language symbols (including supplementary or
+   derived units) such as Ohm ("Ω") MUST be denoted with those Greek
+   symbols (using the corresponding Unicode code points).
+
+   The unit keyword MAY be used as an annotation on any schema element
+   whose underlying type is numeric.  Schema processors that support
+   JSON Structure Scientific Units MUST use the value of the unit
+   keyword to interpret, convert, or display numeric values
+   appropriately.
+
+   Example:
+
+   {
+     "type": "number",
+     "unit": "m/s^2"
+   }
+
+4.2.  The ucumUnit Keyword
+
+   The ucumUnit keyword provides a mechanism for annotating a numeric
+   schema (or a schema based on a numeric extended type such as number,
+   int32, uint32, int64, uint64, int128, uint128, float, double, or
+   decimal) with its measurement unit using UCUM (Unified Code for Units
+   of Measure) [UCUM] notation.
+
+   The keyword MAY appear alongside the type keyword in object
+   properties or array items or map values.
+
+   *  The value of ucumUnit MUST be a JSON string.
+
+   *  The string value of ucumUnit MUST be a valid UCUM unit expression
+      as defined in the UCUM specification [UCUM].
+
+   *  UCUM codes MUST use the case-sensitive ("c/s") variant defined in
+      the UCUM specification.
+
+   *  The ucumUnit keyword MAY be used in conjunction with the unit
+      keyword.  When both are present, systems that support UCUM SHOULD
+      prefer the ucumUnit value for computation and conversion purposes.
+
+   *  The ucumUnit keyword MAY be used as an annotation on any schema
+      element whose underlying type is numeric.
+
+   Example:
+
+
+
+
+
+
+
+Vasters                 Expires 11 December 2026                [Page 6]
+
+Internet-Draft            JSON Structure Units                 June 2026
+
+
+   {
+     "type": "number",
+     "unit": "m/s^2",
+     "ucumUnit": "m/s2",
+     "symbols": {
+       "default": "m/s²"
+     }
+   }
+
+   or
+
+   {
+     "type": "number",
+     "ucumUnit": "Cel",
+     "symbols": {
+       "default": "°C"
+     }
+   }
+
+4.2.1.  Compatibility with the unit Keyword
+
+   Schemas MAY include both unit and ucumUnit to support consumers that
+   understand either notation.
+
+   When both are present, the values SHOULD denote the same physical
+   quantity and unit.
+
+   Schema validators MUST NOT reject a schema solely because both
+   keywords are present.
+
+4.3.  Unit Annotations
+
+   This is a list of common scientific units that MAY be used with the
+   unit.  Units are defined according to ISO/IEC 80000, BIPM SI, and
+   NIST HB44:
+
+   +==============+======+=======================+=====================+
+   | Measure      | unit | Description           | Reference           |
+   +==============+======+=======================+=====================+
+   | Length       | m    | Meters, SI unit of    | [IEC_80000-3_2025]  |
+   |              |      | length                |                     |
+   +--------------+------+-----------------------+---------------------+
+   | Velocity     | m/s  | Meters per second     | [IEC_80000-3_2025]  |
+   +--------------+------+-----------------------+---------------------+
+   | Acceleration | m/   | Meters per second     | [IEC_80000-3_2025]  |
+   |              | s^2  | squared               |                     |
+   +--------------+------+-----------------------+---------------------+
+   | Weight       | kg   | Kilograms, SI unit    | [IEC_80000-4_2025]  |
+
+
+
+Vasters                 Expires 11 December 2026                [Page 7]
+
+Internet-Draft            JSON Structure Units                 June 2026
+
+
+   |              |      | of mass               |                     |
+   +--------------+------+-----------------------+---------------------+
+   | Time         | s    | Seconds, SI unit of   | [IEEE_260.1_2024]   |
+   |              |      | time                  |                     |
+   +--------------+------+-----------------------+---------------------+
+   | Temperature  | K    | Kelvin, SI unit of    | [IEEE_260.1_2024]   |
+   |              |      | temperature           |                     |
+   +--------------+------+-----------------------+---------------------+
+   | Volume       | L    | Liters, non-SI unit   | [IEEE_260.1_2024]   |
+   |              |      | accepted in SI        |                     |
+   +--------------+------+-----------------------+---------------------+
+   | Pressure     | psi  | Pounds per square     | [NIST_HB_44_2023]   |
+   |              |      | inch, non-SI unit     |                     |
+   +--------------+------+-----------------------+---------------------+
+   | Energy       | J    | Joules, SI unit of    | [IEEE_260.1_2024]   |
+   |              |      | energy                |                     |
+   +--------------+------+-----------------------+---------------------+
+   | Power        | W    | Watts, SI unit of     | [IEEE_260.1_2024]   |
+   |              |      | power                 |                     |
+   +--------------+------+-----------------------+---------------------+
+   | Electrical   | Ω    | Ohms, SI unit of      | [IEEE_260.1_2024]   |
+   | Resistance   |      | electrical            |                     |
+   |              |      | resistance            |                     |
+   +--------------+------+-----------------------+---------------------+
+   | Electrical   | A    | Amperes, SI unit of   | [IEEE_260.1_2024]   |
+   | Current      |      | electric current      |                     |
+   +--------------+------+-----------------------+---------------------+
+   | Light        | cd   | Candelas, SI unit     | [IEEE_260.1_2024]   |
+   | Intensity    |      | of luminous           |                     |
+   |              |      | intensity             |                     |
+   +--------------+------+-----------------------+---------------------+
+   | Area         | m^2  | Square meters, SI     | [IEEE_260.1_2024]   |
+   |              |      | unit of area          |                     |
+   +--------------+------+-----------------------+---------------------+
+   | Volume       | m^3  | Cubic meters, SI      | [IEEE_260.1_2024]   |
+   |              |      | unit of volume        |                     |
+   +--------------+------+-----------------------+---------------------+
+   | Length       | ft   | Feet, non-SI unit     | [NIST_HB_44_2023]   |
+   +--------------+------+-----------------------+---------------------+
+   | Volume       | gal  | Gallon, non-SI unit   | [NIST_HB_44_2023]   |
+   +--------------+------+-----------------------+---------------------+
+   | Pressure     | bar  | Bar, non-SI unit      | [NIST_HB_44_2023]   |
+   +--------------+------+-----------------------+---------------------+
+   | Digital      | B    | Bytes, non-SI unit    | [IEC_80000-13_2025] |
+   | Storage      |      |                       |                     |
+   +--------------+------+-----------------------+---------------------+
+   | Data Rate    | bit/ | Bits per second       | [IEC_80000-13_2025] |
+   |              | s    |                       |                     |
+
+
+
+Vasters                 Expires 11 December 2026                [Page 8]
+
+Internet-Draft            JSON Structure Units                 June 2026
+
+
+   +--------------+------+-----------------------+---------------------+
+
+                                  Table 1
+
+4.4.  Unit Prefixes
+
+   The following SI prefixes MAY be used with base units:
+
+                       +========+========+========+
+                       | Prefix | Symbol | Factor |
+                       +========+========+========+
+                       | yotta  | Y      | 10²⁴   |
+                       +--------+--------+--------+
+                       | zetta  | Z      | 10²¹   |
+                       +--------+--------+--------+
+                       | exa    | E      | 10¹⁸   |
+                       +--------+--------+--------+
+                       | peta   | P      | 10¹⁵   |
+                       +--------+--------+--------+
+                       | tera   | T      | 10¹²   |
+                       +--------+--------+--------+
+                       | giga   | G      | 10⁹    |
+                       +--------+--------+--------+
+                       | mega   | M      | 10⁶    |
+                       +--------+--------+--------+
+                       | kilo   | k      | 10³    |
+                       +--------+--------+--------+
+                       | milli  | m      | 10⁻³   |
+                       +--------+--------+--------+
+                       | micro  | μ      | 10⁻⁶   |
+                       +--------+--------+--------+
+                       | nano   | n      | 10⁻⁹   |
+                       +--------+--------+--------+
+                       | pico   | p      | 10⁻¹²  |
+                       +--------+--------+--------+
+                       | hecto  | h      | 10²    |
+                       +--------+--------+--------+
+
+                                 Table 2
+
+   Examples:
+
+   *  "km": Kilometers
+
+   *  "mm": Millimeters
+
+   *  "μm": Micrometers
+
+
+
+
+Vasters                 Expires 11 December 2026                [Page 9]
+
+Internet-Draft            JSON Structure Units                 June 2026
+
+
+   *  "nm": Nanometers
+
+   *  "ps": Picoseconds
+
+   *  "mΩ": Milliohms
+
+   *  "kΩ": Kilohms
+
+   *  "MW": Megawatts
+
+5.  Currency Annotations
+
+   This section defines the keywords used to annotate numeric types with
+   currency information.
+
+5.1.  The currency Keyword
+
+   The currency keyword provides a mechanism for annotating a numeric
+   schema (or a schema based on a numeric extended type such as number,
+   int32, uint32, int64, uint64, int128, uint128, float, double, or
+   decimal) with a currency annotation.
+
+   The keyword MAY appear alongside the type keyword in object
+   properties or array items or map values.
+
+   *  The value of currency MUST be a JSON string.
+
+   *  The string value of currency SHOULD contain a three-letter
+      currency code conforming to the [ISO_4217_2015] standard.
+
+   *  The currency keyword MAY be used as an annotation on any schema
+      element.
+
+   Example:
+
+   {
+     "type": "number",
+     "currency": "EUR"
+   }
+
+5.2.  Enabling the Annotations
+
+   These annotations can be enabled in a schema or meta-schema by adding
+   the JSONSchemaUnits key to the $uses clause when referencing the
+   extended meta-schema:
+
+
+
+
+
+
+Vasters                 Expires 11 December 2026               [Page 10]
+
+Internet-Draft            JSON Structure Units                 June 2026
+
+
+   {
+     "$schema": "https://json-structure.org/meta/extended/v0/#",
+     "$id": "myschema",
+     "$uses": [
+       "JSONSchemaUnits"
+     ],
+     "type": "object",
+     "properties": {
+       "name": {
+         "type": "decimal",
+         "unit": "m/s^2"
+       }
+     }
+   }
+
+   The annotations are enabled by default in the validation meta-schema:
+
+   {
+     "$schema": "https://json-structure.org/meta/validation/v0/#",
+     "$id": "myschema",
+     "type": "object",
+     "properties": {
+       "name": {
+         "type": "decimal",
+         "unit": "m/s^2"
+       }
+     }
+   }
+
+6.  Security and Interoperability Considerations
+
+   Alternate unit annotations do not affect the fundamental validation
+   of instance data.  They are purely metadata and MUST be ignored by
+   validators that do not support this extension.  Applications that
+   rely on unit annotations for conversion or display MUST implement
+   appropriate validation against recognized standards (BIPM SI and NIST
+   HB44) to ensure consistency.
+
+7.  IANA Considerations
+
+   This document has no IANA actions.
+
+8.  Normative References
+
+
+
+
+
+
+
+
+Vasters                 Expires 11 December 2026               [Page 11]
+
+Internet-Draft            JSON Structure Units                 June 2026
+
+
+   [IEC_80000-13_2025]
+              International Electrotechnical Commission, "Quantities and
+              units – Part 13: Information science", IEC Standards IEC
+              80000-13:2025, 2025,
+              <https://webstore.iec.ch/publication/IEC80000-13-2025>.
+
+   [IEC_80000-1_2025]
+              International Electrotechnical Commission, "Quantities and
+              units – Part 1: General", IEC Standards IEC 80000-1:2025,
+              2025,
+              <https://webstore.iec.ch/publication/IEC80000-1-2025>.
+
+   [IEC_80000-3_2025]
+              International Electrotechnical Commission, "Quantities and
+              units – Part 3: Space and time", IEC Standards IEC
+              80000-3:2025, 2025,
+              <https://webstore.iec.ch/publication/IEC80000-3-2025>.
+
+   [IEC_80000-4_2025]
+              International Electrotechnical Commission, "Quantities and
+              units – Part 4: Electricity and magnetism", IEC
+              Standards IEC 80000-4:2025, 2025,
+              <https://webstore.iec.ch/publication/IEC80000-4-2025>.
+
+   [IEEE_260.1_2024]
+              Institute of Electrical and Electronics Engineers, "IEEE
+              Standard for Letter Symbols for Measurement Units (SI and
+              Other Common Units)", DOI 10.1109/IEEESTD.2024.10530229,
+              IEEE 260-1-2024, May 2024,
+              <https://ieeexplore.ieee.org/document/10530229>.
+
+   [ISO_4217_2015]
+              International Organization for Standardization, "Codes for
+              the representation of currencies and funds", ISO
+              Standards ISO 4217:2015, 2015,
+              <https://www.iso.org/standard/42245.html>.
+
+   [JSTRUCT-CORE]
+              Vasters, C., "JSON Structure Core", n.d., <https://json-
+              structure.github.io/core/draft-vasters-json-structure-
+              core.html>.
+
+
+
+
+
+
+
+
+
+
+Vasters                 Expires 11 December 2026               [Page 12]
+
+Internet-Draft            JSON Structure Units                 June 2026
+
+
+   [NIST_HB_44_2023]
+              Butcher and National Institute of Standards and
+              Technology, "Specifications, Tolerances, and Other
+              Technical Requirements for Weighing and Measuring
+              Devices", DOI 10.6028/NIST.HB.44-2023, NIST
+              Handbooks 44-2023, 2023,
+              <https://nvlpubs.nist.gov/nistpubs/hb/2023/
+              NIST.HB.44-2023.pdf>.
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/rfc/rfc2119>.
+
+   [RFC5646]  Phillips, A., Ed. and M. Davis, Ed., "Tags for Identifying
+              Languages", BCP 47, RFC 5646, DOI 10.17487/RFC5646,
+              September 2009, <https://www.rfc-editor.org/rfc/rfc5646>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/rfc/rfc8174>.
+
+   [UCUM]     Schadow, G. and C. J. McDonald, "The Unified Code for
+              Units of Measure", 21 November 2017,
+              <https://ucum.org/ucum>.
+
+Changes from draft-vasters-json-structure-units-01
+
+   *  Updated obsolete RFC 4646 reference to RFC 5646 (BCP 47).
+
+   *  Used correct term "language tag" instead of "language code" in
+      symbols section.
+
+   *  Broadened abstract opening to reflect full scope (symbols,
+      currencies).
+
+   *  Added ucumUnit keyword for UCUM (Unified Code for Units of
+      Measure) notation support, enabling interoperability with
+      healthcare and scientific systems.
+
+Changes from draft-vasters-json-structure-units-00
+
+   *  Fixed typo in document abbreviation.
+
+Acknowledgments
+
+   TODO acknowledge.
+
+
+
+
+Vasters                 Expires 11 December 2026               [Page 13]
+
+Internet-Draft            JSON Structure Units                 June 2026
+
+
+Author's Address
+
+   Clemens Vasters
+   Microsoft Corporation
+   Email: clemensv@microsoft.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Vasters                 Expires 11 December 2026               [Page 14]

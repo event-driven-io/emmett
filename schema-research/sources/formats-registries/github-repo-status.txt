@@ -1,0 +1,10 @@
+mtth/avsc 2026-02-22T22:20:04Z stars 1388 issues 30 license MIT archived False
+apache/avro 2026-10-01T12:45:40Z stars 3305 issues 247 license Apache-2.0 archived False
+confluentinc/schema-registry 2026-10-04T06:46:21Z stars 2467 issues 399 license NOASSERTION archived False
+Apicurio/apicurio-registry 2026-10-03T09:08:04Z stars 940 issues 749 license Apache-2.0 archived False
+kafkajs/confluent-schema-registry 2026-06-18T19:47:31Z stars 170 issues 103 license MIT archived False
+confluentinc/confluent-kafka-javascript 2026-10-04T02:05:41Z stars 308 issues 117 license MIT archived False
+json-structure/core 2026-06-08T16:04:35Z stars 27 issues 17 license NOASSERTION archived False
+clemensv/avrotize 2026-09-28T21:24:24Z stars 131 issues 27 license Apache-2.0 archived False
+aws/aws-glue-schema-registry None stars None issues None license None archived None
+kurrent-io/KurrentDB 2026-10-02T15:19:59Z stars 5861 issues 148 license NOASSERTION archived False

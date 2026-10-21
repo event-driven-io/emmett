@@ -1,0 +1,1560 @@
+{
+  "sha": "c529406b8fd51388c480b5c6f5935db79b0dd3f9",
+  "url": "https://api.github.com/repos/xregistry/server/git/trees/c529406b8fd51388c480b5c6f5935db79b0dd3f9",
+  "tree": [
+    {
+      "path": ".gitattributes",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b187e4eae8df54c91c4bc3b196a64807a4658f99",
+      "size": 89,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/b187e4eae8df54c91c4bc3b196a64807a4658f99"
+    },
+    {
+      "path": ".github",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "8bb4e62c09023b7272e63db1e81aaa5b869cf5ce",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/8bb4e62c09023b7272e63db1e81aaa5b869cf5ce"
+    },
+    {
+      "path": ".github/workflows",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "7fb8382e3e2af2cbfd1cca0df2f1e1d0ddf287dd",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/7fb8382e3e2af2cbfd1cca0df2f1e1d0ddf287dd"
+    },
+    {
+      "path": ".github/workflows/master-ci.yaml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "02d08aefe03e0afbde874752722fa2d5fe5329f5",
+      "size": 2912,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/02d08aefe03e0afbde874752722fa2d5fe5329f5"
+    },
+    {
+      "path": ".github/workflows/pr-ci.yaml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f30103f3803d313acd3df55e5ee8de8503208721",
+      "size": 240,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/f30103f3803d313acd3df55e5ee8de8503208721"
+    },
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8e9b3206da49d447fa301db3b7d26461c31a0bd6",
+      "size": 360,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/8e9b3206da49d447fa301db3b7d26461c31a0bd6"
+    },
+    {
+      "path": "DESIGN.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ca2430eb588c114e09b1a4cfb6316c5df7995183",
+      "size": 9542,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/ca2430eb588c114e09b1a4cfb6316c5df7995183"
+    },
+    {
+      "path": "LICENSE",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5fcf6f1a0f9f263906e539471b22764db5f1976a",
+      "size": 11349,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/5fcf6f1a0f9f263906e539471b22764db5f1976a"
+    },
+    {
+      "path": "Makefile",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a38ce5b72faf28f9f0e869d2696374dc19de3292",
+      "size": 13080,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/a38ce5b72faf28f9f0e869d2696374dc19de3292"
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4f9a361c6f668b53bb5cde9fa3bea120cabd1333",
+      "size": 1436,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/4f9a361c6f668b53bb5cde9fa3bea120cabd1333"
+    },
+    {
+      "path": "cmds",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "ed9feab6e260f7204110ef149240ba6d7643c46f",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/ed9feab6e260f7204110ef149240ba6d7643c46f"
+    },
+    {
+      "path": "cmds/genspecattrs",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "3bd37acd494991f5c05f1b16071ea735f7d8ccae",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/3bd37acd494991f5c05f1b16071ea735f7d8ccae"
+    },
+    {
+      "path": "cmds/genspecattrs/main.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a62a95336081275a7ecb5a763d9a1f14a32f068f",
+      "size": 11913,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/a62a95336081275a7ecb5a763d9a1f14a32f068f"
+    },
+    {
+      "path": "cmds/xr",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "57e3f0935a3c1f093175a0aad1f0632ce42f2b99",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/57e3f0935a3c1f093175a0aad1f0632ce42f2b99"
+    },
+    {
+      "path": "cmds/xr/conform.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c61d6095057ab3ac07cf4e0dfc32ce4d49fb0adc",
+      "size": 4935,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/c61d6095057ab3ac07cf4e0dfc32ce4d49fb0adc"
+    },
+    {
+      "path": "cmds/xr/create.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "836f0d533209c0aa76a69f58f739ac1e676bf0af",
+      "size": 13241,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/836f0d533209c0aa76a69f58f739ac1e676bf0af"
+    },
+    {
+      "path": "cmds/xr/delete.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2b06e89e842c143137d18519dfe1e5aa0cee49b6",
+      "size": 2152,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/2b06e89e842c143137d18519dfe1e5aa0cee49b6"
+    },
+    {
+      "path": "cmds/xr/download.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "38d0f82aefe2ac2582a69a2f6e7ad3ffeac5941e",
+      "size": 27675,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/38d0f82aefe2ac2582a69a2f6e7ad3ffeac5941e"
+    },
+    {
+      "path": "cmds/xr/get.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c169a4f4c2e9a661db5ecab78fc974f5cb1c359e",
+      "size": 8479,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/c169a4f4c2e9a661db5ecab78fc974f5cb1c359e"
+    },
+    {
+      "path": "cmds/xr/import.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "47bb76e87bf0d5e64db4e4419f16634d32b90ae7",
+      "size": 3572,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/47bb76e87bf0d5e64db4e4419f16634d32b90ae7"
+    },
+    {
+      "path": "cmds/xr/model.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "55a28f27d25bacd28a9c91c040586f4412144446",
+      "size": 38914,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/55a28f27d25bacd28a9c91c040586f4412144446"
+    },
+    {
+      "path": "cmds/xr/serve.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5fb08436e4389f0561f8bff66bdd790c13892b19",
+      "size": 3440,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/5fb08436e4389f0561f8bff66bdd790c13892b19"
+    },
+    {
+      "path": "cmds/xr/set.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "581c365072ebcee9897cab92b4d548e86746c53e",
+      "size": 5224,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/581c365072ebcee9897cab92b4d548e86746c53e"
+    },
+    {
+      "path": "cmds/xr/td.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1542d9ab0c4aaf243b87e51f2bf01a654e306c36",
+      "size": 37091,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/1542d9ab0c4aaf243b87e51f2bf01a654e306c36"
+    },
+    {
+      "path": "cmds/xr/td_json.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e6cf06ffe49bf2ad871b7f0423f7ee5d5315570a",
+      "size": 1634,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/e6cf06ffe49bf2ad871b7f0423f7ee5d5315570a"
+    },
+    {
+      "path": "cmds/xr/td_json_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9348e913a0883f9ce628a97181689acda2c9c2ec",
+      "size": 1237,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/9348e913a0883f9ce628a97181689acda2c9c2ec"
+    },
+    {
+      "path": "cmds/xr/td_misc.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a8d6c16b519495e558db592b029fba06066df5a0",
+      "size": 27029,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/a8d6c16b519495e558db592b029fba06066df5a0"
+    },
+    {
+      "path": "cmds/xr/td_registry.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "14f0f96535cf83c72a767dfc2aaf58ff388c780e",
+      "size": 9879,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/14f0f96535cf83c72a767dfc2aaf58ff388c780e"
+    },
+    {
+      "path": "cmds/xr/td_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2757d43548d417a720cd781070ea8e04b0366ea9",
+      "size": 12237,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/2757d43548d417a720cd781070ea8e04b0366ea9"
+    },
+    {
+      "path": "cmds/xr/todo",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d9d3812fa0ee7cabfe7181aeda1ee39dd8dbafdf",
+      "size": 112,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/d9d3812fa0ee7cabfe7181aeda1ee39dd8dbafdf"
+    },
+    {
+      "path": "cmds/xr/util.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "309bc0f71588bbc1c4fb5927a09ef2cd72e9bf36",
+      "size": 851,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/309bc0f71588bbc1c4fb5927a09ef2cd72e9bf36"
+    },
+    {
+      "path": "cmds/xr/xr.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "903ef7e3a302c7dcceb44fdf96b48c7d0fe9279b",
+      "size": 11542,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/903ef7e3a302c7dcceb44fdf96b48c7d0fe9279b"
+    },
+    {
+      "path": "cmds/xr/xrlib",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "e02d0529f208b5e5a90e72a0200951af05e65286",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/e02d0529f208b5e5a90e72a0200951af05e65286"
+    },
+    {
+      "path": "cmds/xr/xrlib/registry.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ba1968ae61667c0962a614ec087e85985e329443",
+      "size": 8335,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/ba1968ae61667c0962a614ec087e85985e329443"
+    },
+    {
+      "path": "cmds/xr/xrlib/utils.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1b29f8d11d6151a5eb0f4a9fdf5fa6b1ba0b29a2",
+      "size": 11266,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/1b29f8d11d6151a5eb0f4a9fdf5fa6b1ba0b29a2"
+    },
+    {
+      "path": "cmds/xrlint",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "25234eac277b04175f778cfd1bc3bef7c7177044",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/25234eac277b04175f778cfd1bc3bef7c7177044"
+    },
+    {
+      "path": "cmds/xrlint/main.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "14aae8f3c03549d3000f89e34b30c8f976e3eb87",
+      "size": 24528,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/14aae8f3c03549d3000f89e34b30c8f976e3eb87"
+    },
+    {
+      "path": "cmds/xrserver",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "3205a44daf728364249f206b5b1d12d8b46d9fa9",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/3205a44daf728364249f206b5b1d12d8b46d9fa9"
+    },
+    {
+      "path": "cmds/xrserver/db.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d7fe3d2779bd1b4388319f289846e357721e8099",
+      "size": 3530,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/d7fe3d2779bd1b4388319f289846e357721e8099"
+    },
+    {
+      "path": "cmds/xrserver/loader.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0ca3e7b9f1f2307dbd846084e2bb533545c14900",
+      "size": 19954,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/0ca3e7b9f1f2307dbd846084e2bb533545c14900"
+    },
+    {
+      "path": "cmds/xrserver/registry.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cfa8f5251bb90e858b51696e447ca5e34a081f4c",
+      "size": 4430,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/cfa8f5251bb90e858b51696e447ca5e34a081f4c"
+    },
+    {
+      "path": "cmds/xrserver/test-reg.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5ec467e9d6444ad0524d22a7919055a583cce303",
+      "size": 10027,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/5ec467e9d6444ad0524d22a7919055a583cce303"
+    },
+    {
+      "path": "cmds/xrserver/xrserver.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "40a785b1360dbae8614065c94c8cb79aa85a8999",
+      "size": 13504,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/40a785b1360dbae8614065c94c8cb79aa85a8999"
+    },
+    {
+      "path": "common",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "b9a5eadd5c880f692105839ffba0e95604451d8f",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/b9a5eadd5c880f692105839ffba0e95604451d8f"
+    },
+    {
+      "path": "common/capabilities.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "74244a99dc8bd7a52f74dcb50f6f841489abe030",
+      "size": 14719,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/74244a99dc8bd7a52f74dcb50f6f841489abe030"
+    },
+    {
+      "path": "common/config.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eaae97894f8b5ad525ce5eef8020ecd61492547a",
+      "size": 5128,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/eaae97894f8b5ad525ce5eef8020ecd61492547a"
+    },
+    {
+      "path": "common/const.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ec7fa9e44b88bdcfb5135ba3f4637aff01aae6f2",
+      "size": 1336,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/ec7fa9e44b88bdcfb5135ba3f4637aff01aae6f2"
+    },
+    {
+      "path": "common/diff.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a9af7926d0b0e5ca8a91e50ec97bcbb4185cc22e",
+      "size": 7864,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/a9af7926d0b0e5ca8a91e50ec97bcbb4185cc22e"
+    },
+    {
+      "path": "common/dummy_errors.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6885957516609121e060ad916d5d678bf20d1473",
+      "size": 398,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/6885957516609121e060ad916d5d678bf20d1473"
+    },
+    {
+      "path": "common/error.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "beb87a76f0479c7711dbd8bb859a6200fc888c73",
+      "size": 18115,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/beb87a76f0479c7711dbd8bb859a6200fc888c73"
+    },
+    {
+      "path": "common/pretty.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "edcd177a746d9b3c8f883b01c957de1e76bee20d",
+      "size": 29244,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/edcd177a746d9b3c8f883b01c957de1e76bee20d"
+    },
+    {
+      "path": "common/pretty_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a852576ad0efe6f87f84fde0ca5fc4dc860b95d6",
+      "size": 1495,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/a852576ad0efe6f87f84fde0ca5fc4dc860b95d6"
+    },
+    {
+      "path": "common/proppath.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "390d869d41e627fe4587124e51b21b34d4afe0ec",
+      "size": 19133,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/390d869d41e627fe4587124e51b21b34d4afe0ec"
+    },
+    {
+      "path": "common/proppath_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1287dfef208317eb0fe0834940bfa065f051185e",
+      "size": 7250,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/1287dfef208317eb0fe0834940bfa065f051185e"
+    },
+    {
+      "path": "common/shared_entity",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e177cd57a7401056d7321909dda9a513f32cc3e5",
+      "size": 29586,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/e177cd57a7401056d7321909dda9a513f32cc3e5"
+    },
+    {
+      "path": "common/shared_model",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "515cf3ea2993421b7b1aedfdeebf6dbf5bf93e47",
+      "size": 127598,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/515cf3ea2993421b7b1aedfdeebf6dbf5bf93e47"
+    },
+    {
+      "path": "common/tabwriter.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5b03b63d6c6be355a6413fc04279695c9908643a",
+      "size": 20786,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/5b03b63d6c6be355a6413fc04279695c9908643a"
+    },
+    {
+      "path": "common/tabwriter_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ecf2af38c483df8917abbc4183fed6e5db564b16",
+      "size": 3998,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/ecf2af38c483df8917abbc4183fed6e5db564b16"
+    },
+    {
+      "path": "common/test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c3fc5399b81476ef6b4c4eb611ceaa0aef33b893",
+      "size": 8534,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/c3fc5399b81476ef6b4c4eb611ceaa0aef33b893"
+    },
+    {
+      "path": "common/utils.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b663349730950dec3429082e6de747bbe71be0e8",
+      "size": 44347,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/b663349730950dec3429082e6de747bbe71be0e8"
+    },
+    {
+      "path": "common/utils_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c35d0f136f2e9db2a47bf4ec7b6355ec340d969b",
+      "size": 17842,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/c35d0f136f2e9db2a47bf4ec7b6355ec340d969b"
+    },
+    {
+      "path": "common/xid.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "17cdcff238b5face28a29afd495936be7f638418",
+      "size": 7564,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/17cdcff238b5face28a29afd495936be7f638418"
+    },
+    {
+      "path": "docs",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "25e297df678c71dc79c5e4d8a274b88cdf717b58",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/25e297df678c71dc79c5e4d8a274b88cdf717b58"
+    },
+    {
+      "path": "docs/community.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "151d63c2ddfa3d58b65e9007a742c79d100808b3",
+      "size": 746,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/151d63c2ddfa3d58b65e9007a742c79d100808b3"
+    },
+    {
+      "path": "docs/developers.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d1ba5b01bf013ed8f176c2d5e0ac728163962db9",
+      "size": 3796,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/d1ba5b01bf013ed8f176c2d5e0ac728163962db9"
+    },
+    {
+      "path": "docs/installation.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c4d8e7c1b251442787399c2a79611a410bf9fb3b",
+      "size": 2148,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/c4d8e7c1b251442787399c2a79611a410bf9fb3b"
+    },
+    {
+      "path": "docs/notes",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7ca35e722e35072fdc30c52be84dbddcd14ec8b7",
+      "size": 1901,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/7ca35e722e35072fdc30c52be84dbddcd14ec8b7"
+    },
+    {
+      "path": "docs/quick_start.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a00d49be4b7ddbb93dce55b42452580bfbfc37e9",
+      "size": 2317,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/a00d49be4b7ddbb93dce55b42452580bfbfc37e9"
+    },
+    {
+      "path": "docs/xr_help.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6c3de4d34a9932d388bffd7d294da69b12439016",
+      "size": 22814,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/6c3de4d34a9932d388bffd7d294da69b12439016"
+    },
+    {
+      "path": "docs/xrserver_help.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1acc8f3d807dc095375843e393bfc19d0126541d",
+      "size": 10843,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/1acc8f3d807dc095375843e393bfc19d0126541d"
+    },
+    {
+      "path": "go.mod",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e7d384689ff2f34f243fac3c9764cca26375eb34",
+      "size": 1033,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/e7d384689ff2f34f243fac3c9764cca26375eb34"
+    },
+    {
+      "path": "go.sum",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b4a75480825c4e3a9404928b1f8d9e7afe7f08bd",
+      "size": 5792,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/b4a75480825c4e3a9404928b1f8d9e7afe7f08bd"
+    },
+    {
+      "path": "misc",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "af2c7db9e98d13ae8d08f191b539aa58fdc19f0a",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/af2c7db9e98d13ae8d08f191b539aa58fdc19f0a"
+    },
+    {
+      "path": "misc/Dockerfile-all",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2ee238457f8b143db0b9cf2eef7b343c6fbec440",
+      "size": 883,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/2ee238457f8b143db0b9cf2eef7b343c6fbec440"
+    },
+    {
+      "path": "misc/Dockerfile-dev",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "95054b98fdc8be891104a4828e66db3c140e977e",
+      "size": 1091,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/95054b98fdc8be891104a4828e66db3c140e977e"
+    },
+    {
+      "path": "misc/Dockerfile-xr",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "46be95accbab5af85add257a760a5b6f4a392829",
+      "size": 709,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/46be95accbab5af85add257a760a5b6f4a392829"
+    },
+    {
+      "path": "misc/Dockerfile-xrserver",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "112d9dabc9f7ae0f89a91b1f25a2ebd65521c2d3",
+      "size": 982,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/112d9dabc9f7ae0f89a91b1f25a2ebd65521c2d3"
+    },
+    {
+      "path": "misc/checkerrors",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "781b602a56ecd03980c1d0fa6b4d7dd58d2b281a",
+      "size": 3105,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/781b602a56ecd03980c1d0fa6b4d7dd58d2b281a"
+    },
+    {
+      "path": "misc/deploy.yaml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a9b41d91b3b9ed5839be604db3eef9780722121f",
+      "size": 606,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/a9b41d91b3b9ed5839be604db3eef9780722121f"
+    },
+    {
+      "path": "misc/errOutput",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "c675172cf17a82bad709be4d6ea8b334d41be22a",
+      "size": 633,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/c675172cf17a82bad709be4d6ea8b334d41be22a"
+    },
+    {
+      "path": "misc/largetest",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "f6c08bdd3c1f26f9e6077073f6285ce6795ed972",
+      "size": 2598,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/f6c08bdd3c1f26f9e6077073f6285ce6795ed972"
+    },
+    {
+      "path": "misc/mysql.yaml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d61dec48cb8222924208cf5d54e1cd975f59c64c",
+      "size": 474,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/d61dec48cb8222924208cf5d54e1cd975f59c64c"
+    },
+    {
+      "path": "misc/repo.tar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1e49586e631c2d559125607c4551945abb558ede",
+      "size": 64334030,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/1e49586e631c2d559125607c4551945abb558ede"
+    },
+    {
+      "path": "misc/restart",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "101169873dc0cc901066a8ba66e6253b3294194e",
+      "size": 490,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/101169873dc0cc901066a8ba66e6253b3294194e"
+    },
+    {
+      "path": "misc/retry",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "ba9aabaeaf5dbcbe00555fee15665ac1a737dfb5",
+      "size": 186,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/ba9aabaeaf5dbcbe00555fee15665ac1a737dfb5"
+    },
+    {
+      "path": "misc/sql",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "cade5309de4a4a024fb9bdb696306cd74aaece05",
+      "size": 466,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/cade5309de4a4a024fb9bdb696306cd74aaece05"
+    },
+    {
+      "path": "misc/start",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "a2f8c6f1a3739fb2e6d579e9e67013079ed2780c",
+      "size": 675,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/a2f8c6f1a3739fb2e6d579e9e67013079ed2780c"
+    },
+    {
+      "path": "misc/waitformysql",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "ab2ae84996d6859086c2abcef2201edb65e61086",
+      "size": 178,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/ab2ae84996d6859086c2abcef2201edb65e61086"
+    },
+    {
+      "path": "registry",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "fb23a71333ecd40f872ebf21ba81a78cd032f9e9",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/fb23a71333ecd40f872ebf21ba81a78cd032f9e9"
+    },
+    {
+      "path": "registry/canonical_pretty_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5574a19d42ed21be781cb2a8257bca432894b452",
+      "size": 27156,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/5574a19d42ed21be781cb2a8257bca432894b452"
+    },
+    {
+      "path": "registry/const.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fd348dc53fd9c4c4c5f2bd38303b043872419950",
+      "size": 738,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/fd348dc53fd9c4c4c5f2bd38303b043872419950"
+    },
+    {
+      "path": "registry/db.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4b5d960363f18fb35ca3284555d99689b4f48e36",
+      "size": 41868,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/4b5d960363f18fb35ca3284555d99689b4f48e36"
+    },
+    {
+      "path": "registry/entity.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "891fc569cf3f0e70ed6d390868c2aedfa7c7f76d",
+      "size": 126230,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/891fc569cf3f0e70ed6d390868c2aedfa7c7f76d"
+    },
+    {
+      "path": "registry/entity_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d723c33c04b129aafa2aa0a1b0d3b6252801c7a7",
+      "size": 9657,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/d723c33c04b129aafa2aa0a1b0d3b6252801c7a7"
+    },
+    {
+      "path": "registry/format_avro.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dd5df0d197f38274019a8ab2045e473061366b12",
+      "size": 21808,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/dd5df0d197f38274019a8ab2045e473061366b12"
+    },
+    {
+      "path": "registry/format_avro_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "43ca224e6bf6fb9b709152417aad04321edfbe3a",
+      "size": 19941,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/43ca224e6bf6fb9b709152417aad04321edfbe3a"
+    },
+    {
+      "path": "registry/format_jsonschema.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0db47b7c287f3717aadb6b58918719bef6750065",
+      "size": 36608,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/0db47b7c287f3717aadb6b58918719bef6750065"
+    },
+    {
+      "path": "registry/format_jsonschema_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b3cddc1dcee91dc1dc17e5b38c25be7d157d4770",
+      "size": 44110,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/b3cddc1dcee91dc1dc17e5b38c25be7d157d4770"
+    },
+    {
+      "path": "registry/format_jsonstructure.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d176c4281976a784187b5fbd0a3957d83e3d3777",
+      "size": 37565,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/d176c4281976a784187b5fbd0a3957d83e3d3777"
+    },
+    {
+      "path": "registry/format_jsonstructure_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9ac3b3e11aacd3e0fa8209472cd60ea6594a85e7",
+      "size": 24475,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/9ac3b3e11aacd3e0fa8209472cd60ea6594a85e7"
+    },
+    {
+      "path": "registry/format_numbers.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2ac709dfdace9ddab4571fddac969b598ac38dfa",
+      "size": 3187,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/2ac709dfdace9ddab4571fddac969b598ac38dfa"
+    },
+    {
+      "path": "registry/format_proto.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c2910828841342ee8687a67b20bf4f93f1d5bc26",
+      "size": 17443,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/c2910828841342ee8687a67b20bf4f93f1d5bc26"
+    },
+    {
+      "path": "registry/format_proto_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "08fe841bffcee8cc8b896a87fa4a623df5741433",
+      "size": 16048,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/08fe841bffcee8cc8b896a87fa4a623df5741433"
+    },
+    {
+      "path": "registry/format_xmlschema.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ff995053dd49b80903ad7edc9905e23d911cea65",
+      "size": 46320,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/ff995053dd49b80903ad7edc9905e23d911cea65"
+    },
+    {
+      "path": "registry/format_xmlschema_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e77b122242499630522c3102331b1940015ae73e",
+      "size": 22771,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/e77b122242499630522c3102331b1940015ae73e"
+    },
+    {
+      "path": "registry/group.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "606345bdac2331a8e1beda0ee07a8f87ecd4e6ba",
+      "size": 28619,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/606345bdac2331a8e1beda0ee07a8f87ecd4e6ba"
+    },
+    {
+      "path": "registry/httpStuff.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5328afd0b7220d79fc196fa71848b9e94181ae1c",
+      "size": 78035,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/5328afd0b7220d79fc196fa71848b9e94181ae1c"
+    },
+    {
+      "path": "registry/info.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "67c4028989a74b17fa73073e7c56677b1dc27cf0",
+      "size": 42645,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/67c4028989a74b17fa73073e7c56677b1dc27cf0"
+    },
+    {
+      "path": "registry/info_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3a584f55aa5c47e8348025f601711e5c4cfedd4a",
+      "size": 3528,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/3a584f55aa5c47e8348025f601711e5c4cfedd4a"
+    },
+    {
+      "path": "registry/init.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c19e014595a39e7548e294758a05754a5084aa61",
+      "size": 21512,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/c19e014595a39e7548e294758a05754a5084aa61"
+    },
+    {
+      "path": "registry/jsonWriter.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b76ff14b09b112f4fa88d94373ec967e121c1d1a",
+      "size": 19071,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/b76ff14b09b112f4fa88d94373ec967e121c1d1a"
+    },
+    {
+      "path": "registry/model.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "df56719f7e2e08f7faa6baf300a779ecf911b289",
+      "size": 19736,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/df56719f7e2e08f7faa6baf300a779ecf911b289"
+    },
+    {
+      "path": "registry/model_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d411f9dbaec088a9651323a59983486c6824235c",
+      "size": 55235,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/d411f9dbaec088a9651323a59983486c6824235c"
+    },
+    {
+      "path": "registry/registry.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9daeee442716c12a3699fec33019fdcaf8f1ec35",
+      "size": 58389,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/9daeee442716c12a3699fec33019fdcaf8f1ec35"
+    },
+    {
+      "path": "registry/resource.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0ae0c903f6bfe3f4e608dd2179cd84be19a4429e",
+      "size": 94321,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/0ae0c903f6bfe3f4e608dd2179cd84be19a4429e"
+    },
+    {
+      "path": "registry/ui",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "6c5f75474062395be4de79e8babb5891ba5ebef1",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/6c5f75474062395be4de79e8babb5891ba5ebef1"
+    },
+    {
+      "path": "registry/ui/app.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "230e70170f4692ae73b8f9b3eda9fada9e39c82f",
+      "size": 974436,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/230e70170f4692ae73b8f9b3eda9fada9e39c82f"
+    },
+    {
+      "path": "registry/ui/favicon.svg",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a13955349afdc7c314252db3925dbc4fcc407573",
+      "size": 479,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/a13955349afdc7c314252db3925dbc4fcc407573"
+    },
+    {
+      "path": "registry/ui/index.html",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3d94358ae183011fb1e9914bde2df7b058375c1d",
+      "size": 5739,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/3d94358ae183011fb1e9914bde2df7b058375c1d"
+    },
+    {
+      "path": "registry/ui/registry-icon.svg",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a13955349afdc7c314252db3925dbc4fcc407573",
+      "size": 479,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/a13955349afdc7c314252db3925dbc4fcc407573"
+    },
+    {
+      "path": "registry/ui/style.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a67199133b19c04136c8ef93e4bf1de9083975d8",
+      "size": 120109,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/a67199133b19c04136c8ef93e4bf1de9083975d8"
+    },
+    {
+      "path": "registry/ui/xrui.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "af8855dbf6b833e2c2a5b1ae27c9c611c8476033",
+      "size": 909,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/af8855dbf6b833e2c2a5b1ae27c9c611c8476033"
+    },
+    {
+      "path": "registry/ui_static.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b3892f54b18fc461d4646f5e507771108ff379e2",
+      "size": 10835,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/b3892f54b18fc461d4646f5e507771108ff379e2"
+    },
+    {
+      "path": "registry/version.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "31c4d2d6d159b73dc6c42b2244199110d7ea67bd",
+      "size": 3639,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/31c4d2d6d159b73dc6c42b2244199110d7ea67bd"
+    },
+    {
+      "path": "registry/versionmodes.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b341f637e90b7a7afd46fd50c338ccf677bb418a",
+      "size": 13492,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/b341f637e90b7a7afd46fd50c338ccf677bb418a"
+    },
+    {
+      "path": "registry/xrproxy.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "08fa8ff1f86b47a8bf6621308efccc31eba68d40",
+      "size": 8610,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/08fa8ff1f86b47a8bf6621308efccc31eba68d40"
+    },
+    {
+      "path": "samples",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "256745fcaa4ea77a531e11a478d56695328fc59e",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/256745fcaa4ea77a531e11a478d56695328fc59e"
+    },
+    {
+      "path": "samples/APIs-guru-openapi",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "735d2f21177472fcc6e1016a1482c09eeaec77b7",
+      "size": 1783,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/735d2f21177472fcc6e1016a1482c09eeaec77b7"
+    },
+    {
+      "path": "samples/APIs-guru-openapi2",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "2992df8117c1e68e8bf57dea8adc926925268f5b",
+      "size": 2063,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/2992df8117c1e68e8bf57dea8adc926925268f5b"
+    },
+    {
+      "path": "samples/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bc7ddd870171b9a7e7b6b03fce7b3a7bdfa3c0c2",
+      "size": 27,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/bc7ddd870171b9a7e7b6b03fce7b3a7bdfa3c0c2"
+    },
+    {
+      "path": "samples/doc-store",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "28c676c4d59217060d106bd58866d365c2057343",
+      "size": 1036,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/28c676c4d59217060d106bd58866d365c2057343"
+    },
+    {
+      "path": "samples/endpoints",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "c0d9c5d4f716fee2d820fb6674d7433989d66b7b",
+      "size": 1010,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/c0d9c5d4f716fee2d820fb6674d7433989d66b7b"
+    },
+    {
+      "path": "tests",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5956f376d396b3837257230868693f6aecbb4fdc",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/5956f376d396b3837257230868693f6aecbb4fdc"
+    },
+    {
+      "path": "tests/ancestor_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b11cfec9fd40f716a5fae6354f7c75d3bb2b23f6",
+      "size": 42800,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/b11cfec9fd40f716a5fae6354f7c75d3bb2b23f6"
+    },
+    {
+      "path": "tests/capabilities_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "46b53909bfccd67fa19ecdfba0dd0ef1ac1f27e3",
+      "size": 103193,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/46b53909bfccd67fa19ecdfba0dd0ef1ac1f27e3"
+    },
+    {
+      "path": "tests/constraints_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4b6641a855d706b5ed180f2bef60b1e8de3c1642",
+      "size": 161302,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/4b6641a855d706b5ed180f2bef60b1e8de3c1642"
+    },
+    {
+      "path": "tests/content_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4081077b31c1f376932798f9d82e3377f593418d",
+      "size": 8549,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/4081077b31c1f376932798f9d82e3377f593418d"
+    },
+    {
+      "path": "tests/export_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "434c83c0ecc47d83f773dad0bdf9c7a425552417",
+      "size": 78256,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/434c83c0ecc47d83f773dad0bdf9c7a425552417"
+    },
+    {
+      "path": "tests/files",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5ab0dfce59a9315340870d1e8909188a9c5757f8",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/5ab0dfce59a9315340870d1e8909188a9c5757f8"
+    },
+    {
+      "path": "tests/files/EMPTY",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ce013625030ba8dba906f756967f9e9ca394464a",
+      "size": 6,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/ce013625030ba8dba906f756967f9e9ca394464a"
+    },
+    {
+      "path": "tests/files/EMPTY-Proxy",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0202b341aed4722ec6c966d7456b98cedf71f285",
+      "size": 12,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/0202b341aed4722ec6c966d7456b98cedf71f285"
+    },
+    {
+      "path": "tests/files/EMPTY-URL",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "76dd0b336169413346159ffb000fb4f4c3815de3",
+      "size": 10,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/76dd0b336169413346159ffb000fb4f4c3815de3"
+    },
+    {
+      "path": "tests/files/conform-error",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "0dd8d7b4af3f5f06bcfbba351c4bf5c2694a71a2",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/0dd8d7b4af3f5f06bcfbba351c4bf5c2694a71a2"
+    },
+    {
+      "path": "tests/files/conform-error/capabilities",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "98232c64fce9360c79f119cf6de8f670f69f1c44",
+      "size": 2,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/98232c64fce9360c79f119cf6de8f670f69f1c44"
+    },
+    {
+      "path": "tests/files/conform-error/index.html",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e8a1160a165234413dff1f8de63ffaf89177b4ec",
+      "size": 226,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/e8a1160a165234413dff1f8de63ffaf89177b4ec"
+    },
+    {
+      "path": "tests/files/conform-error/model",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0967ef424bce6791893e9a57bb952f80fd536e93",
+      "size": 3,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/0967ef424bce6791893e9a57bb952f80fd536e93"
+    },
+    {
+      "path": "tests/files/conform-invalid-model",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "25299c83b8655f0d9186e2f2b7a3a110d74d017a",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/25299c83b8655f0d9186e2f2b7a3a110d74d017a"
+    },
+    {
+      "path": "tests/files/conform-invalid-model/index.html",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ddaa583b301f4487c7ecf9228288a5f76627eff3",
+      "size": 242,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/ddaa583b301f4487c7ecf9228288a5f76627eff3"
+    },
+    {
+      "path": "tests/files/conform-invalid-model/model",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "98232c64fce9360c79f119cf6de8f670f69f1c44",
+      "size": 2,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/98232c64fce9360c79f119cf6de8f670f69f1c44"
+    },
+    {
+      "path": "tests/files/conform-multigroup",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "b967d42100945e0bef209f18eea8c158464bcc28",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/b967d42100945e0bef209f18eea8c158464bcc28"
+    },
+    {
+      "path": "tests/files/conform-multigroup/capabilities",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6428ed25f573bd659d08a99e982834fcf0f4e6ec",
+      "size": 352,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/6428ed25f573bd659d08a99e982834fcf0f4e6ec"
+    },
+    {
+      "path": "tests/files/conform-multigroup/index.html",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2e94da6c7508674d81dde4aac78606a351ca8c14",
+      "size": 542,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/2e94da6c7508674d81dde4aac78606a351ca8c14"
+    },
+    {
+      "path": "tests/files/conform-multigroup/model",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7434fde315bc031575fe3646f86b0065a1834bc9",
+      "size": 294,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/7434fde315bc031575fe3646f86b0065a1834bc9"
+    },
+    {
+      "path": "tests/files/conform-output",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "ac0e9af5221428ceacaac11b59b8d24b212ac6a1",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/ac0e9af5221428ceacaac11b59b8d24b212ac6a1"
+    },
+    {
+      "path": "tests/files/conform-output/dependency-failure.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8ef6c7acdd0d815912d100dbd643c500ed37c9b9",
+      "size": 1847,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/8ef6c7acdd0d815912d100dbd643c500ed37c9b9"
+    },
+    {
+      "path": "tests/files/conform-output/invalid-model.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b691ce3719004b9706184774d5d7815f879ce97d",
+      "size": 2812,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/b691ce3719004b9706184774d5d7815f879ce97d"
+    },
+    {
+      "path": "tests/files/conform-output/smoke-multigroup.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cf4f4bfc742028afad751f753b1a4a5b09a19a03",
+      "size": 22013,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/cf4f4bfc742028afad751f753b1a4a5b09a19a03"
+    },
+    {
+      "path": "tests/files/conform",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "6770ff47881550501a5aa3818a69af0346a45f6e",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/6770ff47881550501a5aa3818a69af0346a45f6e"
+    },
+    {
+      "path": "tests/files/conform/capabilities",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6428ed25f573bd659d08a99e982834fcf0f4e6ec",
+      "size": 352,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/6428ed25f573bd659d08a99e982834fcf0f4e6ec"
+    },
+    {
+      "path": "tests/files/conform/index.html",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0c8196a5bd04137750e21b1d0452c0174fe8585f",
+      "size": 214,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/0c8196a5bd04137750e21b1d0452c0174fe8585f"
+    },
+    {
+      "path": "tests/files/conform/model",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0967ef424bce6791893e9a57bb952f80fd536e93",
+      "size": 3,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/0967ef424bce6791893e9a57bb952f80fd536e93"
+    },
+    {
+      "path": "tests/files/dir",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "820fa81e95baf4341f902c17f3a81b750eefe03e",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/820fa81e95baf4341f902c17f3a81b750eefe03e"
+    },
+    {
+      "path": "tests/files/dir/model-dirs-inc-docs-indirect.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3dabf4aed78f30bb4101b1008666029f1d207e84",
+      "size": 198,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/3dabf4aed78f30bb4101b1008666029f1d207e84"
+    },
+    {
+      "path": "tests/files/dir/model-dirs-inc-docs-indirect2.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8e4d6c4051ee7bba5e94bd6796d37ddce0dc5afd",
+      "size": 203,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/8e4d6c4051ee7bba5e94bd6796d37ddce0dc5afd"
+    },
+    {
+      "path": "tests/files/dir/model-dirs-inc-docs.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2d26ce215fe41bd1609bc7bc585a6c487ab436fc",
+      "size": 222,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/2d26ce215fe41bd1609bc7bc585a6c487ab436fc"
+    },
+    {
+      "path": "tests/files/dir/model-docs.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f06b9845be9895010b7410e5006f698addafc36e",
+      "size": 154,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/f06b9845be9895010b7410e5006f698addafc36e"
+    },
+    {
+      "path": "tests/files/sample-model.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0ed15beb4df9e3f24b5ddfe2bc16ffaf3fc97656",
+      "size": 8268,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/0ed15beb4df9e3f24b5ddfe2bc16ffaf3fc97656"
+    },
+    {
+      "path": "tests/files/xreg",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "bc497c7680964d406b16de8bcf0edc24581ff89e",
+      "url": "https://api.github.com/repos/xregistry/server/git/trees/bc497c7680964d406b16de8bcf0edc24581ff89e"
+    },
+    {
+      "path": "tests/files/xreg/index.html",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c8bac3ecc8e060b46c1164c45736230245bf5e99",
+      "size": 55,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/c8bac3ecc8e060b46c1164c45736230245bf5e99"
+    },
+    {
+      "path": "tests/filters_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4c9ff8b218f2fb6b79f214b52dfb7bc8985485d2",
+      "size": 81333,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/4c9ff8b218f2fb6b79f214b52dfb7bc8985485d2"
+    },
+    {
+      "path": "tests/format_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c462b2d4ae5fa30fbd746227cd3b1fa586637e49",
+      "size": 115833,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/c462b2d4ae5fa30fbd746227cd3b1fa586637e49"
+    },
+    {
+      "path": "tests/group_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "df4bfca42d601b1734dabbac6b22fff8b4def4fd",
+      "size": 7316,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/df4bfca42d601b1734dabbac6b22fff8b4def4fd"
+    },
+    {
+      "path": "tests/http1_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "35f9db4dd894500a260f72b07c5b582e1bafb4c9",
+      "size": 374506,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/35f9db4dd894500a260f72b07c5b582e1bafb4c9"
+    },
+    {
+      "path": "tests/http2_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "07f1bc7336b60b5288bdba74ffaa5d14db74c84d",
+      "size": 315622,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/07f1bc7336b60b5288bdba74ffaa5d14db74c84d"
+    },
+    {
+      "path": "tests/http3_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a44948c29229e369754ae90146795135710d072a",
+      "size": 141531,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/a44948c29229e369754ae90146795135710d072a"
+    },
+    {
+      "path": "tests/inline_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ac2c7f93748a904529ceda5b4f1d295cb1a46e86",
+      "size": 62998,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/ac2c7f93748a904529ceda5b4f1d295cb1a46e86"
+    },
+    {
+      "path": "tests/meta_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5ceb370f990f26bdd2d8e95ad42f7773550f1d47",
+      "size": 45782,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/5ceb370f990f26bdd2d8e95ad42f7773550f1d47"
+    },
+    {
+      "path": "tests/misc_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "aa1b9d9ce1fe1087941a0eb35993bce5f01f79dc",
+      "size": 23087,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/aa1b9d9ce1fe1087941a0eb35993bce5f01f79dc"
+    },
+    {
+      "path": "tests/model1_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eb3cc9b7ff2ba087b94f138697d08620e1404d41",
+      "size": 286440,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/eb3cc9b7ff2ba087b94f138697d08620e1404d41"
+    },
+    {
+      "path": "tests/model2_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1ea37b07182bb934c33186e947524ff9998f5589",
+      "size": 295014,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/1ea37b07182bb934c33186e947524ff9998f5589"
+    },
+    {
+      "path": "tests/model3_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b68d90bb18036502c7d320225577d8e0594255b2",
+      "size": 120914,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/b68d90bb18036502c7d320225577d8e0594255b2"
+    },
+    {
+      "path": "tests/multireg_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d6ba7ceaeba053d780584dd576a3094f29cf04c0",
+      "size": 2865,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/d6ba7ceaeba053d780584dd576a3094f29cf04c0"
+    },
+    {
+      "path": "tests/options_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b5088478bd6b61973413a00b0103c04bf845b1f3",
+      "size": 9115,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/b5088478bd6b61973413a00b0103c04bf845b1f3"
+    },
+    {
+      "path": "tests/pagination_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "17d1636e4409fe482a3d08eff31a3ea08f3f8806",
+      "size": 12978,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/17d1636e4409fe482a3d08eff31a3ea08f3f8806"
+    },
+    {
+      "path": "tests/registry_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4a9eed9eb3632fc2f6f585359474a1a337bf28a9",
+      "size": 26623,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/4a9eed9eb3632fc2f6f585359474a1a337bf28a9"
+    },
+    {
+      "path": "tests/resource_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "471ffaa06f099c5f818e4d59d0fd4b50af9628e0",
+      "size": 120122,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/471ffaa06f099c5f818e4d59d0fd4b50af9628e0"
+    },
+    {
+      "path": "tests/set_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b7522e811a93e68d27dcdeb9233f738be3714b6f",
+      "size": 28968,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/b7522e811a93e68d27dcdeb9233f738be3714b6f"
+    },
+    {
+      "path": "tests/timestamp_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "809c363b31abdb2107d7e4499372a0c3df1a918f",
+      "size": 11842,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/809c363b31abdb2107d7e4499372a0c3df1a918f"
+    },
+    {
+      "path": "tests/typemap_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e8b46e5beb9ff281e7d6542f71f43459e6445429",
+      "size": 13428,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/e8b46e5beb9ff281e7d6542f71f43459e6445429"
+    },
+    {
+      "path": "tests/types_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7a5bbfe0695c31dfb010a1b226d9a7c323b4396c",
+      "size": 62627,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/7a5bbfe0695c31dfb010a1b226d9a7c323b4396c"
+    },
+    {
+      "path": "tests/utils_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5f38b38c10d8e5d838dc82eee712d6169b1d8f46",
+      "size": 19162,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/5f38b38c10d8e5d838dc82eee712d6169b1d8f46"
+    },
+    {
+      "path": "tests/version_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0892d9182e966b1217450f625d079a545f0016a8",
+      "size": 46229,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/0892d9182e966b1217450f625d079a545f0016a8"
+    },
+    {
+      "path": "tests/versionmode_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "facf3179d3d38b5db0df87eca87a54de375523f1",
+      "size": 3476,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/facf3179d3d38b5db0df87eca87a54de375523f1"
+    },
+    {
+      "path": "tests/xr_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "69407fd993abaa361d9bfe7cff60648c6b7d87a0",
+      "size": 147606,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/69407fd993abaa361d9bfe7cff60648c6b7d87a0"
+    },
+    {
+      "path": "tests/xref_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f8bd1cd0792fd118650e86b72c57a2525959c93f",
+      "size": 116911,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/f8bd1cd0792fd118650e86b72c57a2525959c93f"
+    },
+    {
+      "path": "tests/xrserver_test.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fe76f5f076b2916d7cee6b3da20abc0d8861b317",
+      "size": 15568,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/fe76f5f076b2916d7cee6b3da20abc0d8861b317"
+    },
+    {
+      "path": "todo",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "76c3b21fa21f13adb34b353aae28682a12f565de",
+      "size": 6904,
+      "url": "https://api.github.com/repos/xregistry/server/git/blobs/76c3b21fa21f13adb34b353aae28682a12f565de"
+    }
+  ],
+  "truncated": false
+}

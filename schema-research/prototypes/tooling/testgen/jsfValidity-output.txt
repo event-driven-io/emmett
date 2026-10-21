@@ -1,0 +1,4 @@
+z.int().positive(): 0/2000 invalid []
+z.number().gt(0): 0/2000 invalid []
+z.string().min(1): 0/2000 invalid []
+object with uuid + datetime: 0/2000 invalid []

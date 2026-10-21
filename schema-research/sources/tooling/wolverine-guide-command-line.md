@@ -1,0 +1,504 @@
+# Command Line Integration
+
+@[youtube](3C5bacH0akU)
+
+With help from its [JasperFx](https://github.com/JasperFx) team mate [Oakton](https://jasperfx.github.io/oakton), Wolverine supports quite a few command line diagnostic and resource management
+tools. To get started, apply Oakton as the command line parser in your applications as shown in the last line of code in this
+sample application bootstrapping from Wolverine's [Getting Started](/tutorials/getting-started):
+
+::: info
+This page covers the Wolverine-specific CLI surface. The underlying JasperFx command-line library that backs `RunJasperFxCommands` — including how to [author your own commands](https://shared-libs.jasperfx.net/cli/writing-commands.html), [argument/flag handling](https://shared-libs.jasperfx.net/cli/arguments-flags.html), and [environment checks](https://shared-libs.jasperfx.net/cli/environment-checks.html) — is documented at [shared-libs.jasperfx.net/cli](https://shared-libs.jasperfx.net/cli/). When a command accepts a generic flag not listed on this page, that's where to look first.
+:::
+
+<!-- snippet: sample_quickstart_program -->
+<a id='snippet-sample_quickstart_program'></a>
+```cs
+using JasperFx;
+using Quickstart;
+using Wolverine;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// The almost inevitable inclusion of OpenApi:)
+builder.Services.AddOpenApi();
+
+// For now, this is enough to integrate Wolverine into
+// your application, but there'll be *many* more
+// options later of course :-)
+builder.Host.UseWolverine();
+
+// Some in memory services for our application, the
+// only thing that matters for now is that these are
+// systems built by the application's IoC container
+builder.Services.AddSingleton<UserRepository>();
+builder.Services.AddSingleton<IssueRepository>();
+
+var app = builder.Build();
+
+// An endpoint to create a new issue that delegates to Wolverine as a mediator
+app.MapPost("/issues/create", (CreateIssue body, IMessageBus bus) => bus.InvokeAsync(body));
+
+// An endpoint to assign an issue to an existing user that delegates to Wolverine as a mediator
+app.MapPost("/issues/assign", (AssignIssue body, IMessageBus bus) => bus.InvokeAsync(body));
+
+app.MapOpenApi();
+
+app.MapGet("/", () => Results.Redirect("/swagger"));
+
+// Opt into using JasperFx for command line parsing
+// to unlock built in diagnostics and utility tools within
+// your Wolverine application
+return await app.RunJasperFxCommands(args);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+From this project's root in the command line terminal tool of your choice, type:
+
+```bash
+dotnet run -- help
+```
+
+and you *should* get this hopefully helpful rundown of available command options:
+
+```bash
+The available commands are:
+                                                                                                    
+  Alias       Description                                                                           
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  check-env   Execute all environment checks against the application                                
+  codegen     Utilities for working with JasperFx.CodeGeneration and JasperFx.RuntimeCompiler       
+  describe    Writes out a description of your running application to either the console or a file  
+  help        List all the available commands                                                       
+  resources   Check, setup, or teardown stateful resources of this system                           
+  run         Start and run this .Net application                                                   
+  storage                Administer the Wolverine message storage
+  wolverine-diagnostics  Wolverine diagnostics tools for inspecting generated code and runtime behavior
+
+
+Use dotnet run -- ? [command name] or dotnet run -- help [command name] to see usage help about a specific command
+
+```
+
+## Describe a Wolverine Application
+
+::: tip
+While Wolverine certainly knows upfront what message types it handles, you may need to help Wolverine "know" what types
+will be outgoing messages later with the [message discovery](/guide/messages.html#message-discovery) support.
+:::
+
+Wolverine is admittedly a configuration-heavy framework, and some combinations of conventions, policies, and explicit configuration
+could easily lead to confusion about how the system is going to behave. To help ameliorate that possible situation -- but also to help the 
+Wolverine team be able to remotely support folks using Wolverine -- you have this command line tool:
+
+```bash
+dotnet run -- describe
+```
+
+At this time, a Wolverine application will spit out command line reports about its configuration that
+will describe:
+
+* "Wolverine Options" - the basics properties as configured, including what Wolverine thinks is the application assembly and any registered extensions
+* "Wolverine Listeners" - a tabular list of all the configured listening endpoints, including local queues, within the system and information about how they are configured
+* "Wolverine Message Routing" - a tabular list of all the message routing for *known* messages published within the system
+* "Wolverine Sending Endpoints" - a tabular list of all *known*, configured endpoints that send messages externally
+* "Wolverine Error Handling" - a preview of the active message failure policies active within the system
+* "Wolverine Http Endpoints" - shows all Wolverine HTTP endpoints. This is only active if WolverineFx.HTTP is used within the system
+
+## Exporting System Capabilities <Badge type="tip" text="5.8" />
+
+This command:
+
+```bash
+dotnet run capabilities wolverine.json
+```
+
+Will write a JSON file to "wolverine.json" that will completely describe all the configured settings, message types, message store,
+messaging endpoints, and even event stores configured to this application. The Wolverine team may ask you for this file 
+to help you troubleshoot issues in the future.
+
+This functionality was originally built for consumption in the "CritterWatch" add on tool, but was requested by a [JasperFx Software](https://jasperfx.net)
+client to provide a mechanism to detect any unintentional changes to Wolverine application configuration.
+
+## CLI Commands Work Without External Connectivity
+
+::: tip
+This applies to `codegen write`, `codegen preview`, `describe`, and OpenAPI generation tools such as
+`GetDocument.Insider` (Microsoft.Extensions.ApiDescription.Server). You do **not** need a running
+database or message broker for these commands to succeed.
+:::
+
+Wolverine automatically detects when it is running in a metadata-only CLI mode and suppresses
+persistence and transport initialization. No database connections or message broker connections
+are opened. This allows commands like `codegen` and `describe` to work safely in CI pipelines or
+developer machines that do not have external infrastructure available.
+
+Detection is based on two signals:
+
+1. **`DynamicCodeBuilder.WithinCodegenCommand`** — set by JasperFx when the `codegen` command is
+   used, either via `dotnet run -- codegen ...` or the `--start` flag.
+2. **`ASPNETCORE_HOSTINGSTARTUPASSEMBLIES` environment variable** — contains `"GetDocument"` when
+   OpenAPI generation tools like `GetDocument.Insider` start the host.
+
+When either condition is true, Wolverine applies the equivalent of "lightweight mode":
+external transports are stubbed out, durability agents are disabled, and the durability
+mode is set to `MediatorOnly`.
+
+If you need to explicitly disable persistence initialization for other tooling (e.g., your own
+OpenAPI generation pipeline), you can use the `DisableAllWolverineMessagePersistence()` extension:
+
+```csharp
+// In Program.cs or Startup.cs, guard with an environment check for your tooling
+builder.Services.DisableAllWolverineMessagePersistence();
+```
+
+## Wolverine Diagnostics Commands <Badge type="tip" text="5.14" />
+
+The `wolverine-diagnostics` command is an extensible parent command for deeper Wolverine-specific
+inspection tools.
+
+::: tip
+Both `codegen-preview` and `describe-routing` work without database or message-broker connectivity.
+Wolverine automatically detects CLI codegen mode and stubs out persistence and transports.
+:::
+
+### codegen-preview
+
+Preview the full generated adapter code for a **specific** message handler, HTTP endpoint, or
+proto-first gRPC service without generating all handlers at once. This is useful when you want to
+understand exactly what middleware, dependency resolution, or transaction wrapping Wolverine
+applies to a single entry point.
+
+**Preview a message handler** (accepts fully-qualified name, short class name, or handler class name):
+
+```bash
+# Fully-qualified message type
+dotnet run -- wolverine-diagnostics codegen-preview --handler MyApp.Orders.CreateOrder
+
+# Short message type name (fuzzy match)
+dotnet run -- wolverine-diagnostics codegen-preview --handler CreateOrder
+
+# Handler class name
+dotnet run -- wolverine-diagnostics codegen-preview --handler CreateOrderHandler
+```
+
+**Preview an HTTP endpoint** (requires Wolverine.HTTP; format: `"METHOD /path"`):
+
+```bash
+dotnet run -- wolverine-diagnostics codegen-preview --route "POST /api/orders"
+dotnet run -- wolverine-diagnostics codegen-preview --route "GET /api/orders/{id}"
+```
+
+**Preview a proto-first gRPC service wrapper** (requires Wolverine.Grpc; accepts the proto service
+name, the stub class name, or the generated file name):
+
+```bash
+# Bare proto service name (as it appears in the .proto file)
+dotnet run -- wolverine-diagnostics codegen-preview --grpc Greeter
+
+# Stub class name
+dotnet run -- wolverine-diagnostics codegen-preview --grpc GreeterGrpcService
+
+# Short alias
+dotnet run -- wolverine-diagnostics codegen-preview -g Greeter
+```
+
+The output includes the full generated class — the `Handle` or `HandleAsync` override, all
+middleware calls in order, dependency resolution from the IoC container, and any
+transaction-wrapping frames. This is identical to what `codegen preview` outputs, but scoped to
+exactly one handler so the signal-to-noise ratio is much higher.
+
+### describe-routing <Badge type="tip" text="5.15" />
+
+Inspect the message routing configuration for a specific message type or show a complete view of
+all message routing in your application.
+
+**Inspect routing for a single message type** (accepts full name, short name, or fuzzy match):
+
+```bash
+# Short class name
+dotnet run -- wolverine-diagnostics describe-routing CreateOrder
+
+# Fully-qualified name
+dotnet run -- wolverine-diagnostics describe-routing MyApp.Orders.CreateOrder
+```
+
+The output for a single message type includes:
+
+- **Local handler** — the handler class and method, if any
+- **Routes table** — each destination with its type (local vs. external), endpoint mode
+  (Buffered/Durable/Inline), outbox enrollment, serialization format, and how the route was
+  resolved (local handler convention, explicit publish rule, transport routing convention, or
+  `[LocalQueue]` attribute)
+- **Message-level attributes** — any `ModifyEnvelopeAttribute`-derived attributes (e.g.,
+  `[DeliverWithin]`) applied to the message class
+
+**Explain *why* a message routes where it does** <Badge type="tip" text="6.0" /> — add `--explain`
+(`-e`) to print the route source chain in the order Wolverine consults it, what each source
+produced, and which **terminating** source short-circuited the rest:
+
+```bash
+dotnet run -- wolverine-diagnostics describe-routing CreateOrder --explain
+```
+
+The explanation lists each route source (`MessageTransformations`, `AgentCommands`,
+`ExplicitRouting`, `LocalRouting`, `ConventionalRouting`, plus any custom sources) with a short
+description, whether it is additive or terminating, the routes it produced, and a skip reason when
+an earlier terminating source already produced routes. Conventional broker routing also reports the
+broker scheme/name and the transport's own description, so named brokers of the same transport type
+can be told apart. This is the CLI surface over the `IWolverineRuntime.ExplainRoutingFor(Type)` API
+(see [Troubleshooting Message Routing](/guide/diagnostics#troubleshooting-message-routing)).
+
+For machine or AI-agent consumption, add `--json` (`-j`) to emit the same explanation as JSON:
+
+```bash
+dotnet run -- wolverine-diagnostics describe-routing CreateOrder --json
+```
+
+The text output is intentionally stable and labeled so it reads well for humans *and* parses cleanly
+for AI agents; `--json` gives a fully structured form.
+
+**Show the complete routing topology** (all message types):
+
+```bash
+dotnet run -- wolverine-diagnostics describe-routing --all
+```
+
+The `--all` output includes:
+
+- **Routing Conventions** — transport-level conventions registered via `RouteWith()`
+- **Message Routing** table — every known message type with its destinations, mode, outbox status,
+  and serializer; unrouted types are flagged in yellow
+- **Listeners** — all configured listening endpoints with name, mode, and parallelism
+- **Senders** — all configured sending endpoints with name, mode, and subscription count
+
+### describe-handlers <Badge type="tip" text="6.0" />
+
+Explain *why* a candidate type is — or is not — discovered as a message handler. This is the command-line
+surface over [`WolverineOptions.DescribeHandlerMatch(Type)`](/guide/diagnostics#troubleshooting-handler-discovery),
+so you no longer have to drop a temporary `Console.WriteLine(...)` into your bootstrapping code.
+
+```bash
+# By handler class name
+dotnet run -- wolverine-diagnostics describe-handlers CreateOrderHandler
+
+# By fully-qualified name
+dotnet run -- wolverine-diagnostics describe-handlers MyApp.Orders.CreateOrderHandler
+```
+
+The argument is matched against the types in your application — exact full name, then exact short name, then
+a fuzzy "contains" match. If the term matches **more than one** type, Wolverine prints a discovery report for
+*each* match. For every matched type the report shows whether its assembly is being scanned, which type-level
+include/exclude rules HIT or MISS, and — for each method — whether it satisfies the handler naming and
+signature conventions.
+
+Like the other diagnostics commands, this builds the host and compiles the handler graph but does **not**
+start it, so no database or message-broker connections are opened.
+
+## Other Highlights
+
+* See the [code generation support](./codegen)
+* The `storage` command helps manage the [durable messaging support](./durability/)
+* Wolverine has direct support for [Oakton](https://jasperfx.github.io/oakton) environment checks and resource management that
+  can be very helpful for Wolverine integrations with message brokers or database servers
+
+## Exporting the Event Model
+
+::: tip
+Added with GH-3988 / GH-3990. The design-time Event Modeling viewer that renders this file is the
+Bobcat viewer; CritterWatch renders the same descriptor live from a running service.
+:::
+
+Every Wolverine message handler chain, HTTP endpoint chain and gRPC-forwarded RPC *derives* its own
+[Event Modeling](https://eventmodeling.org/) roles — the inbound command, the handler, the aggregate(s) the
+handler decides against (`[WriteAggregate]` / `[WriteModel]`, `[AggregateHandler]` / `[DeciderFunction]`, the
+DCB `[DcbModel]` / `[BoundaryModel]`), the events it emits (its declarative return values), the read models it loads
+(`[ReadAggregate]` / `[ReadModel]`, `[Entity]`) or produces (`IStorageAction<T>`), the messages it cascades, how it is
+triggered and which of the four slice patterns it is. Nothing is declared; it is all read off the chain, and it
+flows out through the `ServiceCapabilities` snapshot CritterWatch already consumes and through JasperFx's
+`IEventModelDefinitionSource` seam.
+
+The `event-model` command writes that whole picture — Wolverine's derived slices, Wolverine.HTTP's, and any
+[overlay](https://github.com/JasperFx/jasperfx/issues/687) the application registered with
+`services.AddEventModel(...)` — as one JSON `EventModelDescriptor`, **without a running fleet**:
+
+```bash
+dotnet run -- event-model                       # writes event-model.json in the working directory
+dotnet run -- event-model --json ./docs/orders.json
+dotnet run -- event-model --json ./out.json --name Orders
+```
+
+### Publishing to a monitor
+
+`--url` PUTs the assembled descriptor to a monitor instead of writing it to a file, which collapses the
+design-time loop to a single command:
+
+```bash
+dotnet watch run -- event-model --url http://localhost:5525
+```
+
+The two flags compose. `--url` on its own publishes and writes nothing; add `--json` and you get both, with
+the file and the request body byte-for-byte identical:
+
+```bash
+dotnet run -- event-model --url http://localhost:5525                       # publish only
+dotnet run -- event-model --url http://localhost:5525 --json ./out.json     # publish and write
+```
+
+Wolverine takes **no reference on the monitor** — this is an HTTP PUT to whatever URL you name, so anything
+that accepts the descriptor works. A monitor that is down fails with a one-line message and a non-zero exit
+rather than a stack trace, because under `dotnet watch` a console you have not started yet is the ordinary
+case and must not look like a crash.
+
+::: tip
+Note that the rebuild has to come from `dotnet watch`, not from a `--watch` flag on the command. The command's
+process already has your assembly loaded, so an internal loop would re-serialize the same chains forever and
+never see an edit — only a fresh process picks up recompiled handlers.
+:::
+
+The host is built but **never started**: the handler graph is compiled the same way
+`wolverine-diagnostics describe-handlers` does it, so no transport is opened, no database is touched, and no
+runtime compiler is needed — a `TypeLoadMode.Dynamic` application without `WolverineFx.RuntimeCompilation`
+still exports. The JSON is written camelCase with enums as strings, exactly as CritterWatch puts the descriptor
+on the wire, so the file round-trips through `EventModelDescriptor` and renders in the shared Event Modeling
+component with the same output CritterWatch shows for the same host.
+
+What is deliberately *not* visible here: imperative `session.Events.Append(...)` inside a handler body. That is
+invisible at runtime, so only declarative returns are reported; CritterWatch's source generator covers the
+imperative case.
+
+### Naming the events a signature cannot carry
+
+Two of the shapes the Critter Stack scaffolds for a modelled slice hand back a *collection* of events or a
+stream side effect, and both erase the element types on the way out:
+
+```cs
+public static (ConfirmAppointmentResponse, EventsToAppend) Post(ConfirmAppointmentRequest request, [WriteModel] Appointment appointment)
+public static StartStream Handle(HomeCheckAssignmentAccepted trigger)
+```
+
+The slice is known to append events; the events themselves are built in the method body, so nothing on the
+signature says what they are. Put `[Emits]` on the handler method (or on the handler type, when every method
+of it emits the same events) to say it:
+
+```cs
+[Emits(typeof(AppointmentConfirmed))]
+public static (ConfirmAppointmentResponse, EventsToAppend) Post(
+    ConfirmAppointmentRequest request, [WriteModel] Appointment appointment)
+{
+    var events = new EventsToAppend { new AppointmentConfirmed(request.Id) };
+    return (new ConfirmAppointmentResponse(request.Id), events);
+}
+```
+
+It is additive — everything the signature already says still holds — and purely diagnostic: nothing about
+dispatch, codegen or persistence reads it. Without it, `emittedEvents` on those slices is empty, which is
+indistinguishable from a slice that emits nothing at all.
+
+::: tip
+`[Emits]` is worth reaching for precisely when a declared model says a slice emits an event. An empty derived
+list cannot *contradict* a declaration, so drift goes unseen; a declared one can, and the merge raises it.
+:::
+
+### What the derived source will not claim
+
+Two roles are deliberately left unclaimed rather than guessed at, so a declaration wins them by default:
+
+| Role | Why the code cannot answer |
+| --- | --- |
+| `TriggerLabel` | A trigger label is a naming concern ("Customer at the ATM"). The structural facts already ride on `TriggerOrigin`. |
+| `Pattern`, for a message handler | An inbound message that appends events is a `Command` or an `Automation` depending on *why* it arrived — a person asked, or the system reacted. A handler signature cannot tell the two apart. |
+
+`Pattern` is still claimed wherever the code genuinely answers it: an HTTP `GET` is a `View`, a `TimeoutMessage`
+or a cron-scheduled message is an `Automation`, a gRPC RPC is a `Command`, an inbound external system makes the
+slice a `Translation`, and a slice whose command is an event another slice emits is promoted to `Automation`
+because the assembled model says so.
+
+### Declaring the pattern of a message handler
+
+That still leaves a gap. A message handler whose message has *no* producer anywhere in the model -- it comes in
+from another service over a broker, or from a hosted service, or from a controller that isn't a Wolverine
+endpoint -- carries no pattern at all, and those are usually exactly the slices you most want colored in. If you
+know the answer, say so on the handler with `[SlicePattern]`, the same way `[Emits]` names events:
+
+```cs
+[SlicePattern(SlicePattern.Command)]
+public static IssueAssigned Handle(AssignIssue command, IssueRepository issues)
+{
+    // ...
+}
+```
+
+Put it on the handler method, or on the handler type when every method of it has the same pattern. A declaration
+on the method wins over one on the type.
+
+::: tip
+`[SlicePattern]` only fills a gap. An HTTP route, a gRPC RPC, a schedule and an inbound external system all
+derive the pattern from the trigger itself, and the attribute won't override any of them. On a plain message
+handler it *does* take precedence over the `Automation` promotion for a message another slice cascades, because
+a cascaded message can also arrive from outside the model, and that's precisely the question you're answering.
+Like `[Emits]`, it's purely diagnostic, and a stale declaration shows up as a disagreement with a declared model
+rather than going unnoticed.
+:::
+
+### Meeting a declared model
+
+A declared model — a curated board file, an overlay — names a slice for the behaviour: `ConfirmAppointment`.
+Wolverine's derived sources name it for what they can see: the message type `ConfirmAppointmentRequest`, the
+triggering event `HomeCheckAssignmentAccepted`, the route `GET /api/appointmentsqueue/{id}`. Slice names are
+the merge key, so left alone the two never meet and an eleven-slice application assembles as twenty-two slices
+with no disagreements — not because the sources agree, but because they were never compared.
+
+`HandlerType` is the one role both kinds of source fill and mean the same thing by, so the export aligns on it:
+where a declaration and the code describe the same handler type under different names, the **declared** name
+wins and both fold into one slice. Neither side has to rename anything, and the real disagreements surface as
+`SourceDisagreement` hotspots instead of duplicate slices.
+
+Nothing is aligned between two sources on the *same* rung (Wolverine core and Wolverine.HTTP already agree on
+how they name things), a handler type carrying more than one slice inside a source identifies none of them, and
+a rename that would collide with a slice already in that source is dropped.
+
+### The slice next to the route
+
+The assembled model is one picture of the whole service. A monitoring console often wants the other view —
+walking the surface area endpoint by endpoint and asking "what does *this* one do?" — so the derived slice is
+also attached to the descriptor of the thing that starts it:
+
+| Descriptor | Slot | What it carries |
+| --- | --- | --- |
+| `MessageHandlerDescriptor` | `EventModel` | the handler chain's slice (GH-3988) |
+| `GrpcRpcDescriptor` | `EventModel` | the slice of the message the RPC forwards to the bus, with the RPC as its trigger (GH-4000) |
+
+Both slots are nullable and additive on the wire, and both are *the same slice* the assembled model carries —
+derived once, by the same code, so the two cannot drift.
+
+Because an RPC's generated wrapper forwards its request to the bus, the slice on a `GrpcRpcDescriptor` is the
+forwarded message's whole slice — handler, aggregates, emitted events, cascaded messages — not merely a note
+that something was published. When nothing in the process handles that message, the slice is trigger-only: there
+is still a boundary worth rendering. And where two RPCs forward the *same* message, each descriptor names its own
+RPC as the trigger, while the assembled model — which folds a message into one slice — can only name the first.
+
+### Naming the external system on an endpoint
+
+The *edge* of a translation slice is derived — a listener that receives from, or a subscriber that publishes to,
+something outside your application *is* the external-system boundary — but the **name** of that system is the one
+thing code cannot say. Declare it on the endpoint, never in the event-model overlay:
+
+```cs
+opts.ListenToRabbitQueue("stripe-events")
+    .ExternalSystem("Stripe")
+    .DefaultIncomingMessage<StripeChargeSucceeded>();
+
+opts.PublishMessage<IssueStripeRefund>()
+    .ToRabbitQueue("stripe-refunds")
+    .ExternalSystem("Stripe");
+```
+
+`.ExternalSystem("...")` is available on every listener and subscriber configuration. The name flows out through
+the endpoint's `EndpointDescriptor.ExternalSystem` in the capabilities snapshot, and the Event Model attaches a
+**Stripe** external-system element — inbound — to the slice the listener triggers (a handler stuck to that
+listener, or the handler of its `DefaultIncomingMessage<T>()`), which makes that slice a `Translation` slice
+triggered `External`; a named listener bound to no slice still renders as a trigger-only boundary. On the outbound
+side, every slice whose published messages or emitted events the named endpoint subscribes to gets the system on
+its far end (a pure relay becomes a `Translation` slice; a command slice that also notifies Stripe stays a command
+slice).

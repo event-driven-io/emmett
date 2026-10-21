@@ -1,0 +1,2004 @@
+# EventCatalog
+
+> EventCatalog is an Open Source project that helps you document your messages, services and domains.
+
+- [EventCatalog](/index.md)
+
+## about-us
+
+The story behind EventCatalog - an open source documentation tool for software architecture.
+
+- [Building the Open Source Documentation Tool for Software Architecture](/about-us.md): The story behind EventCatalog - an open source documentation tool for software architecture.
+
+## blog
+
+Practical guides to documenting distributed systems, event-driven architecture, and the latest EventCatalog features.
+
+- [Architecture guides and EventCatalog news](/blog.md): Practical guides to documenting distributed systems, event-driven architecture, and the latest EventCatalog features.
+
+### 2026
+
+- [Introducing diagrams as first-class resources](/blog/2026/01/09/diagrams-as-first-class-resources.md): EventCatalog already gives you auto-generated visualizations: Entity Maps, Interaction Maps, and domain views that update as your catalog changes. These are great for understanding relationships between your resources.
+
+### api-catalog
+
+EventCatalog can now publish an API catalog at /.well-known/api-catalog, giving agents and developer tools one machine-readable place to discover your service, domain, and MCP API surfaces.
+
+- [Let tools find your APIs from one URL](/blog/api-catalog.md): EventCatalog can now publish an API catalog at /.well-known/api-catalog, giving agents and developer tools one machine-readable place to discover your service, domain, and MCP API surfaces.
+
+### apicurio-registry-eventcatalog
+
+Connect Apicurio Registry to EventCatalog for better schema governance and documentation
+
+- [Integrate Apicurio Registry with EventCatalog](/blog/apicurio-registry-eventcatalog.md): Connect Apicurio Registry to EventCatalog for better schema governance and documentation
+
+### architecture-change-detection
+
+Architecture Change Detection in EventCatalog monitors your event-driven architecture across git branches and notifies your teams the moment a service starts or stops producing or consuming messages.
+
+- [Your architecture is changing. Do you know about it?](/blog/architecture-change-detection.md): Architecture Change Detection in EventCatalog monitors your event-driven architecture across git branches and notifies your teams the moment a service starts or stops producing or consuming messages.
+
+### archive
+
+Archive
+
+- [Archive](/blog/archive.md): Archive
+
+### asyncapi-eventcatalog
+
+Integrate your AsyncAPI files and auto your EventCatalog
+
+- [AsyncAPI integration with EventCatalog](/blog/asyncapi-eventcatalog.md): Integrate your AsyncAPI files and auto your EventCatalog
+
+### authentication-and-ssr-mode
+
+Getting started with EventCatalog Authentication and SSR Mode
+
+- [Introducing Authentication and SSR Mode](/blog/authentication-and-ssr-mode.md): Getting started with EventCatalog Authentication and SSR Mode
+
+### azure-schema-registry-eventcatalog
+
+Connect Azure Schema Registry to EventCatalog for better governance and documentation
+
+- [Integrate Azure Schema Registry with EventCatalog](/blog/azure-schema-registry-eventcatalog.md): Connect Azure Schema Registry to EventCatalog for better governance and documentation
+
+### built-in-mcp-server
+
+Connect AI tools to your architecture with 15 tools and 9 resources
+
+- [EventCatalog now includes a built-in MCP server](/blog/built-in-mcp-server.md): Connect AI tools to your architecture with 15 tools and 9 resources
+
+### bundled-docs-for-coding-agents
+
+EventCatalog 3.35.1 bundles the full documentation inside the npm package itself, giving AI coding agents a version-matched source of truth they can read before touching your catalog.
+
+- [Giving your AI agents docs they can actually trust](/blog/bundled-docs-for-coding-agents.md): EventCatalog 3.35.1 bundles the full documentation inside the npm package itself, giving AI coding agents a version-matched source of truth they can read before touching your catalog.
+
+### c4-and-eventcatalog
+
+Two ways to bring C4 architecture modeling into EventCatalog: a Claude skill that converts C4 diagrams (Structurizr, C4-PlantUML, Mermaid C4) into a full event-driven catalog, and the LikeC4 component that renders interactive C4 diagrams directly inside EventCatalog pages.
+
+- [How to turn C4 diagrams into EventCatalog documentation](/blog/c4-and-eventcatalog.md): Two ways to bring C4 architecture modeling into EventCatalog: a Claude skill that converts C4 diagrams (Structurizr, C4-PlantUML, Mermaid C4) into a full event-driven catalog, and the LikeC4 component that renders interactive C4 diagrams directly inside EventCatalog pages.
+
+### channels-20
+
+Introducing EventCatalog 2.65.0 with support for channels 2.0
+
+- [Modelling more message patterns in EventCatalog](/blog/channels-20.md): Introducing EventCatalog 2.65.0 with support for channels 2.0
+
+### custom-icons
+
+EventCatalog 3.28.1 lets you set a custom icon on any resource. One field in frontmatter and your visualiser goes from generic coloured boxes to a diagram that tells the real story of your stack.
+
+- [Your catalog nodes now show what they actually are](/blog/custom-icons.md): EventCatalog 3.28.1 lets you set a custom icon on any resource. One field in frontmatter and your visualiser goes from generic coloured boxes to a diagram that tells the real story of your stack.
+
+### custom-pages-api-routes
+
+EventCatalog now supports custom pages and API routes, so teams can build their own catalog tools, dashboards, workflows, and API-backed pages.
+
+- [Add custom dashboards, tools, and APIs to EventCatalog](/blog/custom-pages-api-routes.md): EventCatalog now supports custom pages and API routes, so teams can build their own catalog tools, dashboards, workflows, and API-backed pages.
+
+### custom-search-experience
+
+EventCatalog introduces a completely redesigned search experience with advanced filtering, categorized results, and instant discovery for static builds. Find domains, services, events, and documentation faster than ever.
+
+- [Introducing Search v2](/blog/custom-search-experience.md): EventCatalog introduces a completely redesigned search experience with advanced filtering, categorized results, and instant discovery for static builds. Find domains, services, events, and documentation faster than ever.
+
+### data-products
+
+Data products join EventCatalog as a first-class resource type with inputs, outputs, contracts, and full integration with your existing architecture.
+
+- [Document, visualize and discover your data products](/blog/data-products.md): Data products join EventCatalog as a first-class resource type with inputs, outputs, contracts, and full integration with your existing architecture.
+
+### document-ai-agents
+
+EventCatalog 3.41.0 adds first-class agent documentation so teams can reduce agent sprawl, track ownership, see model and tool usage, and understand how agents consume and produce information across their architecture.
+
+- [Document and Govern AI Agents in EventCatalog](/blog/document-ai-agents.md): EventCatalog 3.41.0 adds first-class agent documentation so teams can reduce agent sprawl, track ownership, see model and tool usage, and understand how agents consume and produce information across their architecture.
+
+### documenting-sync-and-async-apis-with-eventcatalog
+
+Learn how EventCatalog's OpenAPI and AsyncAPI generators help companies bridge the gap between synchronous REST APIs and asynchronous event-driven architectures
+
+- [Documenting sync and async APIs with EventCatalog](/blog/documenting-sync-and-async-apis-with-eventcatalog.md): Learn how EventCatalog's OpenAPI and AsyncAPI generators help companies bridge the gap between synchronous REST APIs and asynchronous event-driven architectures
+
+### domain-level-messages
+
+Domain-level messaging gives teams more flexibility in how they model their event-driven architectures
+
+- [Document events at the domain level](/blog/domain-level-messages.md): Domain-level messaging gives teams more flexibility in how they model their event-driven architectures
+
+### eventbridge-eventcatalog
+
+Integrate Amazon EventBridge with EventCatalog
+
+- [Amazon EventBridge integration with EventCatalog](/blog/eventbridge-eventcatalog.md): Integrate Amazon EventBridge with EventCatalog
+
+### eventcatalog-2130
+
+Introducing EventCatalog 2.13.0 with support for channels
+
+- [2.13.0](/blog/eventcatalog-2130.md): Introducing EventCatalog 2.13.0 with support for channels
+
+### eventcatalog-250
+
+Introducing EventCatalog 2.5.0 with support for flows
+
+- [2.5.0](/blog/eventcatalog-250.md): Introducing EventCatalog 2.5.0 with support for flows
+
+### eventcatalog-4-12
+
+EventCatalog 4.12 turns every schema into a page consumers can work from, with written examples, producers and consumers, flows, and version comparison. It also removes the .eventcatalog-core folder from your project.
+
+- [EventCatalog 4.12: schemas your consumers can actually use](/blog/eventcatalog-4-12.md): EventCatalog 4.12 turns every schema into a page consumers can work from, with written examples, producers and consumers, flows, and version comparison. It also removes the .eventcatalog-core folder from your project.
+
+### eventcatalog-april-2025
+
+EventCatalog updates for April 2025
+
+- [Whats new in EventCatalog - April 2025](/blog/eventcatalog-april-2025.md): EventCatalog updates for April 2025
+
+### eventcatalog-attachments
+
+Link external resources, diagrams, and documentation to your EventCatalog resources
+
+- [Introducing Attachments for EventCatalog](/blog/eventcatalog-attachments.md): Link external resources, diagrams, and documentation to your EventCatalog resources
+
+### eventcatalog-august-2024
+
+Overview of what was released in August 2024
+
+- [EventCatalog August 2024 update](/blog/eventcatalog-august-2024.md): Overview of what was released in August 2024
+
+### eventcatalog-august-2025
+
+EventCatalog updates for August 2025
+
+- [Whats new in EventCatalog - August 2025](/blog/eventcatalog-august-2025.md): EventCatalog updates for August 2025
+
+### eventcatalog-august-2026
+
+August brought EventCatalog Federation v2, the new Architecture Graph, custom resource sidebars, stronger linting, channel maps, and plenty of fixes across the project.
+
+- [Whats new in EventCatalog - August 2026](/blog/eventcatalog-august-2026.md): August brought EventCatalog Federation v2, the new Architecture Graph, custom resource sidebars, stronger linting, channel maps, and plenty of fixes across the project.
+
+### eventcatalog-changelogs
+
+Understand and explore how to add changelogs to your domains, services and messages
+
+- [Announcing Changelogs for EventCatalog](/blog/eventcatalog-changelogs.md): Understand and explore how to add changelogs to your domains, services and messages
+
+### eventcatalog-chat
+
+Understand your architecture through conversation
+
+- [Introducing EventCatalog Chat](/blog/eventcatalog-chat.md): Understand your architecture through conversation
+
+### eventcatalog-cli
+
+The EventCatalog SDK now includes a command-line interface, making automation and integration dead simple
+
+- [Access your EventCatalog from the command line](/blog/eventcatalog-cli.md): The EventCatalog SDK now includes a command-line interface, making automation and integration dead simple
+
+### eventcatalog-cloud
+
+EventCatalog Cloud is a new way to experience EventCatalog, and license for plugins.
+
+- [Introducing EventCatalog Cloud and Plugin Licensing](/blog/eventcatalog-cloud.md): EventCatalog Cloud is a new way to experience EventCatalog, and license for plugins.
+
+### eventcatalog-components
+
+Understand how to create custom components for eventcatalog
+
+- [Introducing Custom Components](/blog/eventcatalog-components.md): Understand how to create custom components for eventcatalog
+
+### eventcatalog-custom-docs
+
+Bring your own documentation to EventCatalog
+
+- [Introducing EventCatalog Custom Documentation](/blog/eventcatalog-custom-docs.md): Bring your own documentation to EventCatalog
+
+### eventcatalog-december-2024
+
+EventCatalog updates for December 2024
+
+- [EventCatalog December 2024 update](/blog/eventcatalog-december-2024.md): EventCatalog updates for December 2024
+
+### eventcatalog-diagrams
+
+Bring your diagrams to life with EventCatalog
+
+- [Bring your diagrams to EventCatalog](/blog/eventcatalog-diagrams.md): Bring your diagrams to life with EventCatalog
+
+### eventcatalog-directory
+
+EventCatalog Directory is a new way to find users and teams using EventCatalog.
+
+- [Introducing EventCatalog Directory](/blog/eventcatalog-directory.md): EventCatalog Directory is a new way to find users and teams using EventCatalog.
+
+### eventcatalog-editor-beta
+
+EventCatalog Editor is now in beta. It gives your team a local visual editor for maintaining catalog resources, previewing changes, reviewing diffs, and publishing local Git commits.
+
+- [Edit your EventCatalog without opening Markdown](/blog/eventcatalog-editor-beta.md): EventCatalog Editor is now in beta. It gives your team a local visual editor for maintaining catalog resources, previewing changes, reviewing diffs, and publishing local Git commits.
+
+### eventcatalog-february-2025
+
+EventCatalog updates for February 2025
+
+- [EventCatalog February 2025 update](/blog/eventcatalog-february-2025.md): EventCatalog updates for February 2025
+
+### eventcatalog-federation
+
+Merge multiple EventCatalog instances into one for a single source of truth
+
+- [Introducing EventCatalog Federation](/blog/eventcatalog-federation.md): Merge multiple EventCatalog instances into one for a single source of truth
+
+### eventcatalog-federation-v2
+
+Federation is EventCatalog at scale. Teams own their docs, services, and ADRs, and federate them into a central catalog people and AI agents can use.
+
+- [Introducing EventCatalog Federation v2](/blog/eventcatalog-federation-v2.md): Federation is EventCatalog at scale. Teams own their docs, services, and ADRs, and federate them into a central catalog people and AI agents can use.
+
+### eventcatalog-icepanel
+
+Visualize your C4 architecture diagrams with IcePanel integration
+
+- [Embed IcePanel Diagrams in EventCatalog](/blog/eventcatalog-icepanel.md): Visualize your C4 architecture diagrams with IcePanel integration
+
+### eventcatalog-january-2026
+
+EventCatalog updates for January 2026
+
+- [What's new in EventCatalog - January 2026](/blog/eventcatalog-january-2026.md): EventCatalog updates for January 2026
+
+### eventcatalog-july-2025
+
+EventCatalog updates for July 2025
+
+- [Whats new in EventCatalog - July 2025](/blog/eventcatalog-july-2025.md): EventCatalog updates for July 2025
+
+### eventcatalog-july-2026
+
+July was the month EventCatalog v4 landed. Systems and context maps, custom pages and API routes, message trigger paths, scoped MCP servers, custom properties, and a lot of polish underneath.
+
+- [Whats new in EventCatalog - July 2026](/blog/eventcatalog-july-2026.md): July was the month EventCatalog v4 landed. Systems and context maps, custom pages and API routes, message trigger paths, scoped MCP servers, custom properties, and a lot of polish underneath.
+
+### eventcatalog-june-2025
+
+EventCatalog updates for June 2025
+
+- [Whats new in EventCatalog - June 2025](/blog/eventcatalog-june-2025.md): EventCatalog updates for June 2025
+
+### eventcatalog-linter
+
+Catch issues early and maintain high-quality documentation with the new EventCatalog Linter
+
+- [Introducing the EventCatalog Linter](/blog/eventcatalog-linter.md): Catch issues early and maintain high-quality documentation with the new EventCatalog Linter
+
+### eventcatalog-march-2025
+
+EventCatalog updates for March 2025
+
+- [EventCatalog March 2025 update](/blog/eventcatalog-march-2025.md): EventCatalog updates for March 2025
+
+### eventcatalog-march-2026
+
+EventCatalog updates for March 2026
+
+- [Whats new in EventCatalog - March 2026](/blog/eventcatalog-march-2026.md): EventCatalog updates for March 2026
+
+### eventcatalog-may-2025
+
+EventCatalog updates for May 2025
+
+- [Whats new in EventCatalog - May 2025](/blog/eventcatalog-may-2025.md): EventCatalog updates for May 2025
+
+### eventcatalog-may-2026
+
+May was one of our biggest months yet. Agents and ADRs are now first-class resources you can document and govern, the EventCatalog Editor is in beta, plus full-content search, GitHub user sync, and more features aimed at coding agents.
+
+- [Whats new in EventCatalog - May 2026](/blog/eventcatalog-may-2026.md): May was one of our biggest months yet. Agents and ADRs are now first-class resources you can document and govern, the EventCatalog Editor is in beta, plus full-content search, GitHub user sync, and more features aimed at coding agents.
+
+### eventcatalog-mcp
+
+Connect your EventCatalog to any MCP Client (e.g Cursor, Windsurf, Claude Desktop)
+
+- [Introducing EventCatalog MCP Server](/blog/eventcatalog-mcp.md): Connect your EventCatalog to any MCP Client (e.g Cursor, Windsurf, Claude Desktop)
+
+### eventcatalog-miro
+
+Bring your diagrams to life with Miro integration
+
+- [Bring Your Miro Boards to Life in EventCatalog](/blog/eventcatalog-miro.md): Bring your diagrams to life with Miro integration
+
+### eventcatalog-miro-app
+
+The EventCatalog Miro App v2 turns your architecture documentation into interactive, collaborative design artifacts — and sends them back when you're done.
+
+- [Your documentation is a design artifact, not just a wiki page](/blog/eventcatalog-miro-app.md): The EventCatalog Miro App v2 turns your architecture documentation into interactive, collaborative design artifacts — and sends them back when you're done.
+
+### eventcatalog-november-2024
+
+EventCatalog updates for November 2024
+
+- [EventCatalog November 2024 update](/blog/eventcatalog-november-2024.md): EventCatalog updates for November 2024
+
+### eventcatalog-october-2024
+
+EventCatalog updates for October 2024
+
+- [EventCatalog October 2024 update](/blog/eventcatalog-october-2024.md): EventCatalog updates for October 2024
+
+### eventcatalog-october-2025
+
+EventCatalog updates for October 2025
+
+- [Whats new in EventCatalog - October 2025](/blog/eventcatalog-october-2025.md): EventCatalog updates for October 2025
+
+### eventcatalog-openai
+
+EventCatalog now integrates with OpenAI, allowing you to use OpenAI models in your documentation.
+
+- [EventCatalog now integrates with OpenAI](/blog/eventcatalog-openai.md): EventCatalog now integrates with OpenAI, allowing you to use OpenAI models in your documentation.
+
+### eventcatalog-sdk
+
+Understand and explore the SDK for EventCatalog
+
+- [Announcing the new EventCatalog SDK](/blog/eventcatalog-sdk.md): Understand and explore the SDK for EventCatalog
+
+### eventcatalog-september-2024
+
+Overview of what was released in September 2024
+
+- [EventCatalog September 2024 update](/blog/eventcatalog-september-2024.md): Overview of what was released in September 2024
+
+### eventcatalog-september-2025
+
+EventCatalog updates for September 2025
+
+- [Whats new in EventCatalog - September 2025](/blog/eventcatalog-september-2025.md): EventCatalog updates for September 2025
+
+### eventcatalog-themes-dark-mode
+
+Customize your catalog with built-in themes, dark mode support, and create your own custom themes
+
+- [Introducing Themes and Dark Mode](/blog/eventcatalog-themes-dark-mode.md): Customize your catalog with built-in themes, dark mode support, and create your own custom themes
+
+### eventcatalog-v2
+
+Whats new in EventCatalog and how to get started
+
+- [Introducing EventCatalog v2](/blog/eventcatalog-v2.md): Whats new in EventCatalog and how to get started
+
+### eventcatalog-v3
+
+What's new in EventCatalog v3 and how to get started
+
+- [Introducing EventCatalog v3](/blog/eventcatalog-v3.md): What's new in EventCatalog v3 and how to get started
+
+### eventcatalog-v4
+
+EventCatalog v4 adds a new vision for our project. New system resource type, context maps, and simpler discovery. EventCatalog CI/CD Agent and faster catalogs. A better community edition, and clearer license models.
+
+- [Introducing EventCatalog v4](/blog/eventcatalog-v4.md): EventCatalog v4 adds a new vision for our project. New system resource type, context maps, and simpler discovery. EventCatalog CI/CD Agent and faster catalogs. A better community edition, and clearer license models.
+
+### external-systems
+
+A new externalSystem flag lets you mark services like Stripe, Twilio, or Snowflake as third-party dependencies. They get their own colour, their own sidebar section, and their own tab in discover.
+
+- [Model external systems in EventCatalog](/blog/external-systems.md): A new externalSystem flag lets you mark services like Stripe, Twilio, or Snowflake as third-party dependencies. They get their own colour, their own sidebar section, and their own tab in discover.
+
+### field-usage
+
+EventCatalog already shows you which services consume a message. Now it can also show you which specific fields they use.
+
+- [Which fields are your consumers actually using?](/blog/field-usage.md): EventCatalog already shows you which services consume a message. Now it can also show you which specific fields they use.
+
+### flow-containers-and-data-products
+
+EventCatalog v3.36.3 adds two new flow node types, containers and data products, so you can model the full journey from services and events through to data stores and analytical products in a single diagram.
+
+- [Flows now support containers and data products](/blog/flow-containers-and-data-products.md): EventCatalog v3.36.3 adds two new flow node types, containers and data products, so you can model the full journey from services and events through to data stores and analytical products in a single diagram.
+
+### flow-wizard
+
+The new flow-wizard skill lets you describe a business workflow in plain language while your AI agent builds the flow and wires it to your existing catalog resources.
+
+- [Describe the workflow, let the agent build the flow](/blog/flow-wizard.md): The new flow-wizard skill lets you describe a business workflow in plain language while your AI agent builds the flow and wires it to your existing catalog resources.
+
+### focus-mode
+
+Navigate through your architecture by clicking nodes to see their inputs and outputs in a dedicated view
+
+- [Click any node to explore its connections in Focus Mode](/blog/focus-mode.md): Navigate through your architecture by clicking nodes to see their inputs and outputs in a dedicated view
+
+### github-actions
+
+Getting started with EventCatalog GitHub Action
+
+- [Introducing the EventCatalog GitHub Action](/blog/github-actions.md): Getting started with EventCatalog GitHub Action
+
+### github-as-a-schema-registry
+
+EventCatalog now supports GitHub as a schema registry, allowing you to document your schemas in GitHub and keep them in sync with your documentation.
+
+- [Using GitHub as a schema registry with EventCatalog](/blog/github-as-a-schema-registry.md): EventCatalog now supports GitHub as a schema registry, allowing you to document your schemas in GitHub and keep them in sync with your documentation.
+
+### graphql-eventcatalog
+
+Integrate your GraphQL schema files and automate your EventCatalog
+
+- [Introducing GraphQL integration with EventCatalog](/blog/graphql-eventcatalog.md): Integrate your GraphQL schema files and automate your EventCatalog
+
+### indexed-search
+
+EventCatalog v3.36.0 adds indexed full-content search powered by Pagefind. One config line is all you need to search message bodies, changelogs, and custom docs alongside every resource in your catalog.
+
+- [Full-content search comes to EventCatalog](/blog/indexed-search.md): EventCatalog v3.36.0 adds indexed full-content search powered by Pagefind. One config line is all you need to search message bodies, changelogs, and custom docs alongside every resource in your catalog.
+
+### introducing-adrs
+
+Architecture Decision Records are now a first-class resource in EventCatalog. Document the why behind your design choices and link them directly to the services, events, and domains they affect.
+
+- [Your architecture decisions belong next to your architecture](/blog/introducing-adrs.md): Architecture Decision Records are now a first-class resource in EventCatalog. Document the why behind your design choices and link them directly to the services, events, and domains they affect.
+
+### introducing-data-resources
+
+Document your data stores in EventCatalog
+
+- [Introducing Data Stores with EventCatalog](/blog/introducing-data-resources.md): Document your data stores in EventCatalog
+
+### introducing-entity-maps
+
+Visualize and explore entity relationships within your domains with EventCatalog's new Entity Maps feature
+
+- [Introducing Entity Maps](/blog/introducing-entity-maps.md): Visualize and explore entity relationships within your domains with EventCatalog's new Entity Maps feature
+
+### introducing-eventcatalog-reports
+
+EventCatalog now includes Governance Reports, helping you measure and track your architecture’s health.
+
+- [Introducing EventCatalog Reports](/blog/introducing-eventcatalog-reports.md): EventCatalog now includes Governance Reports, helping you measure and track your architecture’s health.
+
+### introducing-queries
+
+Introducing queries for EventCatalog
+
+- [Introducing query messages for EventCatalog](/blog/introducing-queries.md): Introducing queries for EventCatalog
+
+### live-data-custom-components
+
+Use custom EventCatalog components to fetch service health, ownership, deployment, and registry data directly into your architecture documentation.
+
+- [Bring live data into EventCatalog](/blog/live-data-custom-components.md): Use custom EventCatalog components to fetch service health, ownership, deployment, and registry data directly into your architecture documentation.
+
+### live-data-meets-architecture-documentation
+
+Extend EventCatalog Assistant with custom tools to bring real-time metrics, service health, on-call information, and more into your architecture conversations
+
+- [Live data meets architecture documentation](/blog/live-data-meets-architecture-documentation.md): Extend EventCatalog Assistant with custom tools to bring real-time metrics, service health, on-call information, and more into your architecture conversations
+
+### message-usage-examples
+
+Message Usage Examples lets you ship real payload samples alongside your events, commands, and queries so your team never has to guess what an OrderCreated event actually looks like in production.
+
+- [Document examples with your schemas](/blog/message-usage-examples.md): Message Usage Examples lets you ship real payload samples alongside your events, commands, and queries so your team never has to guess what an OrderCreated event actually looks like in production.
+
+### openapi-consumer-services
+
+The EventCatalog OpenAPI generator now lets you define consumer services with optional route-based filtering, so you can document the full producer-consumer picture directly from your OpenAPI specs.
+
+- [Document who consumes your APIs, not just who owns them](/blog/openapi-consumer-services.md): The EventCatalog OpenAPI generator now lets you define consumer services with optional route-based filtering, so you can document the full producer-consumer picture directly from your OpenAPI specs.
+
+### openapi-eventcatalog
+
+Integrate your OpenAPI files and auto your EventCatalog
+
+- [OpenAPI integration with EventCatalog](/blog/openapi-eventcatalog.md): Integrate your OpenAPI files and auto your EventCatalog
+
+### page
+
+- [Architecture guides and EventCatalog news](/blog/page/2.md): Practical guides to documenting distributed systems, event-driven architecture, and the latest EventCatalog features.
+- [Architecture guides and EventCatalog news](/blog/page/3.md): Practical guides to documenting distributed systems, event-driven architecture, and the latest EventCatalog features.
+- [Architecture guides and EventCatalog news](/blog/page/4.md): Practical guides to documenting distributed systems, event-driven architecture, and the latest EventCatalog features.
+- [Architecture guides and EventCatalog news](/blog/page/5.md): Practical guides to documenting distributed systems, event-driven architecture, and the latest EventCatalog features.
+- [Architecture guides and EventCatalog news](/blog/page/6.md): Practical guides to documenting distributed systems, event-driven architecture, and the latest EventCatalog features.
+- [Architecture guides and EventCatalog news](/blog/page/7.md): Practical guides to documenting distributed systems, event-driven architecture, and the latest EventCatalog features.
+- [Architecture guides and EventCatalog news](/blog/page/8.md): Practical guides to documenting distributed systems, event-driven architecture, and the latest EventCatalog features.
+
+### prompt-and-visibility-components
+
+EventCatalog 3.33.0 ships two new MDX components, Prompt and Visibility, that turn your catalog into a dual-audience documentation layer without forking content.
+
+- [Write docs once, serve both humans and AI agents](/blog/prompt-and-visibility-components.md): EventCatalog 3.33.0 ships two new MDX components, Prompt and Visibility, that turn your catalog into a dual-audience documentation layer without forking content.
+
+### remote-schema-component
+
+EventCatalog 2.52.0 introduces the RemoteSchema component, enabling real-time schema synchronization from external APIs and keeping your documentation always up-to-date.
+
+- [Introducing Remote Schemas - Fetch and Sync Schemas at Runtime](/blog/remote-schema-component.md): EventCatalog 2.52.0 introduces the RemoteSchema component, enabling real-time schema synchronization from external APIs and keeping your documentation always up-to-date.
+
+### resource-docs
+
+Stop losing documentation in wikis and Confluence pages. Resource-level documentation lets you attach runbooks, ADRs, guides, and more directly to the services, events, and domains they describe.
+
+- [The right documentation, in the right place](/blog/resource-docs.md): Stop losing documentation in wikis and Confluence pages. Resource-level documentation lets you attach runbooks, ADRs, guides, and more directly to the services, events, and domains they describe.
+
+### schema-features
+
+EventCatalog Schema updates
+
+- [EventCatalog 2.64.0 - Schemas!](/blog/schema-features.md): EventCatalog Schema updates
+
+### schema-fields-explorer
+
+EventCatalog now indexes every field from every message schema and lets you search, filter, and trace fields across your entire architecture. Scale plan users get Field Intelligence with type conflict detection and interactive traceability graphs.
+
+- [Trace every field across your schemas and architecture](/blog/schema-fields-explorer.md): EventCatalog now indexes every field from every message schema and lets you search, filter, and trace fields across your entire architecture. Scale plan users get Field Intelligence with type conflict detection and interactive traceability graphs.
+
+### schema-registry-vs-architecture-catalog
+
+A schema registry stores the contract. An architecture catalog shows how that contract fits the system. You often want both.
+
+- [Schema registry vs Architecture Catalog](/blog/schema-registry-vs-architecture-catalog.md): A schema registry stores the contract. An architecture catalog shows how that contract fits the system. You often want both.
+
+### scoped-mcp-servers
+
+Scope EventCatalog's MCP server to a domain or system so AI tools work with the right services, language, and decisions without loading the whole catalog.
+
+- [Scope your MCP server to a domain or system](/blog/scoped-mcp-servers.md): Scope EventCatalog's MCP server to a domain or system so AI tools work with the right services, language, and decisions without loading the whole catalog.
+
+### slack-integration
+
+Stop searching through wikis and Confluence pages. Get architecture answers where your team already works.
+
+- [EventCatalog Slack integration](/blog/slack-integration.md): Stop searching through wikis and Confluence pages. Get architecture answers where your team already works.
+
+### sync-users-from-github
+
+EventCatalog can now sync users and teams directly from GitHub. Point it at your org, and ownership data stays accurate without manual upkeep.
+
+- [Sync users and teams from GitHub into EventCatalog](/blog/sync-users-from-github.md): EventCatalog can now sync users and teams directly from GitHub. Point it at your org, and ownership data stays accurate without manual upkeep.
+
+### tags
+
+- [Tags](/blog/tags.md)
+- [One post tagged with "2"](/blog/tags/2.md): Explore EventCatalog articles and updates about 2.
+- [One post tagged with "ADRs"](/blog/tags/ad-rs.md): Explore EventCatalog articles and updates about ADRs.
+- [2 posts tagged with "Agents"](/blog/tags/agents.md): Explore EventCatalog articles and updates about Agents.
+- [12 posts tagged with "AI"](/blog/tags/ai.md): Explore EventCatalog articles and updates about AI.
+- [One post tagged with "API Discovery"](/blog/tags/api-discovery.md): Explore EventCatalog articles and updates about API Discovery.
+- [One post tagged with "API Documentation"](/blog/tags/api-documentation.md): Explore EventCatalog articles and updates about API Documentation.
+- [One post tagged with "API Integration"](/blog/tags/api-integration.md): Explore EventCatalog articles and updates about API Integration.
+- [One post tagged with "Apicurio"](/blog/tags/apicurio.md): Explore EventCatalog articles and updates about Apicurio.
+- [7 posts tagged with "Architecture"](/blog/tags/architecture.md): Explore EventCatalog articles and updates about Architecture.
+- [One post tagged with "Assistant"](/blog/tags/assistant.md): Explore EventCatalog articles and updates about Assistant.
+- [One post tagged with "Astro"](/blog/tags/astro.md): Explore EventCatalog articles and updates about Astro.
+- [2 posts tagged with "AsyncAPI"](/blog/tags/async-api.md): Explore EventCatalog articles and updates about AsyncAPI.
+- [One post tagged with "Attachments"](/blog/tags/attachments.md): Explore EventCatalog articles and updates about Attachments.
+- [2 posts tagged with "August"](/blog/tags/august.md): Explore EventCatalog articles and updates about August.
+- [One post tagged with "Authentication"](/blog/tags/authentication.md): Explore EventCatalog articles and updates about Authentication.
+- [One post tagged with "Automation"](/blog/tags/automation.md): Explore EventCatalog articles and updates about Automation.
+- [One post tagged with "Azure"](/blog/tags/azure.md): Explore EventCatalog articles and updates about Azure.
+- [One post tagged with "Beta"](/blog/tags/beta.md): Explore EventCatalog articles and updates about Beta.
+- [2 posts tagged with "C4"](/blog/tags/c-4.md): Explore EventCatalog articles and updates about C4.
+- [One post tagged with "Change Detection"](/blog/tags/change-detection.md): Explore EventCatalog articles and updates about Change Detection.
+- [One post tagged with "Changelogs"](/blog/tags/changelogs.md): Explore EventCatalog articles and updates about Changelogs.
+- [2 posts tagged with "Channels"](/blog/tags/channels.md): Explore EventCatalog articles and updates about Channels.
+- [One post tagged with "CI/CD"](/blog/tags/ci-cd.md): Explore EventCatalog articles and updates about CI/CD.
+- [One post tagged with "Claude Code"](/blog/tags/claude-code.md): Explore EventCatalog articles and updates about Claude Code.
+- [One post tagged with "CLI"](/blog/tags/cli.md): Explore EventCatalog articles and updates about CLI.
+- [One post tagged with "commands"](/blog/tags/commands.md): Explore EventCatalog articles and updates about commands.
+- [3 posts tagged with "Component"](/blog/tags/component.md): Explore EventCatalog articles and updates about Component.
+- [2 posts tagged with "Components"](/blog/tags/components.md): Explore EventCatalog articles and updates about Components.
+- [One post tagged with "Cursor"](/blog/tags/cursor.md): Explore EventCatalog articles and updates about Cursor.
+- [One post tagged with "Custom Components"](/blog/tags/custom-components.md): Explore EventCatalog articles and updates about Custom Components.
+- [One post tagged with "Custom Tools"](/blog/tags/custom-tools.md): Explore EventCatalog articles and updates about Custom Tools.
+- [2 posts tagged with "Customization"](/blog/tags/customization.md): Explore EventCatalog articles and updates about Customization.
+- [2 posts tagged with "Dark Mode"](/blog/tags/dark-mode.md): Explore EventCatalog articles and updates about Dark Mode.
+- [One post tagged with "Data"](/blog/tags/data.md): Explore EventCatalog articles and updates about Data.
+- [One post tagged with "Data Products"](/blog/tags/data-products.md): Explore EventCatalog articles and updates about Data Products.
+- [One post tagged with "DDD"](/blog/tags/ddd.md): Explore EventCatalog articles and updates about DDD.
+- [One post tagged with "Design"](/blog/tags/design.md): Explore EventCatalog articles and updates about Design.
+- [One post tagged with "diagrams"](/blog/tags/diagrams.md): Explore EventCatalog articles and updates about diagrams.
+- [One post tagged with "Distributed System"](/blog/tags/distributed-system.md): Explore EventCatalog articles and updates about Distributed System.
+- [6 posts tagged with "Documentation"](/blog/tags/documentation.md): Explore EventCatalog articles and updates about Documentation.
+- [2 posts tagged with "Domain-driven design"](/blog/tags/domain-driven-design.md): Explore EventCatalog articles and updates about Domain-driven design.
+- [One post tagged with "domains"](/blog/tags/domains.md): Explore EventCatalog articles and updates about domains.
+- [One post tagged with "Draw.io"](/blog/tags/draw-io.md): Explore EventCatalog articles and updates about Draw.io.
+- [2 posts tagged with "EDA"](/blog/tags/eda.md): Explore EventCatalog articles and updates about EDA.
+- [One post tagged with "Editor"](/blog/tags/editor.md): Explore EventCatalog articles and updates about Editor.
+- [One post tagged with "Entity Maps"](/blog/tags/entity-maps.md): Explore EventCatalog articles and updates about Entity Maps.
+- [One post tagged with "EventBridge"](/blog/tags/event-bridge.md): Explore EventCatalog articles and updates about EventBridge.
+- [93 posts tagged with "EventCatalog"](/blog/tags/event-catalog.md): Explore EventCatalog articles and updates about EventCatalog.
+- [93 posts tagged with "EventCatalog"](/blog/tags/event-catalog/page/2.md): Explore EventCatalog articles and updates about EventCatalog.
+- [93 posts tagged with "EventCatalog"](/blog/tags/event-catalog/page/3.md): Explore EventCatalog articles and updates about EventCatalog.
+- [93 posts tagged with "EventCatalog"](/blog/tags/event-catalog/page/4.md): Explore EventCatalog articles and updates about EventCatalog.
+- [93 posts tagged with "EventCatalog"](/blog/tags/event-catalog/page/5.md): Explore EventCatalog articles and updates about EventCatalog.
+- [93 posts tagged with "EventCatalog"](/blog/tags/event-catalog/page/6.md): Explore EventCatalog articles and updates about EventCatalog.
+- [93 posts tagged with "EventCatalog"](/blog/tags/event-catalog/page/7.md): Explore EventCatalog articles and updates about EventCatalog.
+- [93 posts tagged with "EventCatalog"](/blog/tags/event-catalog/page/8.md): Explore EventCatalog articles and updates about EventCatalog.
+- [One post tagged with "Event-Driven Architecture"](/blog/tags/event-driven-architecture.md): Explore EventCatalog articles and updates about Event-Driven Architecture.
+- [One post tagged with "Event Hubs"](/blog/tags/event-hubs.md): Explore EventCatalog articles and updates about Event Hubs.
+- [3 posts tagged with "Events"](/blog/tags/events.md): Explore EventCatalog articles and updates about Events.
+- [One post tagged with "Examples"](/blog/tags/examples.md): Explore EventCatalog articles and updates about Examples.
+- [One post tagged with "Features"](/blog/tags/features.md): Explore EventCatalog articles and updates about Features.
+- [One post tagged with "Field Intelligence"](/blog/tags/field-intelligence.md): Explore EventCatalog articles and updates about Field Intelligence.
+- [One post tagged with "Field Usage"](/blog/tags/field-usage.md): Explore EventCatalog articles and updates about Field Usage.
+- [3 posts tagged with "Flows"](/blog/tags/flows.md): Explore EventCatalog articles and updates about Flows.
+- [One post tagged with "Focus Mode"](/blog/tags/focus-mode.md): Explore EventCatalog articles and updates about Focus Mode.
+- [One post tagged with "Generators"](/blog/tags/generators.md): Explore EventCatalog articles and updates about Generators.
+- [One post tagged with "GitHub"](/blog/tags/git-hub.md): Explore EventCatalog articles and updates about GitHub.
+- [2 posts tagged with "Governance"](/blog/tags/governance.md): Explore EventCatalog articles and updates about Governance.
+- [One post tagged with "GraphQL"](/blog/tags/graph-ql.md): Explore EventCatalog articles and updates about GraphQL.
+- [One post tagged with "IcePanel"](/blog/tags/ice-panel.md): Explore EventCatalog articles and updates about IcePanel.
+- [One post tagged with "Icons"](/blog/tags/icons.md): Explore EventCatalog articles and updates about Icons.
+- [One post tagged with "Integration"](/blog/tags/integration.md): Explore EventCatalog articles and updates about Integration.
+- [One post tagged with "Integrations"](/blog/tags/integrations.md): Explore EventCatalog articles and updates about Integrations.
+- [One post tagged with "January"](/blog/tags/january.md): Explore EventCatalog articles and updates about January.
+- [2 posts tagged with "July"](/blog/tags/july.md): Explore EventCatalog articles and updates about July.
+- [One post tagged with "June"](/blog/tags/june.md): Explore EventCatalog articles and updates about June.
+- [2 posts tagged with "Layout"](/blog/tags/layout.md): Explore EventCatalog articles and updates about Layout.
+- [One post tagged with "Linter"](/blog/tags/linter.md): Explore EventCatalog articles and updates about Linter.
+- [One post tagged with "Lucid"](/blog/tags/lucid.md): Explore EventCatalog articles and updates about Lucid.
+- [One post tagged with "March"](/blog/tags/march.md): Explore EventCatalog articles and updates about March.
+- [One post tagged with "May"](/blog/tags/may.md): Explore EventCatalog articles and updates about May.
+- [3 posts tagged with "MCP"](/blog/tags/mcp.md): Explore EventCatalog articles and updates about MCP.
+- [One post tagged with "MDX"](/blog/tags/mdx.md): Explore EventCatalog articles and updates about MDX.
+- [2 posts tagged with "Messages"](/blog/tags/messages.md): Explore EventCatalog articles and updates about Messages.
+- [3 posts tagged with "Miro"](/blog/tags/miro.md): Explore EventCatalog articles and updates about Miro.
+- [One post tagged with "October"](/blog/tags/october.md): Explore EventCatalog articles and updates about October.
+- [One post tagged with "OpenAI"](/blog/tags/open-ai.md): Explore EventCatalog articles and updates about OpenAI.
+- [3 posts tagged with "OpenAPI"](/blog/tags/open-api.md): Explore EventCatalog articles and updates about OpenAPI.
+- [One post tagged with "Ownership"](/blog/tags/ownership.md): Explore EventCatalog articles and updates about Ownership.
+- [One post tagged with "Quality"](/blog/tags/quality.md): Explore EventCatalog articles and updates about Quality.
+- [One post tagged with "Queries"](/blog/tags/queries.md): Explore EventCatalog articles and updates about Queries.
+- [One post tagged with "Remote Schema"](/blog/tags/remote-schema.md): Explore EventCatalog articles and updates about Remote Schema.
+- [One post tagged with "Reports"](/blog/tags/reports.md): Explore EventCatalog articles and updates about Reports.
+- [3 posts tagged with "Scale"](/blog/tags/scale.md): Explore EventCatalog articles and updates about Scale.
+- [3 posts tagged with "Schema"](/blog/tags/schema.md): Explore EventCatalog articles and updates about Schema.
+- [One post tagged with "Schema Explorer"](/blog/tags/schema-explorer.md): Explore EventCatalog articles and updates about Schema Explorer.
+- [3 posts tagged with "Schema Registry"](/blog/tags/schema-registry.md): Explore EventCatalog articles and updates about Schema Registry.
+- [One post tagged with "Schemas"](/blog/tags/schemas.md): Explore EventCatalog articles and updates about Schemas.
+- [2 posts tagged with "SDK"](/blog/tags/sdk.md): Explore EventCatalog articles and updates about SDK.
+- [2 posts tagged with "Search"](/blog/tags/search.md): Explore EventCatalog articles and updates about Search.
+- [One post tagged with "September"](/blog/tags/september.md): Explore EventCatalog articles and updates about September.
+- [4 posts tagged with "Services"](/blog/tags/services.md): Explore EventCatalog articles and updates about Services.
+- [One post tagged with "Skills"](/blog/tags/skills.md): Explore EventCatalog articles and updates about Skills.
+- [One post tagged with "Slack"](/blog/tags/slack.md): Explore EventCatalog articles and updates about Slack.
+- [One post tagged with "SSR"](/blog/tags/ssr.md): Explore EventCatalog articles and updates about SSR.
+- [One post tagged with "Static Sites"](/blog/tags/static-sites.md): Explore EventCatalog articles and updates about Static Sites.
+- [One post tagged with "Teams"](/blog/tags/teams.md): Explore EventCatalog articles and updates about Teams.
+- [One post tagged with "Themes"](/blog/tags/themes.md): Explore EventCatalog articles and updates about Themes.
+- [28 posts tagged with "Update"](/blog/tags/update.md): Explore EventCatalog articles and updates about Update.
+- [28 posts tagged with "Update"](/blog/tags/update/page/2.md): Explore EventCatalog articles and updates about Update.
+- [28 posts tagged with "Update"](/blog/tags/update/page/3.md): Explore EventCatalog articles and updates about Update.
+- [One post tagged with "User Experience"](/blog/tags/user-experience.md): Explore EventCatalog articles and updates about User Experience.
+- [One post tagged with "v3.36.0"](/blog/tags/v-3-36-0.md): Explore EventCatalog articles and updates about v3.36.0.
+- [One post tagged with "v3.36.3"](/blog/tags/v-3-36-3.md): Explore EventCatalog articles and updates about v3.36.3.
+- [One post tagged with "versioning"](/blog/tags/versioning.md): Explore EventCatalog articles and updates about versioning.
+- [2 posts tagged with "Visualiser"](/blog/tags/visualiser.md): Explore EventCatalog articles and updates about Visualiser.
+- [One post tagged with "Visualization"](/blog/tags/visualization.md): Explore EventCatalog articles and updates about Visualization.
+- [3 posts tagged with "Visualizer"](/blog/tags/visualizer.md): Explore EventCatalog articles and updates about Visualizer.
+
+### visualizer-improvements
+
+The EventCatalog visualizer just got a complete overhaul. Cleaner nodes, smarter layouts, dark mode support, hover highlighting and more.
+
+- [See your architecture clearly: Major visualizer improvements](/blog/visualizer-improvements.md): The EventCatalog visualizer just got a complete overhaul. Cleaner nodes, smarter layouts, dark mode support, hover highlighting and more.
+
+### visualizer-layout-persistence
+
+Take control of how your architecture diagrams look and share custom layouts with your team
+
+- [Rearrange and save your visualizer layouts](/blog/visualizer-layout-persistence.md): Take control of how your architecture diagrams look and share custom layouts with your team
+
+## book-demo
+
+Book a demo with the EventCatalog team. See how teams document, govern, and roll out an architecture catalog across their organization.
+
+- [Book a demo](/book-demo.md): Book a demo with the EventCatalog team. See how teams document, govern, and roll out an architecture catalog across their organization.
+
+## changelog
+
+Latest updates and improvements to EventCatalog
+
+- [Changelog](/changelog.md): Latest updates and improvements to EventCatalog
+
+## code-to-catalog
+
+Copy one prompt. Your AI agent reads the repo and documents the architecture in EventCatalog.
+
+- [Turn your repo into documentation.](/code-to-catalog.md): Copy one prompt. Your AI agent reads the repo and documents the architecture in EventCatalog.
+
+## contact-us
+
+Get in touch with the EventCatalog team. Sales, support, partnerships, or just to say hello.
+
+- [Talk to the team](/contact-us.md): Get in touch with the EventCatalog team. Sales, support, partnerships, or just to say hello.
+
+## features
+
+
+### ai-assistant
+
+AI-powered assistant for your EventCatalog documentation.
+
+- [Bring your own models to find the information you need in seconds, not days.](/features/ai-assistant.md): AI-powered assistant for your EventCatalog documentation.
+
+### business-flows
+
+Document business flows across services and messages. Help teams understand how business processes work across your distributed architecture.
+
+- [Go from documentation to design](/features/business-flows.md): Document business flows across services and messages. Help teams understand how business processes work across your distributed architecture.
+
+### change
+
+Document changes to messages and services with version histories and changelogs. Help teams understand what changed and why.
+
+- [Track changes across your architecture](/features/change.md): Document changes to messages and services with version histories and changelogs. Help teams understand what changed and why.
+
+### documentation
+
+Document domains, services, events, and schemas as first-class architectural primitives. Stored in Git, owned by teams.
+
+- [Documentation designed for software, not generic wikis.](/features/documentation.md): Document domains, services, events, and schemas as first-class architectural primitives. Stored in Git, owned by teams.
+
+### query
+
+Query your architecture with AI. Built-in MCP server, natural language Q&A, and llms.txt auto-generation.
+
+- [Ask your architectureanything.](/features/query.md): Query your architecture with AI. Built-in MCP server, natural language Q&A, and llms.txt auto-generation.
+
+### visualization
+
+See how your services connect, how data flows, and how messages move through your system. Generated from your docs, always accurate.
+
+- [See your system as it actually works.](/features/visualization.md): See how your services connect, how data flows, and how messages move through your system. Generated from your docs, always accurate.
+
+## federation
+
+Let every team own their own EventCatalog, and federate them into one validated, organization-wide view of your architecture.
+
+- [Documentation that scales.Synced and verified in one catalog.](/federation.md): Let every team own their own EventCatalog, and federate them into one validated, organization-wide view of your architecture.
+
+## integrations
+
+Example integrations page layout
+
+- [Integrate with your tools](/integrations.md): Example integrations page layout
+
+### amazon-api-gateway
+
+Import API Gateway OpenAPI specifications directly into EventCatalog.
+
+- [Amazon API Gateway](/integrations/amazon-api-gateway.md): Import API Gateway OpenAPI specifications directly into EventCatalog.
+
+### amazon-eventbridge
+
+Import EventBridge schemas directly into EventCatalog.
+
+- [Amazon EventBridge](/integrations/amazon-eventbridge.md): Import EventBridge schemas directly into EventCatalog.
+
+### apicurio
+
+Import your Apicurio Registry schemas and specifications into EventCatalog. Keep them in sync with your documentation. Add semantic meaning to your schemas, assign them to services, domains and owners.
+
+- [Apicurio Registry](/integrations/apicurio.md): Import your Apicurio Registry schemas and specifications into EventCatalog. Keep them in sync with your documentation. Add semantic meaning to your schemas, assign them to services, domains and owners.
+
+### asyncapi
+
+Turn your AsyncAPI specs into discoverable, versioned architecture documentation with automatic visualizations and relationship mapping.
+
+- [AsyncAPI](/integrations/asyncapi.md): Turn your AsyncAPI specs into discoverable, versioned architecture documentation with automatic visualizations and relationship mapping.
+
+### atlassian-compass
+
+Import Atlassian Compass directly into EventCatalog to generate domains, services, channels and messages.
+
+- [Atlassian Compass](/integrations/atlassian-compass.md): Import Atlassian Compass directly into EventCatalog to generate domains, services, channels and messages.
+
+### aws-glue-registry
+
+Import and Sync AWS Glue schemas directly into EventCatalog.
+
+- [AWS Glue Schema Registry](/integrations/aws-glue-registry.md): Import and Sync AWS Glue schemas directly into EventCatalog.
+
+### azure-schema-registry
+
+Bring discoverability and governance to your Azure Schema Registry with EventCatalog. Sync your schemas with your documentation and visualize your architecture.
+
+- [Azure Schema Registry](/integrations/azure-schema-registry.md): Bring discoverability and governance to your Azure Schema Registry with EventCatalog. Sync your schemas with your documentation and visualize your architecture.
+
+### backstage
+
+Embed EventCatalog documentation and visualizations in your Backstage software catalog.
+
+- [Backstage](/integrations/backstage.md): Embed EventCatalog documentation and visualizations in your Backstage software catalog.
+
+### claude
+
+Talk to your architecture with Claude. Get architecture insights in seconds.
+
+- [Claude Desktop](/integrations/claude.md): Talk to your architecture with Claude. Get architecture insights in seconds.
+
+### confluent-schema-registry
+
+Import your Confluent schemas into EventCatalog, keep them in sync with your documentation. Add semantic meaning to your schemas, assign them to topics, services, domains and owners.
+
+- [Confluent Schema Registry](/integrations/confluent-schema-registry.md): Import your Confluent schemas into EventCatalog, keep them in sync with your documentation. Add semantic meaning to your schemas, assign them to topics, services, domains and owners.
+
+### cursor
+
+Bring your architecture documentation into Cursor. Get architecture insights in seconds.
+
+- [Cursor](/integrations/cursor.md): Bring your architecture documentation into Cursor. Get architecture insights in seconds.
+
+### drawio
+
+Embed DrawIO diagrams into EventCatalog for viewing or editing.
+
+- [DrawIO](/integrations/drawio.md): Embed DrawIO diagrams into EventCatalog for viewing or editing.
+
+### figjam
+
+Embed FigJam diagrams into your documentation
+
+- [FigJam](/integrations/figjam.md): Embed FigJam diagrams into your documentation
+
+### github
+
+Import and sync your schemas directly from GitHub to EventCatalog.
+
+- [GitHub](/integrations/github.md): Import and sync your schemas directly from GitHub to EventCatalog.
+
+### graphql
+
+Import GraphQL schemas directly into EventCatalog to generate domains, services, queries, mutations and subscriptions.
+
+- [GraphQL](/integrations/graphql.md): Import GraphQL schemas directly into EventCatalog to generate domains, services, queries, mutations and subscriptions.
+
+### hookdeck
+
+Import event sources, destinations and webhooks into EventCatalog.
+
+- [Hookdeck integration](/integrations/hookdeck.md): Import event sources, destinations and webhooks into EventCatalog.
+
+### icepanel
+
+Embed IcePanel diagrams into EventCatalog
+
+- [IcePanel](/integrations/icepanel.md): Embed IcePanel diagrams into EventCatalog
+
+### likec4
+
+Embed interactive LikeC4 architecture diagrams into EventCatalog
+
+- [LikeC4](/integrations/likec4.md): Embed interactive LikeC4 architecture diagrams into EventCatalog
+
+### lucid
+
+Embed Lucid diagrams into EventCatalog for viewing or editing.
+
+- [Lucid](/integrations/lucid.md): Embed Lucid diagrams into EventCatalog for viewing or editing.
+
+### microsoft-entra-id
+
+Sync Microsoft Entra ID groups and direct user members into EventCatalog as teams and users.
+
+- [Microsoft Entra ID](/integrations/microsoft-entra-id.md): Sync Microsoft Entra ID groups and direct user members into EventCatalog as teams and users.
+
+### miro
+
+Bring your EventCatalog architecture into Miro to collaboratively design, model, and plan what comes next.
+
+- [Miro](/integrations/miro.md): Bring your EventCatalog architecture into Miro to collaboratively design, model, and plan what comes next.
+
+### openapi
+
+Turn your OpenAPI specs into discoverable, versioned architecture documentation with automatic visualizations and relationship mapping.
+
+- [OpenAPI](/integrations/openapi.md): Turn your OpenAPI specs into discoverable, versioned architecture documentation with automatic visualizations and relationship mapping.
+
+### windsurf
+
+Bring your architecture documentation into Windsurf. Get architecture insights in seconds.
+
+- [Windsurf](/integrations/windsurf.md): Bring your architecture documentation into Windsurf. Get architecture insights in seconds.
+
+## learn
+
+A guided course for learning EventCatalog by building your first architecture catalog.
+
+- [Start documenting with EventCatalog](/learn.md): A guided course for learning EventCatalog by building your first architecture catalog.
+
+## newsletter
+
+Get notified of EventCatalog updates directly to your inbox
+
+- [Email Sign Up  -  EventCatalog](/newsletter.md): Get notified of EventCatalog updates directly to your inbox
+
+## partners
+
+EventCatalog partners with specialist teams building for event-driven architecture. Meet our partners, or get in touch to become one.
+
+- [Better together for event-driven teams](/partners.md): EventCatalog partners with specialist teams building for event-driven architecture. Meet our partners, or get in touch to become one.
+
+### kannika
+
+We're partnering with Kannika, who build enterprise backup and restore for Apache Kafka. EventCatalog tells you what events you have, who owns them and what breaks when you change them. It can't get them back.
+
+- [Your catalog can't bring your events back](/partners/kannika.md): We're partnering with Kannika, who build enterprise backup and restore for Apache Kafka. EventCatalog tells you what events you have, who owns them and what breaks when you change them. It can't get them back.
+
+## pricing
+
+Start free with Community. Add automation with Business (Scale) for organisations up to 250 employees, or choose Enterprise for larger organisations and tailored support.
+
+- [Pricing](/pricing.md): Start free with Community. Add automation with Business (Scale) for organisations up to 250 employees, or choose Enterprise for larger organisations and tailored support.
+
+### small-business-program
+
+Discounted EventCatalog pricing for startups and small businesses
+
+- [Small Business Program  -  EventCatalog](/pricing/small-business-program.md): Discounted EventCatalog pricing for startups and small businesses
+
+## privacy
+
+Privacy Policy for EventCatalog
+
+- [Privacy Policy](/privacy.md): Privacy Policy for EventCatalog
+
+## product
+
+
+### documentation
+
+Document services, events, APIs, and domains in a connected architecture catalog. Help teams discover ownership and understand dependencies.
+
+- [Architecture documentation for your teams](/product/documentation.md): Document services, events, APIs, and domains in a connected architecture catalog. Help teams discover ownership and understand dependencies.
+
+## specifications
+
+
+### asyncapi
+
+Turn your AsyncAPI specifications into a cohesive, discoverable, and interactive documentation portal.
+
+- [Discoverability forYour central hub for](/specifications/asyncapi.md): Turn your AsyncAPI specifications into a cohesive, discoverable, and interactive documentation portal.
+
+## support
+
+Get help with EventCatalog. Documentation, community support on Discord and GitHub, and priority support for commercial plans.
+
+- [Get help with EventCatalog](/support.md): Get help with EventCatalog. Documentation, community support on Discord and GitHub, and priority support for commercial plans.
+
+## terms
+
+Terms of Service for EventCatalog
+
+- [Terms of Service](/terms.md): Terms of Service for EventCatalog
+
+## use-cases
+
+Different ways teams use EventCatalog to document, govern, and evolve their architecture.
+
+- [Common patterns with EventCatalog](/use-cases.md): Different ways teams use EventCatalog to document, govern, and evolve their architecture.
+
+### ai-engineering-context
+
+Give your AI assistants and agents the architectural context they need to reason about your domains, services, events, and schemas.
+
+- [Context for AI engineering](/use-cases/ai-engineering-context.md): Give your AI assistants and agents the architectural context they need to reason about your domains, services, events, and schemas.
+
+### architecture-documentation
+
+Document your software architecture with a tool designed specifically for software primitives. Bring all your architecture artifacts into one place, version them with Git, and make them discoverable for humans and AI.
+
+- [Architecture Documentation](/use-cases/architecture-documentation.md): Document your software architecture with a tool designed specifically for software primitives. Bring all your architecture artifacts into one place, version them with Git, and make them discoverable for humans and AI.
+
+### architecture-planning
+
+Plan your future architecture alongside your current state. Use drafts, versioning, and visual comparison to design changes before writing code.
+
+- [Architecture Planning](/use-cases/architecture-planning.md): Plan your future architecture alongside your current state. Use drafts, versioning, and visual comparison to design changes before writing code.
+
+### automated-catalog
+
+Automate your architecture documentation from schema registries, OpenAPI, AsyncAPI, custom tooling, and AI.
+
+- [Automated catalog](/use-cases/automated-catalog.md): Automate your architecture documentation from schema registries, OpenAPI, AsyncAPI, custom tooling, and AI.
+
+### automated-documentation
+
+Sync documentation from your OpenAPI and AsyncAPI specs. Automate what changes, keep manual control over business context.
+
+- [Automated Documentation](/use-cases/automated-documentation.md): Sync documentation from your OpenAPI and AsyncAPI specs. Automate what changes, keep manual control over business context.
+
+### beyond-api-documentation
+
+EventCatalog is more than an API documentation tool. Capture business context, flows, domains, team ownership, and ubiquitous language alongside your technical specifications.
+
+- [Not Just an API Documentation Tool](/use-cases/beyond-api-documentation.md): EventCatalog is more than an API documentation tool. Capture business context, flows, domains, team ownership, and ubiquitous language alongside your technical specifications.
+
+### breaking-change-detection
+
+Understand the downstream impact of schema changes before they reach production. Visualize consumers, detect breaking changes with AI, and coordinate changes across distributed teams.
+
+- [Breaking Change Detection](/use-cases/breaking-change-detection.md): Understand the downstream impact of schema changes before they reach production. Visualize consumers, detect breaking changes with AI, and coordinate changes across distributed teams.
+
+### ci-cd-integration
+
+Integrate EventCatalog into your CI/CD pipelines. Rebuild your catalog automatically when schemas change, on a schedule, or on demand.
+
+- [CI/CD Integration](/use-cases/ci-cd-integration.md): Integrate EventCatalog into your CI/CD pipelines. Rebuild your catalog automatically when schemas change, on a schedule, or on demand.
+
+### custom-governance
+
+EventCatalog is technology-agnostic and lives as docs as code—so you can shape governance workflows to fit your architecture, not the other way around.
+
+- [Custom governance workflows](/use-cases/custom-governance.md): EventCatalog is technology-agnostic and lives as docs as code—so you can shape governance workflows to fit your architecture, not the other way around.
+
+### domain-driven-design
+
+Document your domain model with first-class support for domains, bounded contexts, ubiquitous language, and team ownership. Map business context to technical implementation.
+
+- [Domain-Driven Design Documentation](/use-cases/domain-driven-design.md): Document your domain model with first-class support for domains, bounded contexts, ubiquitous language, and team ownership. Map business context to technical implementation.
+
+### federated-catalog
+
+Teams own their own catalogs and federate them into one central catalog for organization-wide visibility.
+
+- [Federated catalog](/use-cases/federated-catalog.md): Teams own their own catalogs and federate them into one central catalog for organization-wide visibility.
+
+### schema-documentation
+
+Transform technical schemas into business-contextualized documentation. Sync from any source, enrich with ownership and purpose, track changes over time.
+
+- [Enrich Schemas with Documentation](/use-cases/schema-documentation.md): Transform technical schemas into business-contextualized documentation. Sync from any source, enrich with ownership and purpose, track changes over time.
+
+### shared-understanding
+
+Build a shared understanding of your architecture across engineering, product, and business teams—domains, ubiquitous language, services, diagrams, and business workflows in one tool.
+
+- [A shared understanding across the organization](/use-cases/shared-understanding.md): Build a shared understanding of your architecture across engineering, product, and business teams—domains, ubiquitous language, services, diagrams, and business workflows in one tool.
+
+### single-catalog
+
+One catalog for the entire organization. All teams contribute to a single source of architectural truth.
+
+- [Single catalog](/use-cases/single-catalog.md): One catalog for the entire organization. All teams contribute to a single source of architectural truth.
+
+## workshops
+
+Hands-on workshops to master event-driven architecture and EventCatalog.
+
+- [De-Risk Your EDA.  Scale with Confidence.](/workshops.md): Hands-on workshops to master event-driven architecture and EventCatalog.
+
+## docs
+
+
+### amazon-apigateway
+
+Amazon API Gateway integration documentation for EventCatalog
+
+- [Amazon API Gateway](/docs/amazon-apigateway.md): Amazon API Gateway integration documentation for EventCatalog
+
+### amazon-eventbridge
+
+Amazon EventBridge integration documentation for EventCatalog
+
+- [Amazon EventBridge](/docs/amazon-eventbridge.md): Amazon EventBridge integration documentation for EventCatalog
+
+### api
+
+- [Code blocks](/docs/api/code-blocks.md): Understanding what is possible with EventCatalog code blocks
+- [eventcatalog.config.js](/docs/api/config.md): Understanding the configuration file for EventCatalog.
+- [EventCatalog CLI](/docs/api/overview.md): Understand the CLI of EventCatalog
+
+### apicurio
+
+Apicurio Registry integration for EventCatalog
+
+- [Apicurio Registry](/docs/apicurio.md): Apicurio Registry integration for EventCatalog
+
+### ask-your-architecture
+
+Learn how to integrate your LLM models with EventCatalog.
+
+- [Ask your architecture](/docs/ask-your-architecture.md): Learn how to integrate your LLM models with EventCatalog.
+
+### asyncapi
+
+AsyncAPI integration documentation for EventCatalog
+
+- [AsyncAPI](/docs/asyncapi.md): AsyncAPI integration documentation for EventCatalog
+
+### aws-glue-schema-registry
+
+AWS Glue Schema Registry integration documentation for EventCatalog
+
+- [AWS Glue Schema Registry](/docs/aws-glue-schema-registry.md): AWS Glue Schema Registry integration documentation for EventCatalog
+
+### azure-schema-registry
+
+Azure Schema Registry integration for EventCatalog
+
+- [Azure Schema Registry](/docs/azure-schema-registry.md): Azure Schema Registry integration for EventCatalog
+
+### backstage
+
+Embed EventCatalog documentation, diagrams, schemas, and flows in Backstage.
+
+- [EventCatalog for Backstage](/docs/backstage.md): Embed EventCatalog documentation, diagrams, schemas, and flows in Backstage.
+
+### bring-your-own-documentation
+
+Bring your own documentation to EventCatalog. Add global custom pages or attach docs directly to individual resources.
+
+- [Bring your own documentation](/docs/bring-your-own-documentation.md): Bring your own documentation to EventCatalog. Add global custom pages or attach docs directly to individual resources.
+- [Diagrams](/docs/bring-your-own-documentation/diagrams.md): Learn how to document your architecture with reusable diagrams
+
+### category
+
+- [Contributing to the Miro App](/docs/category/contributing.md): Help improve the EventCatalog Miro App
+- [EventCatalog Studio Documentation](/docs/category/diagrams.md): EventCatalog Studio Documentation
+- [EventCatalog Studio Documentation](/docs/category/enterprise.md): EventCatalog Studio Documentation
+- [Editor explanation](/docs/category/explanation.md): Conceptual guides that explain how EventCatalog Editor fits with files, Markdown, MDX, Git, and beta access.
+- [EventCatalog Studio Documentation](/docs/category/getting-started.md): EventCatalog Studio Documentation
+- [Getting Started with the Miro App](/docs/category/getting-started-1.md): Install and connect EventCatalog to Miro
+- [Miro App Guides](/docs/category/guides.md): Learn how to use the EventCatalog Miro app to visualize and manage your architecture
+- [Editor how-to guides](/docs/category/how-to-guides.md): Task-focused guides for running EventCatalog Editor and working with catalog changes.
+- [Import OpenAPI & AsyncAPI into Miro](/docs/category/import-from-specifications.md): Use EventCatalog plugins to import your API specifications and visualize them in Miro
+- [EventCatalog Studio Documentation](/docs/category/organization--teams.md): EventCatalog Studio Documentation
+- [EventCatalog Studio Documentation](/docs/category/project.md): EventCatalog Studio Documentation
+- [Editor reference](/docs/category/reference.md): Lookup information for EventCatalog Editor commands, supported resources, content support, and troubleshooting.
+- [Using AI with the Miro App](/docs/category/using-ai.md): Use AI to turn your Miro board designs into EventCatalog documentation
+
+### changelogs
+
+A collection of guides to help you understand changelogs and how they work with EventCatalog.
+
+- [Changelogs](/docs/changelogs.md): A collection of guides to help you understand changelogs and how they work with EventCatalog.
+
+### cli
+
+The EventCatalog CLI allows you to interact with your EventCatalog directly from the command line. Execute any SDK function without writing code.
+
+- [EventCatalog CLI](/docs/cli.md): The EventCatalog CLI allows you to interact with your EventCatalog directly from the command line. Execute any SDK function without writing code.
+- [Channels CLI Commands](/docs/cli/cli-channels.md): Manage channels in your EventCatalog from the command line.
+- [Commands CLI Commands](/docs/cli/cli-commands.md): Manage commands in your EventCatalog from the command line.
+- [Custom Docs CLI Commands](/docs/cli/cli-custom-docs.md): Manage custom docs in your EventCatalog from the command line.
+- [Data Products CLI Commands](/docs/cli/cli-data-products.md): Manage data products in your EventCatalog from the command line.
+- [Data Stores CLI Commands](/docs/cli/cli-data-stores.md): Manage data stores in your EventCatalog from the command line.
+- [Diagrams CLI Commands](/docs/cli/cli-diagrams.md): Manage diagrams in your EventCatalog from the command line.
+- [Domains CLI Commands](/docs/cli/cli-domains.md): Manage domains in your EventCatalog from the command line.
+- [Entities CLI Commands](/docs/cli/cli-entities.md): Manage entities in your EventCatalog from the command line.
+- [Events CLI Commands](/docs/cli/cli-events.md): Manage events in your EventCatalog from the command line.
+- [Export CLI Commands](/docs/cli/cli-export.md): Manage export in your EventCatalog from the command line.
+- [Governance CLI Commands](/docs/cli/cli-governance.md): Manage governance in your EventCatalog from the command line.
+- [Messages CLI Commands](/docs/cli/cli-messages.md): Manage messages in your EventCatalog from the command line.
+- [Queries CLI Commands](/docs/cli/cli-queries.md): Manage queries in your EventCatalog from the command line.
+- [Services CLI Commands](/docs/cli/cli-services.md): Manage services in your EventCatalog from the command line.
+- [Snapshots CLI Commands](/docs/cli/cli-snapshots.md): Manage snapshots in your EventCatalog from the command line.
+- [Teams CLI Commands](/docs/cli/cli-teams.md): Manage teams in your EventCatalog from the command line.
+- [Users CLI Commands](/docs/cli/cli-users.md): Manage users in your EventCatalog from the command line.
+- [Utilities CLI Commands](/docs/cli/cli-utilities.md): Manage utilities in your EventCatalog from the command line.
+
+### components
+
+Use MDX components, diagram syntax, and external embeds in EventCatalog documentation.
+
+- [Components](/docs/components.md): Use MDX components, diagram syntax, and external embeds in EventCatalog documentation.
+- [Write your own components](/docs/components/custom-components.md): Learn how to create reusable components for your EventCatalog documentation.
+- [Diagrams](/docs/components/diagram-syntax.md): Use diagram languages and tools inside EventCatalog documentation.
+- [Components](/docs/components/list.md): Reference for EventCatalog MDX components.
+
+### confluent-schema-registry
+
+Confluent Schema Registry integration for EventCatalog
+
+- [Confluent Schema Registry](/docs/confluent-schema-registry.md): Confluent Schema Registry integration for EventCatalog
+
+### contributing
+
+- [Contributing to EventCatalog](/docs/contributing/overview.md): Understand how to contribute of EventCatalog
+
+### customize-visualizer
+
+A collection of guides to help you customize the visualizer in your catalog.
+
+- [Customize Visualizer](/docs/customize-visualizer.md): A collection of guides to help you customize the visualizer in your catalog.
+
+### developer-tools
+
+Developer tools for EventCatalog.
+
+- [Developer tools](/docs/developer-tools.md): Developer tools for EventCatalog.
+
+### development
+
+- [EventCatalog Skills](/docs/development/agent-resources/eventcatalog-skills.md): {() => {
+- [EventCatalog Docs llms.txt](/docs/development/agent-resources/llms.md): {() => {
+- [EventCatalog Docs llms-full.txt](/docs/development/agent-resources/llms-full.md): {() => {
+- [EventCatalog Agents](/docs/development/ask-your-architecture/agents.md): AI agents that help you manage and document your architecture with EventCatalog.
+- [Breaking Changes Agent](/docs/development/ask-your-architecture/agents/breaking-changes.md): Detect breaking schema changes and affected EventCatalog consumers from pull requests
+- [Code-to-Docs Agent](/docs/development/ask-your-architecture/agents/code-to-docs.md): Keep your EventCatalog documentation in sync with your code using the Code-to-Docs agent
+- [EventCatalog Agents](/docs/development/ask-your-architecture/agents/overview.md): AI agents that help you manage and document your architecture with EventCatalog
+- [Custom Tools](/docs/development/ask-your-architecture/eventcatalog-assistant/bring-your-own-tools.md): Extend EventCatalog Assistant with custom tools to bring real-time data, metrics, and integrations into your architecture conversations
+- [Configuration](/docs/development/ask-your-architecture/eventcatalog-assistant/configuration.md): Configure EventCatalog Assistant
+- [What is EventCatalog Assistant?](/docs/development/ask-your-architecture/eventcatalog-assistant/what-is-eventcatalog-assistant.md): Learn how EventCatalog Assistant helps users explore documentation using natural language.
+- [AI with EventCatalog](/docs/development/ask-your-architecture/intro.md): Architecture documentation for humans and AI
+- [LLMS.txt](/docs/development/ask-your-architecture/llms.txt.md): Understanding how to use LLMS.txt with EventCatalog and your LLMs
+- [Getting started](/docs/development/ask-your-architecture/mcp-server/getting-started.md): Connect MCP clients to your EventCatalog
+- [MCP server](/docs/development/ask-your-architecture/mcp-server/introduction.md): Connect AI tools to your architecture catalog
+- [schemas.txt](/docs/development/ask-your-architecture/schemas.txt.md): Understanding how to use schemas.txt with EventCatalog and your schemas
+- [Skills](/docs/development/ask-your-architecture/skills.md): Pre-built AI skills for generating EventCatalog documentation
+- [Installing AI Skills](/docs/development/ask-your-architecture/skills/installation.md): How to install EventCatalog AI skills for your AI coding agent
+- [AI Skills](/docs/development/ask-your-architecture/skills/introduction.md): Pre-built AI skills to help you document your architecture with EventCatalog
+- [Slack Integration](/docs/development/ask-your-architecture/slack-integration.md): Query your EventCatalog directly from Slack using the EventCatalog Slack Bot.
+- [Deployment](/docs/development/ask-your-architecture/slack-integration/deployment.md): Deploy the bot to production
+- [Installation](/docs/development/ask-your-architecture/slack-integration/installation.md): Install and configure the bot
+- [Slack integration](/docs/development/ask-your-architecture/slack-integration/introduction.md): Query architecture documentation directly from Slack
+- [Slack app setup](/docs/development/ask-your-architecture/slack-integration/slack-app-setup.md): Create and configure your Slack app
+- [Troubleshooting](/docs/development/ask-your-architecture/slack-integration/troubleshooting.md): Common issues and solutions
+- [Using the bot](/docs/development/ask-your-architecture/slack-integration/usage.md): Query architecture documentation from Slack
+- [Enabling authentication](/docs/development/authentication/enabling-authentication.md): Enabling authentication for EventCatalog
+- [Authentication Guide](/docs/development/authentication/introduction.md): Introduction to EventCatalog Authentication
+- [Providers](/docs/development/authentication/providers.md): Authentication for EventCatalog
+- [Setting up Auth0](/docs/development/authentication/providers/setting-up-auth0.md): Setting up Auth0 authentication for EventCatalog
+- [Setting up Azure AD (Entra ID)](/docs/development/authentication/providers/setting-up-azure-ad.md): Setting up Microsoft Entra ID authentication for EventCatalog
+- [Setting up GitHub](/docs/development/authentication/providers/setting-up-github.md): Setting up GitHub authentication for EventCatalog
+- [Setting up Google](/docs/development/authentication/providers/setting-up-google.md): Setting up Google authentication for EventCatalog
+- [Setting up Okta](/docs/development/authentication/providers/setting-up-okta.md): Setting up Okta authentication for EventCatalog
+- [Role-Based Access Control (RBAC) Middleware](/docs/development/authentication/rbac-middleware.md): Implementing role-based access control with custom middleware in EventCatalog
+- [Adding high level documentation](/docs/development/bring-your-own-documentation/custom-pages/adding-custom-docs.md): Adding high level documentation to your EventCatalog
+- [Components](/docs/development/bring-your-own-documentation/custom-pages/components.md): Component list for custom pages
+- [Introduction](/docs/development/bring-your-own-documentation/custom-pages/introduction.md): Customize documentation in EventCatalog
+- [Adding custom page owners](/docs/development/bring-your-own-documentation/custom-pages/owners.md): Adding owners to custom pages with EventCatalog.
+- [Comparing diagram versions](/docs/development/bring-your-own-documentation/diagrams/comparing-diagrams.md): Side-by-side version comparison for diagrams in EventCatalog
+- [Create a diagram](/docs/development/bring-your-own-documentation/diagrams/creating-diagrams.md): How to create and organize diagrams in EventCatalog
+- [What are diagrams?](/docs/development/bring-your-own-documentation/diagrams/introduction.md): Bring your own diagrams to EventCatalog - version them, compare them, and assign them to any resource
+- [Diagrams reference](/docs/development/bring-your-own-documentation/diagrams/reference.md): Frontmatter fields, paths, and routes for diagrams in EventCatalog.
+- [Add diagrams to resources](/docs/development/bring-your-own-documentation/diagrams/referencing-diagrams.md): How to link diagrams to domains, services, messages, and other resources
+- [Bring your own documentation](/docs/development/bring-your-own-documentation/introduction.md): Bring your own documentation to EventCatalog
+- [Adding resource-level documentation](/docs/development/bring-your-own-documentation/resource-docs/adding-resource-docs.md): Place MDX files in a docs/ directory alongside any resource.
+- [Configure categories](/docs/development/bring-your-own-documentation/resource-docs/categories.md): Control sidebar labels and ordering for doc type groups using category files.
+- [Resource-level documentation](/docs/development/bring-your-own-documentation/resource-docs/introduction.md): Attach documentation pages to any resource in your catalog.
+- [Version documents](/docs/development/bring-your-own-documentation/resource-docs/versioning.md): Keep historical versions of resource docs alongside versioned resources.
+- [Accordion](/docs/development/components/components/accordian.md): Component for EventCatalog
+- [AccordionGroup](/docs/development/components/components/accordian-group.md): Component for EventCatalog
+- [Admonitions](/docs/development/components/components/admonitions.md): Component for EventCatalog
+- [AgentTools](/docs/development/components/components/agent-tools.md): Component for displaying the tools an agent can call in EventCatalog
+- [ArchitectureGraph](/docs/development/components/components/architecture-graph.md): Component for embedding the catalog-wide architecture graph into your documentation
+- [Attachments](/docs/development/components/components/attachments.md): Learn how to add attachments to your EventCatalog resources
+- [ChannelInformation](/docs/development/components/components/channel-information.md): Render channel into EventCatalog
+- [CodeGroup](/docs/development/components/components/code-group.md): Show the same code example in several languages or files
+- [Columns](/docs/development/components/components/columns.md): Place content side by side in your EventCatalog pages
+- [CustomProperties](/docs/development/components/components/custom-properties.md): Render custom x-* resource properties in EventCatalog.
+- [Design](/docs/development/components/components/design.md): Component for embedding EventCatalog Studio diagrams into your documentation
+- [EntityMap](/docs/development/components/components/entitymap.md): Component for EventCatalog
+- [Flow](/docs/development/components/components/flow.md): Render a Flow in any EventCatalog page
+- [Link](/docs/development/components/components/link.md): Create links in your documentation
+- [MermaidFileLoader](/docs/development/components/components/mermaid-file-loader.md): Component for embedding EventCatalog Studio diagrams into your documentation
+- [MessageTable](/docs/development/components/components/message-table.md): Component for displaying messages for services and domains in EventCatalog
+- [NodeGraph](/docs/development/components/components/nodegraph.md): Component for EventCatalog
+- [OpenAPI](/docs/development/components/components/openapi.md): Component for EventCatalog
+- [Prompt](/docs/development/components/components/prompt.md): Embed copyable AI prompts into resource documentation
+- [RemoteSchema](/docs/development/components/components/remote-schema.md): Component for fetching and rendering remote schemas in EventCatalog
+- [ResourceGroupTable](/docs/development/components/components/resource-group-table.md): Component for displaying EventCatalog grouped resources in EventCatalog
+- [ResourceLink](/docs/development/components/components/resource-link.md): Create links in your documentation to resources in EventCatalog
+- [Schema](/docs/development/components/components/schema.md): Component for EventCatalog
+- [SchemaViewer](/docs/development/components/components/schema-viewer.md): Render JSON schema in EventCatalog
+- [Steps](/docs/development/components/components/steps.md): Render steps into EventCatalog
+- [Tabs](/docs/development/components/components/tabs.md): Render tabs in your EventCatalog pages
+- [Tiles](/docs/development/components/components/tiles.md): Render tiles into EventCatalog
+- [Visibility](/docs/development/components/components/visibility.md): Gate content by audience — humans in the UI, agents in raw markdown
+- [Add client-side scripts](/docs/development/components/custom-components/add-client-side-scripts.md): Add browser JavaScript to custom EventCatalog components.
+- [Create your first component](/docs/development/components/custom-components/create-your-first-component.md): Create a small reusable component and render it in a catalog page.
+- [Fetch data in components](/docs/development/components/custom-components/fetch-data-in-components.md): Fetch build-time, runtime, or browser data from custom EventCatalog components.
+- [Write your own components](/docs/development/components/custom-components/introduction.md): Learn when and why to create custom components in EventCatalog.
+- [Pass data into components](/docs/development/components/custom-components/pass-data-into-components.md): Pass props, frontmatter, variables, and config data into custom components.
+- [Custom components reference](/docs/development/components/custom-components/reference.md): Reference for custom components in EventCatalog.
+- [Style components](/docs/development/components/custom-components/style-components.md): Style custom EventCatalog components with Tailwind CSS.
+- [<DrawIO />](/docs/development/components/diagram-syntax/drawio.md): Embed a DrawIO diagram in your documentation
+- [<FigJam />](/docs/development/components/diagram-syntax/figjam.md): Embed a FigJam diagram in your documentation
+- [Using IcePanel](/docs/development/components/diagram-syntax/icepanel.md): Understanding how to embed IcePanel diagrams in EventCatalog
+- [Using LikeC4](/docs/development/components/diagram-syntax/likec4.md): Embed LikeC4 architecture diagrams in EventCatalog pages
+- [<Lucid />](/docs/development/components/diagram-syntax/lucid.md): Embed a Lucid diagram in your documentation
+- [Using mermaid](/docs/development/components/diagram-syntax/mermaid.md): Understanding how to use mermaid with EventCatalog
+- [<Miro />](/docs/development/components/diagram-syntax/miro.md): Embed a Miro board in your documentation
+- [Using PlantUML](/docs/development/components/diagram-syntax/plantuml.md): Understanding how to use plantuml with EventCatalog
+- [Using Structurizr](/docs/development/components/diagram-syntax/structurizr.md): Understanding how to use Structurizr with EventCatalog
+- [Resource references](/docs/development/components/resource-references.md): Create inline links to resources with hover tooltips
+- [Reusable snippets](/docs/development/components/snippets.md): Understanding how to use snippets with EventCatalog
+- [Using components](/docs/development/components/using-components.md): Understanding components
+- [Customization Documentation](/docs/development/customization.md): Customize EventCatalog and embed its documentation and visualizations in other applications.
+- [Application Sidebar](/docs/development/customization/application-sidebar.md): Pick and customize the application sidebar.
+- [Custom pages and API routes](/docs/development/customization/custom-pages-and-api-routes.md): Add custom pages, internal tools, dashboards, and API routes to your EventCatalog.
+- [Create a custom page](/docs/development/customization/custom-pages-and-api-routes/create-a-custom-page.md): Add a custom Astro page to your EventCatalog.
+- [Create an API route](/docs/development/customization/custom-pages-and-api-routes/create-an-api-route.md): Add a custom API route to your EventCatalog.
+- [Custom pages and API routes](/docs/development/customization/custom-pages-and-api-routes/introduction.md): Understand custom pages and API routes in EventCatalog.
+- [Custom pages and API routes reference](/docs/development/customization/custom-pages-and-api-routes/reference.md): Route, file, and configuration reference for custom pages and API routes.
+- [Custom properties on resources](/docs/development/customization/custom-properties.md): Add organization-specific metadata to EventCatalog resources and render it in Markdown or custom components.
+- [Customize landing page](/docs/development/customization/customize-landing-page.md): Customize landing pages in EventCatalog
+- [Customize tables](/docs/development/customization/customize-tables.md): Customize tables in EventCatalog
+- [Customize visualizer nodes](/docs/development/customization/customize-visualizer/visualizer-nodes.md): Customize the color, label and icon of the visualizer nodes.
+- [Documentation sidebar](/docs/development/customization/documentation-sidebar.md): Pick and customize the documentation sidebar.
+- [Embed EventCatalog in other applications](/docs/development/customization/embed-eventcatalog.md): Bring EventCatalog documentation, diagrams, schemas, messages, and flows into your internal applications.
+- [Resource icons](/docs/development/customization/resource-icons.md): Customize the icons shown for resources in EventCatalog.
+- [Resource sidebar](/docs/development/customization/resource-sidebar.md): Define your own sidebar for any resource with a sidebar.json file.
+- [Search](/docs/development/customization/search.md): Configure resource metadata search or opt-in to full-content indexed search
+- [Themes](/docs/development/customization/themes.md): Customize the look and feel of your catalog with built-in themes, dark/light mode, and custom themes
+- [Deployment guides](/docs/development/deployment.md): This section contains deployment tutorials for developers. This includes tutorials for deploying to Heroku, AWS, and other cloud providers.
+- [Building Eventcatalog](/docs/development/deployment/build-and-deploy.md): This document describes step by step how to deploy EventCatalog.
+- [Building Eventcatalog](/docs/development/deployment/build-ssr-mode.md): This document describes step by step how to deploy EventCatalog.
+- [Deployment Workflows](/docs/development/deployment/deployment-workflows.md): This document describes different deployment workflows for EventCatalog.
+- [Hosting](/docs/development/deployment/hosting-options.md): This document describes hosting options for EventCatalog.
+- [Link validation](/docs/development/deployment/link-validation.md): Catch broken links and anchors before they reach production
+- [api-catalog](/docs/development/developer-tools/api-catalog.md): Machine-readable catalog discovery endpoint for tools and agents
+- [EventCatalog Linter](/docs/development/developer-tools/eventcatalog-linter.md): Catch broken references, typos, misplaced files and missing metadata in your EventCatalog before they reach a build or a reader.
+- [Linter how-to guides](/docs/development/developer-tools/eventcatalog-linter/how-to.md): Task-focused guides for configuring rules, running the linter in CI, and fixing what it reports.
+- [Configure linter rules](/docs/development/developer-tools/eventcatalog-linter/how-to/configure-rules.md): Change rule severities, pass rule options, ignore files, and apply different rules to different parts of the catalog.
+- [Fix common linter findings](/docs/development/developer-tools/eventcatalog-linter/how-to/fix-common-problems.md): What the most frequent linter messages mean and the quickest way to resolve each one.
+- [Reference resources documented in other catalogs](/docs/development/developer-tools/eventcatalog-linter/how-to/reference-external-catalogs.md): Stop the linter reporting missing resources when a service sends or receives messages that another team documents.
+- [Run the linter in CI](/docs/development/developer-tools/eventcatalog-linter/how-to/run-in-ci.md): Fail pull requests on catalog problems with GitHub Actions, GitLab CI, or any pipeline that can run npx.
+- [Allow custom frontmatter fields](/docs/development/developer-tools/eventcatalog-linter/how-to/use-custom-frontmatter.md): Add your own metadata to resources without tripping the unknown-field rule.
+- [Linter reference](/docs/development/developer-tools/eventcatalog-linter/reference.md): Lookup information for the CLI, the configuration file, every rule, version formats, and the files the linter scans.
+- [Linter CLI reference](/docs/development/developer-tools/eventcatalog-linter/reference/cli.md): Command, options, exit codes, output format and environment behaviour of eventcatalog-linter.
+- [Linter configuration reference](/docs/development/developer-tools/eventcatalog-linter/reference/configuration.md): The shape of .eventcatalogrc.js — rules, options, ignore patterns, overrides — and how it merges with the defaults.
+- [Linter rules reference](/docs/development/developer-tools/eventcatalog-linter/reference/rules.md): Every rule the EventCatalog Linter can report — what it checks, its default severity, its options, an example message and how to fix it.
+- [Supported resources and file locations](/docs/development/developer-tools/eventcatalog-linter/reference/supported-resources.md): The resource types the linter validates and the folders and file names it scans to find them.
+- [Version formats and matching](/docs/development/developer-tools/eventcatalog-linter/reference/versions.md): The version formats the linter accepts on resources and in references, and how a reference is matched against the versions that exist.
+- [Set up the linter](/docs/development/developer-tools/eventcatalog-linter/setup.md): Run the EventCatalog Linter for the first time, read its output, fix a problem, create a configuration file, and add the check to CI.
+- [MCP Server](/docs/development/developer-tools/mcp-server.md): This section contains tutorials for the EventCatalog MCP Server.
+- [Getting Started Documentation](/docs/development/getting-started.md): Learn how to install EventCatalog.
+- [Configuration](/docs/development/getting-started/configuration-overview.md): Understand how to configure EventCatalog
+- [Develop and build](/docs/development/getting-started/develop-and-build.md): Understanding how to develop and build EventCatalog
+- [Fundamentals](/docs/development/getting-started/fundamentals.md): Understanding the fundamentals of EventCatalog
+- [Installation](/docs/development/getting-started/installation.md): Install EventCatalog and create a new catalog
+- [Why EventCatalog?](/docs/development/getting-started/introduction.md): EventCatalog is an open source project to help you bring discoverability to your event-driven architecture.
+- [Project structure](/docs/development/getting-started/project-structure.md): Understanding how to structure your EventCatalog project
+- [CLI & CI/CD](/docs/development/governance/architecture-change-detection/ci-cd.md): Run governance checks locally and in your CI/CD pipeline
+- [Configuration](/docs/development/governance/architecture-change-detection/configuration.md): Configure governance rules with triggers, resource filters, and actions
+- [Architecture Change Detection](/docs/development/governance/architecture-change-detection/introduction.md): Know when your event-driven architecture changes. Get notified when services start or stop producing and consuming messages.
+- [Pipeline gates](/docs/development/governance/architecture-change-detection/pipeline-gates.md): Block merges automatically when governance rules trigger
+- [Recipes](/docs/development/governance/architecture-change-detection/recipes.md): Common governance configurations you can copy and adapt
+- [Webhook Payload](/docs/development/governance/architecture-change-detection/webhooks.md): CloudEvents 1.0 payload format sent by governance webhook actions
+- [Adding Analytics](/docs/development/guides/adding-analytics.md): Track page views and user behavior across your catalog
+- [Architecture graph](/docs/development/guides/architecture-graph.md): Explore your whole catalog as one force-directed graph.
+- [Authentication](/docs/development/guides/auth.md): Authentication for EventCatalog
+- [Creating changelogs](/docs/development/guides/changelogs/adding-changelogs.md): Creating and managing changelogs within EventCatalog.
+- [Automated diffs](/docs/development/guides/changelogs/automated-changelogs.md): Understanding how EventCatalog automates diffs for your files
+- [Understanding changelogs](/docs/development/guides/changelogs/introduction.md): What are changelogs
+- [Changelogs reference](/docs/development/guides/changelogs/reference.md): Frontmatter fields and paths for changelogs in EventCatalog.
+- [Add a changelog](/docs/development/guides/domains/add-changelog.md): Adding changelogs to your domains
+- [Add data products to domains](/docs/development/guides/domains/add-resources-to-domains/add-data-products-to-domains.md): Organize analytics and data assets within domain boundaries.
+- [Add entities to domains](/docs/development/guides/domains/add-resources-to-domains/add-entities-to-domains.md): Creating and managing entities within EventCatalog.
+- [Add messages to domains](/docs/development/guides/domains/add-resources-to-domains/add-messages-to-domains.md): Document event flows at the domain level.
+- [Add services to domains](/docs/development/guides/domains/add-resources-to-domains/add-services-to-domains.md): Creating and managing domains within EventCatalog.
+- [Add systems to domains](/docs/development/guides/domains/add-resources-to-domains/add-systems-to-domains.md): Add systems to domains so users can move from a business boundary to the software capabilities inside it.
+- [Create a domain](/docs/development/guides/domains/create-domain.md): Creating and managing domains within EventCatalog.
+- [What are domains?](/docs/development/guides/domains/introduction.md): What are domains? Why are they useful for event-driven architectures?
+- [Model subdomains](/docs/development/guides/domains/model-subdomains.md): Creating and managing subdomains within EventCatalog.
+- [Ubiquitous language](/docs/development/guides/domains/ownership-and-language/adding-ubiquitous-language.md): Creating a Ubiquitous-language dictionary for your domain
+- [Adding domain owners](/docs/development/guides/domains/ownership-and-language/owners.md): Adding owners to domains with EventCatalog.
+- [Domains reference](/docs/development/guides/domains/reference.md): Frontmatter fields, paths, and routes for domains in EventCatalog.
+- [Version domains](/docs/development/guides/domains/version-domains.md): Learn how to version domains
+- [Domain integration map](/docs/development/guides/domains/visualize-domains/domain-integration-map.md): Component list for domains
+- [EventCatalog Assistant](/docs/development/guides/eventcatalog-assistant.md): EventCatalog Assistant
+- [Automated teams and users](/docs/development/guides/owners/automated-teams-and-users.md): A collection of guides to help you sync teams and users into EventCatalog from external systems.
+- [Create a team](/docs/development/guides/owners/create-team.md): Create and manage teams within EventCatalog.
+- [Create a user](/docs/development/guides/owners/create-user.md): Create and manage users within EventCatalog.
+- [Create your own connector](/docs/development/guides/owners/create-your-own-connector.md): Build a custom directory connector to sync users and teams from any provider.
+- [Sync from GitHub](/docs/development/guides/owners/sync-from-github.md): Sync GitHub organization teams and members into EventCatalog as users and teams.
+- [Sync from Microsoft Entra ID](/docs/development/guides/owners/sync-from-microsoft-entra.md): Sync Microsoft Entra ID groups and direct members into EventCatalog as teams and users.
+- [Teams reference](/docs/development/guides/owners/teams-reference.md): Frontmatter fields and paths for teams in EventCatalog.
+- [Users reference](/docs/development/guides/owners/users-reference.md): Frontmatter fields and paths for users in EventCatalog.
+- [What are teams & users?](/docs/development/guides/owners/what-are-teams-and-users.md): Understand how teams and users work in EventCatalog.
+- [Create an ADR](/docs/development/guides/resources/adrs/creating-adrs.md): Add architecture decision records to your catalog.
+- [What are architecture decision records?](/docs/development/guides/resources/adrs/introduction.md): Document and govern architectural choices alongside your catalog resources.
+- [Add ADRs to resources](/docs/development/guides/resources/adrs/linking-resources.md): Connect decisions to the services, events, and domains they affect.
+- [Architecture decision records reference](/docs/development/guides/resources/adrs/reference.md): Frontmatter fields, paths, and routes for architecture decision records in EventCatalog.
+- [Model ADR relationships](/docs/development/guides/resources/adrs/relationships.md): Model how decisions supersede, amend, or relate to each other.
+- [Adding data stores to agents](/docs/development/guides/resources/agents/add-data-stores-to-agents.md): Document the data stores an agent reads from or writes to.
+- [Adding messages to agents](/docs/development/guides/resources/agents/add-messages-to-agents.md): Connecting agents to the messages they produce and consume.
+- [Add tools to agents](/docs/development/guides/resources/agents/adding-tools.md): Document and display the tools an agent can call.
+- [Create an agent](/docs/development/guides/resources/agents/create-agent.md): Creating and managing agents within EventCatalog.
+- [Understanding agents](/docs/development/guides/resources/agents/introduction.md): Document and govern AI agents alongside your services and events.
+- [Model metadata](/docs/development/guides/resources/agents/model-metadata.md): Capture the LLM provider, model, and version your agent uses.
+- [Agents reference](/docs/development/guides/resources/agents/reference.md): Frontmatter fields, paths, and routes for agents in EventCatalog.
+- [Create a data product](/docs/development/guides/resources/data-products/adding-data-products.md): Creating and managing data products
+- [Data Contracts](/docs/development/guides/resources/data-products/contracts.md): Define schema contracts for outputs
+- [Inputs and outputs](/docs/development/guides/resources/data-products/inputs-and-outputs.md): Define dependencies and consumers
+- [Understanding data products](/docs/development/guides/resources/data-products/introduction.md): Data as a product for analytics and insights
+- [Data products reference](/docs/development/guides/resources/data-products/reference.md): Frontmatter fields, paths, and routes for data products in EventCatalog.
+- [Add read/write relationships](/docs/development/guides/resources/data/add-read-write-relationships.md): Document which resources read from and write to data stores.
+- [Create a data store](/docs/development/guides/resources/data/adding-data.md): Creating and managing data stores within EventCatalog.
+- [Understanding data stores](/docs/development/guides/resources/data/introduction.md): What are data resources in EventCatalog?
+- [Data stores reference](/docs/development/guides/resources/data/reference.md): Frontmatter fields, paths, and routes for data stores in EventCatalog.
+- [Add entities to resources](/docs/development/guides/resources/entities/add-entities-to-resources.md): Add entities to domains, systems, and services in EventCatalog.
+- [Create an entity](/docs/development/guides/resources/entities/create-entity.md): Create an entity in EventCatalog.
+- [Entity maps](/docs/development/guides/resources/entities/entity-maps.md): Visualize entity relationships in EventCatalog.
+- [What are entities?](/docs/development/guides/resources/entities/introduction.md): What are entities? Why are they useful in EventCatalog?
+- [Model entity relationships](/docs/development/guides/resources/entities/model-entity-relationships.md): Model relationships between entities in EventCatalog.
+- [Entities reference](/docs/development/guides/resources/entities/reference.md): Frontmatter fields, paths, and routes for entities in EventCatalog.
+- [Add flows to resources](/docs/development/guides/resources/flows/add-flows-to-resources.md): Associate flows with domains, services, and systems in EventCatalog.
+- [Create a flow](/docs/development/guides/resources/flows/create-flow.md): Creating and managing flows within EventCatalog.
+- [Understanding flows](/docs/development/guides/resources/flows/introduction.md): What are flows? Why are they useful for event-driven architectures?
+- [Model flow steps](/docs/development/guides/resources/flows/model-flow-steps.md): Flow step types within EventCatalog.
+- [Flows reference](/docs/development/guides/resources/flows/reference.md): Frontmatter fields, paths, and routes for flows in EventCatalog.
+- [Add usage examples](/docs/development/guides/resources/messages/add-usage-examples.md): Add usage examples to your messages for quick reference.
+- [Group messages](/docs/development/guides/resources/messages/connect-messages/group-messages.md): Learn how to group related messages in the visualiser to reduce clutter.
+- [Map commands to events](/docs/development/guides/resources/messages/connect-messages/map-commands-to-events.md): Document which events a command can trigger, including the events produced in different scenarios.
+- [Map producers and consumers](/docs/development/guides/resources/messages/connect-messages/map-producers-and-consumers.md): Understand how to link messages to services.
+- [Patterns for shared messages](/docs/development/guides/resources/messages/connect-messages/shared-messages-across-boundaries.md): Understand the patterns for shared messages in EventCatalog.
+- [Create a command](/docs/development/guides/resources/messages/create-messages/create-command.md): Creating and managing commands within EventCatalog.
+- [Create a draft message](/docs/development/guides/resources/messages/create-messages/create-draft-message.md): Creating and managing draft messages within EventCatalog.
+- [Create an event](/docs/development/guides/resources/messages/create-messages/create-event.md): Creating and managing events within EventCatalog.
+- [Create a query](/docs/development/guides/resources/messages/create-messages/create-query.md): Creating and managing queries within EventCatalog.
+- [Creating channels](/docs/development/guides/resources/messages/message-channels/adding-channels.md): Creating and managing channels within EventCatalog.
+- [Routing messages through channels](/docs/development/guides/resources/messages/message-channels/adding-messages-to-services.md): Understanding how to route messages through channels
+- [Understanding channels](/docs/development/guides/resources/messages/message-channels/introduction.md): What are channels? Why are they useful for event-driven architectures?
+- [Message channels reference](/docs/development/guides/resources/messages/message-channels/reference.md): Frontmatter fields, paths, and routes for channels in EventCatalog.
+- [Commands](/docs/development/guides/resources/messages/message-types/commands.md): What are commands? Why are they useful for event-driven architectures?
+- [Events](/docs/development/guides/resources/messages/message-types/events.md): What are events? Why are they useful for event-driven architectures?
+- [Queries](/docs/development/guides/resources/messages/message-types/queries.md): What are queries? Why are they useful for event-driven architectures?
+- [Messages reference](/docs/development/guides/resources/messages/reference.md): Frontmatter fields, paths, and routes for events, commands, and queries in EventCatalog.
+- [Add a changelog](/docs/development/guides/resources/messages/versioning-and-lifecycle/add-changelog.md): Add changelogs to messages.
+- [Deprecate messages](/docs/development/guides/resources/messages/versioning-and-lifecycle/deprecate-messages.md): Deprecating messages with EventCatalog.
+- [Version messages](/docs/development/guides/resources/messages/versioning-and-lifecycle/version-messages.md): Learn how to version messages.
+- [What are messages?](/docs/development/guides/resources/messages/what-are-messages.md): Understand events, commands, and queries in EventCatalog.
+- [Add schemas to data stores](/docs/development/guides/resources/schemas/add-schemas-to-data-stores.md): Attach schemas, queries, and data files to data stores in EventCatalog.
+- [Add schemas to messages](/docs/development/guides/resources/schemas/add-schemas-to-messages.md): Attach schemas to events, commands, and queries in EventCatalog.
+- [Add AsyncAPI specifications](/docs/development/guides/resources/schemas/add-specifications-to-services/add-asyncapi-specifications.md): Attach an AsyncAPI specification to your service and render it in your documentation
+- [Add GraphQL schemas](/docs/development/guides/resources/schemas/add-specifications-to-services/add-graphql-schemas.md): Add a GraphQL schema to your service and render it in your documentation
+- [Add OpenAPI specifications](/docs/development/guides/resources/schemas/add-specifications-to-services/add-openapi-specifications.md): Attach an OpenAPI specification to your service and render it in your documentation
+- [Consumer Field Usage](/docs/development/guides/resources/schemas/explore-schemas/consumer-field-usage.md): Track which services depend on specific message fields.
+- [Fields Explorer](/docs/development/guides/resources/schemas/explore-schemas/fields-explorer.md): Browse, search, and trace schema fields across all messages in your catalog.
+- [Schema Explorer](/docs/development/guides/resources/schemas/explore-schemas/schema-explorer.md): Explore your schemas in the Schema Explorer
+- [Schemas reference](/docs/development/guides/resources/schemas/reference.md): Fields, sources, and routes for schemas in EventCatalog.
+- [Schema API](/docs/development/guides/resources/schemas/schema-api.md): Get API (GET) access to your schemas for mocking or testing
+- [Schema MCP](/docs/development/guides/resources/schemas/schema-mcp.md): Get access to your schemas for your MCP clients (e.g Cursor, Windsurf, Claude Desktop etc)
+- [What are schemas and specifications?](/docs/development/guides/resources/schemas/what-are-schemas-and-specifications.md): Understand how schemas and specifications fit into EventCatalog.
+- [Add data stores to services](/docs/development/guides/resources/services/add-resources-to-services/add-data-stores-to-services.md): Adding data stores to services
+- [Add entities to services](/docs/development/guides/resources/services/add-resources-to-services/add-entities-to-services.md): Creating and managing entities within EventCatalog.
+- [Add messages to services](/docs/development/guides/resources/services/add-resources-to-services/add-messages-to-services.md): Understanding how to add messages to services.
+- [Create an external service](/docs/development/guides/resources/services/create-external-service.md): Model third-party services like Stripe, Twilio, or Snowflake as external services in EventCatalog.
+- [Create a service](/docs/development/guides/resources/services/create-service.md): Creating and managing services within EventCatalog.
+- [Understanding services](/docs/development/guides/resources/services/introduction.md): What are services? Why are they useful for event-driven architectures?
+- [Add service owners](/docs/development/guides/resources/services/ownership-and-components/add-service-owners.md): Adding owners to services with EventCatalog.
+- [Use components](/docs/development/guides/resources/services/ownership-and-components/use-components.md): Component list for domains
+- [Services reference](/docs/development/guides/resources/services/reference.md): Frontmatter fields, paths, and routes for services in EventCatalog.
+- [Add a changelog](/docs/development/guides/resources/services/versioning-and-lifecycle/add-changelog.md): Adding changelogs to your services
+- [Deprecate services](/docs/development/guides/resources/services/versioning-and-lifecycle/deprecate-services.md): Deprecating services with EventCatalog.
+- [Version services](/docs/development/guides/resources/services/versioning-and-lifecycle/version-services.md): Learn how to version services
+- [Add resources to systems](/docs/development/guides/systems/add-resources-to-systems.md): Add services, flows, entities, and data stores to systems.
+- [Create a system](/docs/development/guides/systems/create-system.md): Create a system in EventCatalog.
+- [What are systems?](/docs/development/guides/systems/introduction.md): What are systems? Why are they useful in EventCatalog?
+- [Model relationships and actors](/docs/development/guides/systems/model-relationships-and-actors.md): Model relationships between systems and the actors that interact with them.
+- [Systems reference](/docs/development/guides/systems/reference.md): Frontmatter fields, paths, and routes for systems in EventCatalog.
+- [System context maps](/docs/development/guides/systems/system-context-maps.md): Visualize systems from high-level context maps down to detailed resource maps.
+- [Versioning resources](/docs/development/guides/versioning-resources.md): Learn how versioning works for EventCatalog resources.
+- [License Keys](/docs/development/license-keys.md): How to get and use license keys for EventCatalog Scale, Enterprise, and integrations (OpenAPI, AsyncAPI, and more).
+- [Getting a license key for integrations](/docs/development/license-keys/integrations.md): How to use EventCatalog Scale with integrations such as OpenAPI, AsyncAPI, Backstage, and more.
+- [How license validation works](/docs/development/license-keys/license-validation.md): How EventCatalog validates your license keys online and offline.
+- [License Keys Overview](/docs/development/license-keys/overview.md): Learn how license keys work in EventCatalog, how to get a free trial, and where to find your keys.
+- [Getting a license key for EventCatalog Scale](/docs/development/license-keys/plans.md): How to start an EventCatalog Scale plan in EventCatalog Cloud and get your license key.
+- [Upgrading EventCatalog](/docs/development/upgrading.md): How to upgrade EventCatalog.
+- [Upgrade to EventCatalog v2](/docs/development/upgrading/v2.md): How to upgrade to EventCatalog v2.
+- [Upgrade to EventCatalog v3](/docs/development/upgrading/v3.md): How to upgrade to EventCatalog v3.
+- [Upgrade to EventCatalog v4](/docs/development/upgrading/v4.md): How to upgrade to EventCatalog v4.
+
+### domains
+
+A collection of guides to help you understand domains and how they work with EventCatalog.
+
+- [Domains](/docs/domains.md): A collection of guides to help you understand domains and how they work with EventCatalog.
+- [Add resources to domains](/docs/domains/add-resources-to-domains.md): Add systems, services, messages, data products, and entities to your domains.
+- [Visualize domains](/docs/domains/visualize-domains.md): Visualize domain relationships, integrations, and entities.
+
+### editor
+
+- [Beta status and feedback](/docs/editor/explanation/beta-status-feedback.md): Understand the beta status of EventCatalog Editor and how to give feedback.
+- [How EventCatalog Editor works](/docs/editor/explanation/how-it-works.md): Understand the local architecture and workflow behind EventCatalog Editor.
+- [Editor, Markdown, MDX, and Git](/docs/editor/explanation/markdown-mdx-git.md): Understand how the editor works with EventCatalog's file-based authoring model.
+- [Make your first edit with EventCatalog Editor](/docs/editor/first-edit.md): Learn the basic editor workflow by opening a local catalog, changing a resource, previewing it, and reviewing the Git change.
+- [Add schemas and specifications](/docs/editor/how-to/add-schemas-and-specifications.md): Attach message schemas and API specifications from EventCatalog Editor.
+- [Edit an EventCatalog resource](/docs/editor/how-to/edit-resource.md): Update resource documentation, metadata, relationships, and source content in EventCatalog Editor.
+- [Invite editors to your organization](/docs/editor/how-to/invite-editors.md): Add team members in EventCatalog Cloud and assign editor seats so they can use EventCatalog Editor locally.
+- [Open a catalog in the editor](/docs/editor/how-to/open-catalog.md): Mount an EventCatalog project from the CLI or from the editor UI.
+- [Preview editor changes](/docs/editor/how-to/preview-changes.md): Open local EventCatalog preview links from the editor.
+- [Revert local editor changes](/docs/editor/how-to/revert-local-changes.md): Discard local catalog edits from the editor changes view.
+- [Review and publish editor changes](/docs/editor/how-to/review-and-commit-changes.md): Use the editor changes view to inspect local Git changes and publish a local commit.
+- [Run EventCatalog Editor locally](/docs/editor/how-to/run-locally.md): Start EventCatalog Editor against a local EventCatalog project.
+- [Use the Flow Editor](/docs/editor/how-to/use-flow-editor.md): Create and update EventCatalog flows visually with EventCatalog Editor.
+- [Use slash commands](/docs/editor/how-to/use-slash-commands.md): Insert Markdown blocks and EventCatalog components from the rich editor.
+- [EventCatalog Editor](/docs/editor/overview.md): Understand what EventCatalog Editor is, who it is for, and how it fits into your catalog workflow.
+- [EventCatalog Editor CLI reference](/docs/editor/reference/cli.md): Command and option reference for running EventCatalog Editor.
+- [Supported content and MDX](/docs/editor/reference/supported-content.md): Markdown, MDX, and component support in EventCatalog Editor.
+- [Supported resources](/docs/editor/reference/supported-resources.md): Resource types and capabilities currently supported by EventCatalog Editor.
+- [Troubleshooting EventCatalog Editor](/docs/editor/reference/troubleshooting.md): Fix common issues when running EventCatalog Editor.
+
+### federation
+
+- [Federation explanation](/docs/federation/explanation.md): Conceptual guides that explain composition, ownership, resolution, generated output, caching, and the federation lockfile.
+- [How EventCatalog Federation works](/docs/federation/explanation/how-it-works.md): Understand how EventCatalog indexes, resolves, and materializes several catalogs into one organization view.
+- [Federation lockfile and content cache](/docs/federation/explanation/lockfile-and-cache.md): Understand what eventcatalog.lock records, what it does not pin, and how the Federation cache works.
+- [Federation MVP status and feedback](/docs/federation/explanation/mvp-status-and-feedback.md): Understand the current Federation release boundaries and how to share useful feedback.
+- [Ownership and cross-catalog references](/docs/federation/explanation/ownership-and-references.md): Understand how Federation assigns ownership and resolves relationships across catalog boundaries.
+- [Federate your first catalogs](/docs/federation/first-federation.md): Create two local EventCatalog projects and combine them into one organization catalog.
+- [Federation how-to guides](/docs/federation/how-to.md): Task-focused guides for configuring, running, and operating EventCatalog Federation.
+- [Configure GitHub federation sources](/docs/federation/how-to/configure-github-sources.md): Add public or private GitHub-hosted EventCatalog projects to a central catalog.
+- [Configure Federation validation rules](/docs/federation/how-to/configure-validation-rules.md): Change federation diagnostics to off, warn, or error for your organization.
+- [Run EventCatalog Federation in CI](/docs/federation/how-to/run-in-ci.md): Fetch and validate federated catalogs before building the organization catalog in CI.
+- [Share public assets and custom components through Federation](/docs/federation/how-to/share-assets-and-components.md): Include source catalog images, files, and custom components in the organization catalog.
+- [Use local catalogs during development](/docs/federation/how-to/use-local-sources.md): Run the federation pipeline against catalogs on your local filesystem.
+- [Legacy Federation](/docs/federation/legacy-federation.md): Documentation for the legacy @eventcatalog/generator-federation implementation.
+- [Setup main catalog](/docs/federation/legacy-federation/configuration.md): Configuring federation in your EventCatalog
+- [Examples](/docs/federation/legacy-federation/examples.md): Examples of using the Federation plugin
+- [Installation](/docs/federation/legacy-federation/installation.md): Installation of the EventCatalog Federation plugin
+- [Introduction](/docs/federation/legacy-federation/introduction.md): Merge multiple EventCatalog instances into a single catalog
+- [Plugin Configuration](/docs/federation/legacy-federation/plugin-configuration.md): Configuration of the EventCatalog Federation plugin
+- [Configuring team catalogs](/docs/federation/legacy-federation/setup-team-catalog.md): Configuring federation in your EventCatalog
+- [EventCatalog Federation](/docs/federation/overview.md): Combine independently owned EventCatalogs into one validated organization-wide catalog.
+- [Federation reference](/docs/federation/reference.md): Lookup information for federation configuration, commands, diagnostics, generated files, and troubleshooting.
+- [Federation CLI reference](/docs/federation/reference/cli.md): Command, option, environment variable, and output reference for eventcatalog federate.
+- [Federation configuration reference](/docs/federation/reference/configuration.md): Reference for federation sources and rule levels in eventcatalog.config.js.
+- [Federation diagnostic rule reference](/docs/federation/reference/diagnostic-rules.md): Reference for every Federation rule, default level, trigger, output attributes, and resolution.
+- [Federation generated output reference](/docs/federation/reference/generated-output.md): Reference for federated resources, shared components, public assets, the lockfile, and content cache.
+- [Federation supported content](/docs/federation/reference/supported-content.md): Reference for resources, files, assets, and catalog-level content included by Federation.
+- [Troubleshooting EventCatalog Federation](/docs/federation/reference/troubleshooting.md): Fix common source, ownership, relationship, asset, cache, and generated-output problems.
+
+### github
+
+GitHub integration for EventCatalog
+
+- [GitHub](/docs/github.md): GitHub integration for EventCatalog
+
+### graphql
+
+GraphQL integration documentation for EventCatalog
+
+- [GraphQL](/docs/graphql.md): GraphQL integration documentation for EventCatalog
+
+### guides
+
+A collection of guides for EventCatalog.
+
+- [Documenting your architecture](/docs/guides.md): A collection of guides for EventCatalog.
+- [High level documentation](/docs/guides/bring-your-own-documentation/custom-pages.md): Add catalog-wide custom documentation pages to your catalog.
+- [Resource-level documentation](/docs/guides/bring-your-own-documentation/resource-docs.md): Attach documentation pages directly to any resource in your catalog.
+
+### hookdeck
+
+Hookdeck integration with EventCatalog
+
+- [Hookdeck](/docs/hookdeck.md): Hookdeck integration with EventCatalog
+
+### messages
+
+- [Connect messages](/docs/messages/connect-messages.md): Connect messages to producers, consumers, services, domains, and systems.
+- [Create messages](/docs/messages/create-messages.md): Create events, commands, queries, and draft messages.
+- [Message Channels](/docs/messages/message-channels.md): A collection of guides to help you understand channels and how they work with EventCatalog.
+- [Message types](/docs/messages/message-types.md): Understand events, commands, and queries in EventCatalog.
+- [Versioning & lifecycle](/docs/messages/versioning-and-lifecycle.md): Version, deprecate, and document changes to messages.
+
+### miro
+
+- [Adding Resources to the Board](/docs/miro/adding-resources.md): Drag and drop services, events, commands, and more onto your Miro board
+- [Import AsyncAPI into Miro](/docs/miro/asyncapi.md): Import your AsyncAPI specifications into Miro via EventCatalog
+- [Connected Resources](/docs/miro/connected-resources.md): View and navigate connections between resources on the board
+- [Connecting to EventCatalog](/docs/miro/connecting-to-eventcatalog.md): Export and import your EventCatalog resources into the Miro app
+- [Creating New Resources](/docs/miro/creating-resources.md): Create new services, events, and other resources directly from the Miro app
+- [Editing Resources](/docs/miro/editing-resources.md): Edit resource details by selecting nodes on the board
+- [Exporting to EventCatalog](/docs/miro/exporting-to-eventcatalog.md): Export your Miro board design back to EventCatalog
+- [Getting Involved](/docs/miro/getting-involved.md): How to contribute to the EventCatalog Miro App
+- [Installing the Miro App](/docs/miro/installation.md): How to install the EventCatalog Miro app to your Miro board
+- [Navigating the Board](/docs/miro/navigating-the-board.md): Navigate between connected resources and organize your board layout
+- [Import OpenAPI into Miro](/docs/miro/openapi.md): Import your OpenAPI specifications into Miro via EventCatalog
+- [EventCatalog Miro App](/docs/miro/overview.md): Bring your EventCatalog architecture into Miro for collaborative visual design
+- [Import from Schema Registries](/docs/miro/schema-registries.md): Import schemas from your registry into Miro via EventCatalog
+- [Services and Dependencies](/docs/miro/services-and-dependencies.md): Control whether services are added with their full dependency graph or standalone
+- [From Miro to EventCatalog with AI](/docs/miro/using-ai.md): Use AI to turn your Miro board designs into EventCatalog documentation automatically
+
+### openapi
+
+OpenAPI integration documentation for EventCatalog
+
+- [OpenAPI](/docs/openapi.md): OpenAPI integration documentation for EventCatalog
+
+### owners
+
+A collection of guides to help you understand owners and how they work with EventCatalog.
+
+- [Teams & Users](/docs/owners.md): A collection of guides to help you understand owners and how they work with EventCatalog.
+
+### ownership-and-language
+
+- [Ownership & language](/docs/ownership-and-language.md)
+
+### plugins
+
+- [All EventCatalog plugins](/docs/plugins/all-plugins.md): All EventCatalog plugins
+- [Examples](/docs/plugins/amazon-apigateway/examples.md): Examples of using the Amazon API Gateway plugin
+- [Features](/docs/plugins/amazon-apigateway/features.md): Features of AsyncAPI with EventCatalog
+- [Installation](/docs/plugins/amazon-apigateway/installation.md): Installation instructions for the Amazon API Gateway plugin
+- [Getting started](/docs/plugins/amazon-apigateway/intro.md): Getting started with Amazon EventBridge plugin
+- [Plugin Configuration](/docs/plugins/amazon-apigateway/plugin-configuration.md): Configuration of the Amazon API Gateway plugin
+- [Examples](/docs/plugins/apicurio/examples.md): Examples of using the Apicurio Registry plugin
+- [Features](/docs/plugins/apicurio/features.md): Features of Apicurio Registry with EventCatalog
+- [Installation](/docs/plugins/apicurio/installation.md): Installation of the EventCatalog Apicurio Registry plugin
+- [Introduction](/docs/plugins/apicurio/intro.md): Getting started with Apicurio Registry plugin
+- [Plugin Configuration](/docs/plugins/apicurio/plugin-configuration.md): Configuration of the EventCatalog Apicurio Registry plugin
+- [Workflows](/docs/plugins/asyncapi/03a-workflows.md): Workflows of AsyncAPI with EventCatalog
+- [Examples](/docs/plugins/asyncapi/examples.md): Examples of using the AsyncAPI plugin
+- [Features](/docs/plugins/asyncapi/features.md): Features of AsyncAPI with EventCatalog
+- [Installation](/docs/plugins/asyncapi/installation.md): Installation of the EventCatalog AsyncAPI plugin
+- [Introduction](/docs/plugins/asyncapi/intro.md): Getting started with AsyncAPI plugin
+- [Plugin Configuration](/docs/plugins/asyncapi/plugin-configuration.md): Configuration of the EventCatalog AsyncAPI plugin
+- [Using reference objects](/docs/plugins/asyncapi/using-reference-objects.md): Understanding reference objects with AsyncAPI
+- [Installation](/docs/plugins/aws-glue-registry/00a-installation.md): How to install the AWS Glue Schema Registry plugin
+- [API Reference](/docs/plugins/aws-glue-registry/api.md): Complete API reference for AWS Glue Schema Registry plugin
+- [Examples](/docs/plugins/aws-glue-registry/examples.md): Examples of using AWS Glue Schema Registry with EventCatalog
+- [Features](/docs/plugins/aws-glue-registry/features.md): Features of AWS Glue Schema Registry with EventCatalog
+- [Getting started](/docs/plugins/aws-glue-registry/intro.md): Getting started with AWS Glue Schema Registry plugin
+- [Examples](/docs/plugins/azure-schema-registry/examples.md): Examples of the EventCatalog Azure Schema Registry plugin
+- [Features](/docs/plugins/azure-schema-registry/features.md): Features of the EventCatalog Azure Schema Registry plugin
+- [Installation](/docs/plugins/azure-schema-registry/installation.md): Installation of the EventCatalog Azure Schema Registry plugin
+- [Introduction](/docs/plugins/azure-schema-registry/intro.md): Getting started with Azure Schema Registry plugin
+- [Plugin Configuration](/docs/plugins/azure-schema-registry/plugin-configuration.md): Configuration of the EventCatalog Azure Schema Registry plugin
+- [Add EventCatalog cards to an overview page](/docs/plugins/backstage/add-overview-cards.md): Place EventCatalog diagrams, tables, schemas, and flows in a Backstage overview grid.
+- [Backstage plugin component reference](/docs/plugins/backstage/components.md): Reference for all EventCatalog Backstage page and card components and their props.
+- [Backstage plugin configuration reference](/docs/plugins/backstage/configuration.md): Reference for the EventCatalog base URL and Backstage entity annotations.
+- [Control an embed's theme and size](/docs/plugins/backstage/control-theme-and-size.md): Select a light or dark EventCatalog theme and make embeds fill their Backstage containers.
+- [Embed EventCatalog as entity tabs](/docs/plugins/backstage/embed-entity-tabs.md): Add documentation, message, schema, map, graph, and flow tabs to Backstage entity pages.
+- [Embed EventCatalog in your first Backstage entity](/docs/plugins/backstage/get-started.md): Install the EventCatalog Backstage plugin and add resource documentation to an entity page.
+- [How EventCatalog embeds work in Backstage](/docs/plugins/backstage/how-embeds-work.md): Understand resource mapping, iframe rendering, embed mode, themes, and sizing.
+- [Migrate legacy resource mappings to entity annotations](/docs/plugins/backstage/migrate-to-annotations.md): Replace pre-1.0 Backstage app configuration mappings with EventCatalog entity annotations.
+- [EventCatalog for Backstage](/docs/plugins/backstage/overview.md): Add EventCatalog documentation, diagrams, schemas, messages, and flows to Backstage entity pages.
+- [Examples](/docs/plugins/confluent-schema-registry/examples.md): Examples of using the AsyncAPI plugin
+- [Features](/docs/plugins/confluent-schema-registry/features.md): Features of AsyncAPI with EventCatalog
+- [Installation](/docs/plugins/confluent-schema-registry/installation.md): Installation of the EventCatalog Confluent Schema Registry plugin
+- [Introduction](/docs/plugins/confluent-schema-registry/intro.md): Getting started with AsyncAPI plugin
+- [Plugin Configuration](/docs/plugins/confluent-schema-registry/plugin-configuration.md): Configuration of the EventCatalog Confluent Schema Registry plugin
+- [Workflows](/docs/plugins/eventbridge/03a-workflows.md): Workflows of EventBridge with EventCatalog
+- [Generator API](/docs/plugins/eventbridge/api.md): Getting started with Amazon EventBridge plugin
+- [Examples](/docs/plugins/eventbridge/examples.md): Examples of using the OpenAPI plugin
+- [Features](/docs/plugins/eventbridge/features.md): Features of AsyncAPI with EventCatalog
+- [Installation](/docs/plugins/eventbridge/installation.md): Installation guide for the EventCatalog Amazon EventBridge plugin
+- [Getting started](/docs/plugins/eventbridge/intro.md): Getting started with Amazon EventBridge plugin
+- [Generators](/docs/plugins/generators.md): Understanding EventCatalog generators.
+- [Examples](/docs/plugins/github/examples.md): Examples of using the Github plugin
+- [Features](/docs/plugins/github/features.md): Features of the Github Plugin with EventCatalog
+- [Installation](/docs/plugins/github/installation.md): Installation of the EventCatalog GitHub plugin
+- [Introduction](/docs/plugins/github/intro.md): Getting started with GitHub plugin
+- [Plugin Configuration](/docs/plugins/github/plugin-configuration.md): Configuration of the EventCatalog GitHub plugin
+- [Examples](/docs/plugins/graphql/examples.md): Examples of using the GraphQL plugin
+- [Features](/docs/plugins/graphql/features.md): Features of GraphQL with EventCatalog
+- [Installation](/docs/plugins/graphql/installation.md): Installation of the EventCatalog GraphQL plugin
+- [Introduction](/docs/plugins/graphql/intro.md): Getting started with GraphQL plugin
+- [Plugin Configuration](/docs/plugins/graphql/plugin-configuration.md): Configuration of the EventCatalog GraphQL plugin
+- [Hookdeck Generator API](/docs/plugins/hookdeck/api.md): Getting started with Hookdeck plugin
+- [Hookdeck Generator CLI](/docs/plugins/hookdeck/cli.md): Getting started with Hookdeck plugin as a CLI
+- [Getting started](/docs/plugins/hookdeck/intro.md): Getting started with Hookdeck plugin
+- [Understanding EventCatalog Plugins](/docs/plugins/intro.md): Understand how to use EventCatalog plugins
+- [Workflows](/docs/plugins/openapi/03a-workflows.md): Workflows of OpenAPI with EventCatalog
+- [Examples](/docs/plugins/openapi/examples.md): Examples of using the OpenAPI plugin
+- [Features](/docs/plugins/openapi/features.md): Features of OpenAPI with EventCatalog
+- [Installation](/docs/plugins/openapi/installation.md): Installation of the EventCatalog OpenAPI plugin
+- [Getting started](/docs/plugins/openapi/intro.md): Getting started with OpenAPI plugin
+- [Plugin Configuration](/docs/plugins/openapi/plugin-configuration.md): Configuration of the EventCatalog OpenAPI plugin
+
+### resources
+
+Guides for documenting EventCatalog resources such as services, messages, schemas, data stores, data products, entities, agents, flows, and architecture decision records.
+
+- [Resources](/docs/resources.md): Guides for documenting EventCatalog resources such as services, messages, schemas, data stores, data products, entities, agents, flows, and architecture decision records.
+- [Architecture Decision Records](/docs/resources/adrs.md): A collection of guides to help you document and manage architecture decision records in EventCatalog.
+- [Agents](/docs/resources/agents.md): A collection of guides to help you understand agents and how they work with EventCatalog.
+- [Data Stores](/docs/resources/data.md): A collection of guides to help you understand data resources and how they work with EventCatalog.
+- [Data Products](/docs/resources/data-products.md): A collection of guides to help you understand data products and how they work with EventCatalog.
+- [Entities](/docs/resources/entities.md): A collection of guides to help you understand entities and how they work with EventCatalog.
+- [Flows](/docs/resources/flows.md): A collection of guides to help you understand flows and how they work with EventCatalog.
+- [Messages](/docs/resources/messages.md): Understand, create, connect, and manage events, commands, and queries in EventCatalog.
+- [Schemas & Specifications](/docs/resources/schemas.md): A collection of guides to help you understand schemas and how they work with EventCatalog.
+- [Services](/docs/resources/services.md): A collection of guides to help you understand services and how they work with EventCatalog.
+
+### schemas
+
+- [Add specifications to services](/docs/schemas/add-specifications-to-services.md): Attach OpenAPI, AsyncAPI, and GraphQL specifications to services.
+- [Explore schemas](/docs/schemas/explore-schemas.md): Find, inspect, and understand schemas across your catalog.
+
+### sdk
+
+EventCatalog SDK
+
+- [@eventcatalog/sdk](/docs/sdk.md): EventCatalog SDK
+- [Class: FlowBuilder<TMessageId>](/docs/sdk/classes/FlowBuilder.md): Defined in232
+- [Function: addAgentToDomain()](/docs/sdk/functions/addAgentToDomain.md): addAgentToDomain(directory): (id, agent, version?) => Promise\
+- [Function: addContainerToSystem()](/docs/sdk/functions/addContainerToSystem.md): addContainerToSystem(directory): (id, resource, version?) => Promise\
+- [Function: addDataProductToDomain()](/docs/sdk/functions/addDataProductToDomain.md): addDataProductToDomain(directory): (id, dataProduct, version?) => Promise\
+- [Function: addDataStoreToAgent()](/docs/sdk/functions/addDataStoreToAgent.md): addDataStoreToAgent(directory): (id, direction, dataStore, version?) => Promise\
+- [Function: addDataStoreToService()](/docs/sdk/functions/addDataStoreToService.md): addDataStoreToService(directory): (id, operation, dataStore, version?) => Promise\
+- [Function: addEntityToDomain()](/docs/sdk/functions/addEntityToDomain.md): addEntityToDomain(directory): (id, entity, version?) => Promise\
+- [Function: addEntityToService()](/docs/sdk/functions/addEntityToService.md): addEntityToService(directory): (id, entity, version?) => Promise\
+- [Function: addEntityToSystem()](/docs/sdk/functions/addEntityToSystem.md): addEntityToSystem(directory): (id, resource, version?) => Promise\
+- [Function: addExampleToCommand()](/docs/sdk/functions/addExampleToCommand.md): addExampleToCommand(directory): (id, example, version?) => Promise\
+- [Function: addExampleToEvent()](/docs/sdk/functions/addExampleToEvent.md): addExampleToEvent(directory): (id, example, version?) => Promise\
+- [Function: addExampleToQuery()](/docs/sdk/functions/addExampleToQuery.md): addExampleToQuery(directory): (id, example, version?) => Promise\
+- [Function: addFileToAdr()](/docs/sdk/functions/addFileToAdr.md): addFileToAdr(directory): (id, file, version?) => Promise\
+- [Function: addFileToAgent()](/docs/sdk/functions/addFileToAgent.md): addFileToAgent(directory): (id, file, version?) => Promise\
+- [Function: addFileToCommand()](/docs/sdk/functions/addFileToCommand.md): addFileToCommand(directory): (id, file, version?, options?) => Promise\
+- [Function: addFileToDataProduct()](/docs/sdk/functions/addFileToDataProduct.md): addFileToDataProduct(directory): (id, file, version?) => Promise\
+- [Function: addFileToDataStore()](/docs/sdk/functions/addFileToDataStore.md): addFileToDataStore(directory): (id, file, version?) => Promise\
+- [Function: addFileToDiagram()](/docs/sdk/functions/addFileToDiagram.md): addFileToDiagram(directory): (id, file, version?) => Promise\
+- [Function: addFileToDomain()](/docs/sdk/functions/addFileToDomain.md): addFileToDomain(directory): (id, file, version?) => Promise\
+- [Function: addFileToEvent()](/docs/sdk/functions/addFileToEvent.md): addFileToEvent(directory): (id, file, version?, options?) => Promise\
+- [Function: addFileToFlow()](/docs/sdk/functions/addFileToFlow.md): addFileToFlow(directory): (id, file, version?) => Promise\
+- [Function: addFileToQuery()](/docs/sdk/functions/addFileToQuery.md): addFileToQuery(directory): (id, file, version?, options?) => Promise\
+- [Function: addFileToService()](/docs/sdk/functions/addFileToService.md): addFileToService(directory): (id, file, version?) => Promise\
+- [Function: addFileToSystem()](/docs/sdk/functions/addFileToSystem.md): addFileToSystem(directory): (id, file, version?) => Promise\
+- [Function: addFlowToAgent()](/docs/sdk/functions/addFlowToAgent.md): addFlowToAgent(directory): (id, flow, version?) => Promise\
+- [Function: addFlowToSystem()](/docs/sdk/functions/addFlowToSystem.md): addFlowToSystem(directory): (id, resource, version?) => Promise\
+- [Function: addMessageToAgent()](/docs/sdk/functions/addMessageToAgent.md): addMessageToAgent(directory): (id, direction, message, version?) => Promise\
+- [Function: addMessageToChannel()](/docs/sdk/functions/addMessageToChannel.md): addMessageToChannel(directory, collection): (id, _message, version?) => Promise\
+- [Function: addMessageToDomain()](/docs/sdk/functions/addMessageToDomain.md): addMessageToDomain(directory): (id, direction, message, version?) => Promise\
+- [Function: addMessageToService()](/docs/sdk/functions/addMessageToService.md): addMessageToService(directory): (id, direction, event, version?) => Promise\
+- [Function: addResourceToSystem()](/docs/sdk/functions/addResourceToSystem.md): addResourceToSystem(directory, resourceField): (id, resource, version?) => Promise\
+- [Function: addSchemaToCommand()](/docs/sdk/functions/addSchemaToCommand.md): addSchemaToCommand(directory): (id, schema, version?, options?) => Promise\
+- [Function: addSchemaToEvent()](/docs/sdk/functions/addSchemaToEvent.md): addSchemaToEvent(directory): (id, schema, version?, options?) => Promise\
+- [Function: addSchemaToQuery()](/docs/sdk/functions/addSchemaToQuery.md): addSchemaToQuery(directory): (id, schema, version?, options?) => Promise\
+- [Function: addServiceToDomain()](/docs/sdk/functions/addServiceToDomain.md): addServiceToDomain(directory): (id, service, version?) => Promise\
+- [Function: addServiceToSystem()](/docs/sdk/functions/addServiceToSystem.md): addServiceToSystem(directory): (id, resource, version?) => Promise\
+- [Function: addSubDomainToDomain()](/docs/sdk/functions/addSubDomainToDomain.md): addSubDomainToDomain(directory): (id, subDomain, version?) => Promise\
+- [Function: addSystemToDomain()](/docs/sdk/functions/addSystemToDomain.md): addSystemToDomain(directory): (id, system, version?) => Promise\
+- [Function: addUbiquitousLanguageToDomain()](/docs/sdk/functions/addUbiquitousLanguageToDomain.md): addUbiquitousLanguageToDomain(directory): (id, ubiquitousLanguageDictionary, version?) => Promise\
+- [Function: adrHasVersion()](/docs/sdk/functions/adrHasVersion.md): adrHasVersion(directory): (id, version?) => Promise\
+- [Function: agentHasVersion()](/docs/sdk/functions/agentHasVersion.md): agentHasVersion(directory): (id, version?) => Promise\
+- [Function: appendChangelog()](/docs/sdk/functions/appendChangelog.md): appendChangelog(catalogDir): (id, changelog, options) => Promise\
+- [Function: channelHasVersion()](/docs/sdk/functions/channelHasVersion.md): channelHasVersion(directory): (id, version?) => Promise\
+- [Function: commandHasVersion()](/docs/sdk/functions/commandHasVersion.md): commandHasVersion(directory): (id, version?) => Promise\
+- [Function: dataProductHasVersion()](/docs/sdk/functions/dataProductHasVersion.md): dataProductHasVersion(directory): (id, version?) => Promise\
+- [Function: dataStoreHasVersion()](/docs/sdk/functions/dataStoreHasVersion.md): dataStoreHasVersion(directory): (id, version?) => Promise\
+- [Function: diagramHasVersion()](/docs/sdk/functions/diagramHasVersion.md): diagramHasVersion(directory): (id, version?) => Promise\
+- [Function: domainHasVersion()](/docs/sdk/functions/domainHasVersion.md): domainHasVersion(directory): (id, version?) => Promise\
+- [Function: dumpCatalog()](/docs/sdk/functions/dumpCatalog.md): dumpCatalog(directory): (options?) => Promise\
+- [Function: entityHasVersion()](/docs/sdk/functions/entityHasVersion.md): entityHasVersion(directory): (id, version?) => Promise\
+- [Function: eventHasVersion()](/docs/sdk/functions/eventHasVersion.md): eventHasVersion(directory): (id, version?) => Promise\
+- [Function: flowHasVersion()](/docs/sdk/functions/flowHasVersion.md): flowHasVersion(directory): (id, version?) => Promise\
+- [Function: getAdr()](/docs/sdk/functions/getAdr.md): getAdr(directory): (id, version?) => Promise\
+- [Function: getAdrs()](/docs/sdk/functions/getAdrs.md): getAdrs(directory): (options?) => Promise\
+- [Function: getAgent()](/docs/sdk/functions/getAgent.md): getAgent(directory): (id, version?) => Promise\
+- [Function: getAgentByPath()](/docs/sdk/functions/getAgentByPath.md): getAgentByPath(directory): (path) => Promise\
+- [Function: getAgents()](/docs/sdk/functions/getAgents.md): getAgents(directory): (options?) => Promise\
+- [Function: getChangelog()](/docs/sdk/functions/getChangelog.md): getChangelog(catalogDir): (id, options) => Promise\
+- [Function: getChannel()](/docs/sdk/functions/getChannel.md): getChannel(directory): (id, version?) => Promise\
+- [Function: getChannels()](/docs/sdk/functions/getChannels.md): getChannels(directory): (options?) => Promise\
+- [Function: getCommand()](/docs/sdk/functions/getCommand.md): getCommand(directory): (id, version?, options?) => Promise\
+- [Function: getCommands()](/docs/sdk/functions/getCommands.md): getCommands(directory): (options?) => Promise\
+- [Function: getConsumersOfSchema()](/docs/sdk/functions/getConsumersOfSchema.md): getConsumersOfSchema(directory): (path) => Promise\
+- [Function: getCustomDoc()](/docs/sdk/functions/getCustomDoc.md): getCustomDoc(directory): (filePath) => Promise\
+- [Function: getCustomDocs()](/docs/sdk/functions/getCustomDocs.md): getCustomDocs(directory): (options?) => Promise\
+- [Function: getDataProduct()](/docs/sdk/functions/getDataProduct.md): getDataProduct(directory): (id, version?) => Promise\
+- [Function: getDataProducts()](/docs/sdk/functions/getDataProducts.md): getDataProducts(directory): (options?) => Promise\
+- [Function: getDataStore()](/docs/sdk/functions/getDataStore.md): getDataStore(directory): (id, version?) => Promise\
+- [Function: getDataStores()](/docs/sdk/functions/getDataStores.md): getDataStores(directory): (options?) => Promise\
+- [Function: getDiagram()](/docs/sdk/functions/getDiagram.md): getDiagram(directory): (id, version?) => Promise\
+- [Function: getDiagrams()](/docs/sdk/functions/getDiagrams.md): getDiagrams(directory): (options?) => Promise\
+- [Function: getDomain()](/docs/sdk/functions/getDomain.md): getDomain(directory): (id, version?) => Promise\
+- [Function: getDomains()](/docs/sdk/functions/getDomains.md): getDomains(directory): (options?) => Promise\
+- [Function: getEntities()](/docs/sdk/functions/getEntities.md): getEntities(directory): (options?) => Promise\
+- [Function: getEntity()](/docs/sdk/functions/getEntity.md): getEntity(directory): (id, version?) => Promise\
+- [Function: getEvent()](/docs/sdk/functions/getEvent.md): getEvent(directory): (id, version?, options?) => Promise\
+- [Function: getEventCatalogConfigurationFile()](/docs/sdk/functions/getEventCatalogConfigurationFile.md): getEventCatalogConfigurationFile(directory): () => Promise\
+- [Function: getEvents()](/docs/sdk/functions/getEvents.md): getEvents(directory): (options?) => Promise\
+- [Function: getExamplesFromCommand()](/docs/sdk/functions/getExamplesFromCommand.md): getExamplesFromCommand(directory): (id, version?) => Promise\
+- [Function: getExamplesFromEvent()](/docs/sdk/functions/getExamplesFromEvent.md): getExamplesFromEvent(directory): (id, version?) => Promise\
+- [Function: getExamplesFromQuery()](/docs/sdk/functions/getExamplesFromQuery.md): getExamplesFromQuery(directory): (id, version?) => Promise\
+- [Function: getFlow()](/docs/sdk/functions/getFlow.md): getFlow(directory): (id, version?) => Promise\
+- [Function: getFlows()](/docs/sdk/functions/getFlows.md): getFlows(directory): (options?) => Promise\
+- [Function: getMessageBySchemaPath()](/docs/sdk/functions/getMessageBySchemaPath.md): getMessageBySchemaPath(directory): (path, options?) => Promise\
+- [Function: getOwnersForResource()](/docs/sdk/functions/getOwnersForResource.md): getOwnersForResource(catalogDir): (id, version?) => Promise\
+- [Function: getProducersAndConsumersForMessage()](/docs/sdk/functions/getProducersAndConsumersForMessage.md): getProducersAndConsumersForMessage(directory): (id, version?, options?) => Promise\
+- [Function: getProducersOfSchema()](/docs/sdk/functions/getProducersOfSchema.md): getProducersOfSchema(directory): (path) => Promise\
+- [Function: getQueries()](/docs/sdk/functions/getQueries.md): getQueries(directory): (options?) => Promise\
+- [Function: getQuery()](/docs/sdk/functions/getQuery.md): getQuery(directory): (id, version?, options?) => Promise\
+- [Function: getSchemaForMessage()](/docs/sdk/functions/getSchemaForMessage.md): getSchemaForMessage(directory): (id, version?) => Promise\
+- [Function: getService()](/docs/sdk/functions/getService.md): getService(directory): (id, version?) => Promise\
+- [Function: getServiceByPath()](/docs/sdk/functions/getServiceByPath.md): getServiceByPath(directory): (path) => Promise\
+- [Function: getServices()](/docs/sdk/functions/getServices.md): getServices(directory): (options?) => Promise\
+- [Function: getSpecificationFilesForService()](/docs/sdk/functions/getSpecificationFilesForService.md): getSpecificationFilesForService(directory): (id, version?) => Promise\
+- [Function: getSystem()](/docs/sdk/functions/getSystem.md): getSystem(directory): (id, version?) => Promise\
+- [Function: getSystemByPath()](/docs/sdk/functions/getSystemByPath.md): getSystemByPath(directory): (path) => Promise\
+- [Function: getSystems()](/docs/sdk/functions/getSystems.md): getSystems(directory): (options?) => Promise\
+- [Function: getTeam()](/docs/sdk/functions/getTeam.md): getTeam(catalogDir): (id) => Promise\
+- [Function: getTeams()](/docs/sdk/functions/getTeams.md): getTeams(catalogDir): (options?) => Promise\
+- [Function: getUbiquitousLanguageFromDomain()](/docs/sdk/functions/getUbiquitousLanguageFromDomain.md): getUbiquitousLanguageFromDomain(directory): (id, version?) => Promise\
+- [Function: getUser()](/docs/sdk/functions/getUser.md): getUser(catalogDir): (id) => Promise\
+- [Function: getUsers()](/docs/sdk/functions/getUsers.md): getUsers(catalogDir): (options?) => Promise\
+- [Function: isAgent()](/docs/sdk/functions/isAgent.md): isAgent(directory): (path) => Promise\
+- [Function: isService()](/docs/sdk/functions/isService.md): isService(directory): (path) => Promise\
+- [Function: isSystem()](/docs/sdk/functions/isSystem.md): isSystem(directory): (path) => Promise\
+- [Function: queryHasVersion()](/docs/sdk/functions/queryHasVersion.md): queryHasVersion(directory): (id, version?) => Promise\
+- [Function: removeExampleFromCommand()](/docs/sdk/functions/removeExampleFromCommand.md): removeExampleFromCommand(directory): (id, fileName, version?) => Promise\
+- [Function: removeExampleFromEvent()](/docs/sdk/functions/removeExampleFromEvent.md): removeExampleFromEvent(directory): (id, fileName, version?) => Promise\
+- [Function: removeExampleFromQuery()](/docs/sdk/functions/removeExampleFromQuery.md): removeExampleFromQuery(directory): (id, fileName, version?) => Promise\
+- [Function: rmAdr()](/docs/sdk/functions/rmAdr.md): rmAdr(directory): (path) => Promise\
+- [Function: rmAdrById()](/docs/sdk/functions/rmAdrById.md): rmAdrById(directory): (id, version?, persistFiles?) => Promise\
+- [Function: rmAgent()](/docs/sdk/functions/rmAgent.md): rmAgent(directory): (path) => Promise\
+- [Function: rmAgentById()](/docs/sdk/functions/rmAgentById.md): rmAgentById(directory): (id, version?, persistFiles?) => Promise\
+- [Function: rmChangelog()](/docs/sdk/functions/rmChangelog.md): rmChangelog(catalogDir): (id, options) => Promise\
+- [Function: rmChannel()](/docs/sdk/functions/rmChannel.md): rmChannel(directory): (path) => Promise\
+- [Function: rmChannelById()](/docs/sdk/functions/rmChannelById.md): rmChannelById(directory): (id, version?, persistFiles?) => Promise\
+- [Function: rmCommand()](/docs/sdk/functions/rmCommand.md): rmCommand(directory): (path) => Promise\
+- [Function: rmCommandById()](/docs/sdk/functions/rmCommandById.md): rmCommandById(directory): (id, version?, persistFiles?) => Promise\
+- [Function: rmCustomDoc()](/docs/sdk/functions/rmCustomDoc.md): rmCustomDoc(directory): (filePath) => Promise\
+- [Function: rmDataProduct()](/docs/sdk/functions/rmDataProduct.md): rmDataProduct(directory): (path) => Promise\
+- [Function: rmDataProductById()](/docs/sdk/functions/rmDataProductById.md): rmDataProductById(directory): (id, version?, persistFiles?) => Promise\
+- [Function: rmDataStore()](/docs/sdk/functions/rmDataStore.md): rmDataStore(directory): (path) => Promise\
+- [Function: rmDataStoreById()](/docs/sdk/functions/rmDataStoreById.md): rmDataStoreById(directory): (id, version?, persistFiles?) => Promise\
+- [Function: rmDiagram()](/docs/sdk/functions/rmDiagram.md): rmDiagram(directory): (path) => Promise\
+- [Function: rmDiagramById()](/docs/sdk/functions/rmDiagramById.md): rmDiagramById(directory): (id, version?, persistFiles?) => Promise\
+- [Function: rmDomain()](/docs/sdk/functions/rmDomain.md): rmDomain(directory): (path) => Promise\
+- [Function: rmDomainById()](/docs/sdk/functions/rmDomainById.md): rmDomainById(directory): (id, version?, persistFiles?) => Promise\
+- [Function: rmEntity()](/docs/sdk/functions/rmEntity.md): rmEntity(directory): (path) => Promise\
+- [Function: rmEntityById()](/docs/sdk/functions/rmEntityById.md): rmEntityById(directory): (id, version?, persistFiles?) => Promise\
+- [Function: rmEvent()](/docs/sdk/functions/rmEvent.md): rmEvent(directory): (path) => Promise\
+- [Function: rmEventById()](/docs/sdk/functions/rmEventById.md): rmEventById(directory): (id, version?, persistFiles?) => Promise\
+- [Function: rmFlow()](/docs/sdk/functions/rmFlow.md): rmFlow(directory): (path) => Promise\
+- [Function: rmFlowById()](/docs/sdk/functions/rmFlowById.md): rmFlowById(directory): (id, version?, persistFiles?) => Promise\
+- [Function: rmQuery()](/docs/sdk/functions/rmQuery.md): rmQuery(directory): (path) => Promise\
+- [Function: rmQueryById()](/docs/sdk/functions/rmQueryById.md): rmQueryById(directory): (id, version?, persistFiles?) => Promise\
+- [Function: rmService()](/docs/sdk/functions/rmService.md): rmService(directory): (path) => Promise\
+- [Function: rmServiceById()](/docs/sdk/functions/rmServiceById.md): rmServiceById(directory): (id, version?, persistFiles?) => Promise\
+- [Function: rmSystem()](/docs/sdk/functions/rmSystem.md): rmSystem(directory): (path) => Promise\
+- [Function: rmSystemById()](/docs/sdk/functions/rmSystemById.md): rmSystemById(directory): (id, version?, persistFiles?) => Promise\
+- [Function: rmTeamById()](/docs/sdk/functions/rmTeamById.md): rmTeamById(catalogDir): (id) => Promise\
+- [Function: rmUserById()](/docs/sdk/functions/rmUserById.md): rmUserById(catalogDir): (id) => Promise\
+- [Function: serviceHasVersion()](/docs/sdk/functions/serviceHasVersion.md): serviceHasVersion(directory): (id, version?) => Promise\
+- [Function: systemHasVersion()](/docs/sdk/functions/systemHasVersion.md): systemHasVersion(directory): (id, version?) => Promise\
+- [Function: toAgent()](/docs/sdk/functions/toAgent.md): toAgent(directory): (file) => Promise\
+- [Function: toService()](/docs/sdk/functions/toService.md): toService(directory): (file) => Promise\
+- [Function: toSystem()](/docs/sdk/functions/toSystem.md): toSystem(directory): (file) => Promise\
+- [Function: versionAdr()](/docs/sdk/functions/versionAdr.md): versionAdr(directory): (id) => Promise\
+- [Function: versionAgent()](/docs/sdk/functions/versionAgent.md): versionAgent(directory): (id) => Promise\
+- [Function: versionChannel()](/docs/sdk/functions/versionChannel.md): versionChannel(directory): (id) => Promise\
+- [Function: versionCommand()](/docs/sdk/functions/versionCommand.md): versionCommand(directory): (id) => Promise\
+- [Function: versionDataProduct()](/docs/sdk/functions/versionDataProduct.md): versionDataProduct(directory): (id) => Promise\
+- [Function: versionDataStore()](/docs/sdk/functions/versionDataStore.md): versionDataStore(directory): (id) => Promise\
+- [Function: versionDiagram()](/docs/sdk/functions/versionDiagram.md): versionDiagram(directory): (id) => Promise\
+- [Function: versionDomain()](/docs/sdk/functions/versionDomain.md): versionDomain(directory): (id) => Promise\
+- [Function: versionEntity()](/docs/sdk/functions/versionEntity.md): versionEntity(directory): (id) => Promise\
+- [Function: versionEvent()](/docs/sdk/functions/versionEvent.md): versionEvent(directory): (id) => Promise\
+- [Function: versionFlow()](/docs/sdk/functions/versionFlow.md): versionFlow(directory): (id) => Promise\
+- [Function: versionQuery()](/docs/sdk/functions/versionQuery.md): versionQuery(directory): (id) => Promise\
+- [Function: versionService()](/docs/sdk/functions/versionService.md): versionService(directory): (id) => Promise\
+- [Function: versionSystem()](/docs/sdk/functions/versionSystem.md): versionSystem(directory): (id) => Promise\
+- [Function: writeAdr()](/docs/sdk/functions/writeAdr.md): writeAdr(directory): (adr, options) => Promise\
+- [Function: writeAgent()](/docs/sdk/functions/writeAgent.md): writeAgent(directory): (agent, options) => Promise\
+- [Function: writeAgentToDomain()](/docs/sdk/functions/writeAgentToDomain.md): writeAgentToDomain(directory): (agent, domain, options) => Promise\
+- [Function: writeChangelog()](/docs/sdk/functions/writeChangelog.md): writeChangelog(catalogDir): (id, changelog, options) => Promise\
+- [Function: writeChannel()](/docs/sdk/functions/writeChannel.md): writeChannel(directory): (channel, options) => Promise\
+- [Function: writeCommand()](/docs/sdk/functions/writeCommand.md): writeCommand(directory): (command, options) => Promise\
+- [Function: writeCommandToAgent()](/docs/sdk/functions/writeCommandToAgent.md): writeCommandToAgent(directory): (command, agent, options) => Promise\
+- [Function: writeCommandToService()](/docs/sdk/functions/writeCommandToService.md): writeCommandToService(directory): (command, service, options) => Promise\
+- [Function: writeCustomDoc()](/docs/sdk/functions/writeCustomDoc.md): writeCustomDoc(directory): (customDoc, options) => Promise\
+- [Function: writeDataProduct()](/docs/sdk/functions/writeDataProduct.md): writeDataProduct(directory): (dataProduct, options) => Promise\
+- [Function: writeDataProductToDomain()](/docs/sdk/functions/writeDataProductToDomain.md): writeDataProductToDomain(directory): (dataProduct, domain, options) => Promise\
+- [Function: writeDataStore()](/docs/sdk/functions/writeDataStore.md): writeDataStore(directory): (data, options) => Promise\
+- [Function: writeDataStoreToService()](/docs/sdk/functions/writeDataStoreToService.md): writeDataStoreToService(directory): (container, service, options) => Promise\
+- [Function: writeDataStoreToSystem()](/docs/sdk/functions/writeDataStoreToSystem.md): writeDataStoreToSystem(directory): (container, system, options) => Promise\
+- [Function: writeDiagram()](/docs/sdk/functions/writeDiagram.md): writeDiagram(directory): (diagram, options) => Promise\
+- [Function: writeDomain()](/docs/sdk/functions/writeDomain.md): writeDomain(directory): (domain, options) => Promise\
+- [Function: writeEntity()](/docs/sdk/functions/writeEntity.md): writeEntity(directory): (entity, options) => Promise\
+- [Function: writeEntityToSystem()](/docs/sdk/functions/writeEntityToSystem.md): writeEntityToSystem(directory): (entity, system, options) => Promise\
+- [Function: writeEvent()](/docs/sdk/functions/writeEvent.md): writeEvent(directory): (event, options) => Promise\
+- [Function: writeEventToAgent()](/docs/sdk/functions/writeEventToAgent.md): writeEventToAgent(directory): (event, agent, options) => Promise\
+- [Function: writeEventToService()](/docs/sdk/functions/writeEventToService.md): writeEventToService(directory): (event, service, options) => Promise\
+- [Function: writeFlow()](/docs/sdk/functions/writeFlow.md): writeFlow(directory): (flow, options) => Promise\
+- [Function: writeFlowToAgent()](/docs/sdk/functions/writeFlowToAgent.md): writeFlowToAgent(directory): (flow, agent, options) => Promise\
+- [Function: writeFlowToDomain()](/docs/sdk/functions/writeFlowToDomain.md): writeFlowToDomain(directory): (flow, domain, options) => Promise\
+- [Function: writeFlowToService()](/docs/sdk/functions/writeFlowToService.md): writeFlowToService(directory): (flow, service, options) => Promise\
+- [Function: writeFlowToSystem()](/docs/sdk/functions/writeFlowToSystem.md): writeFlowToSystem(directory): (flow, system, options) => Promise\
+- [Function: writeQuery()](/docs/sdk/functions/writeQuery.md): writeQuery(directory): (query, options) => Promise\
+- [Function: writeQueryToAgent()](/docs/sdk/functions/writeQueryToAgent.md): writeQueryToAgent(directory): (query, agent, options) => Promise\
+- [Function: writeQueryToService()](/docs/sdk/functions/writeQueryToService.md): writeQueryToService(directory): (query, service, options) => Promise\
+- [Function: writeService()](/docs/sdk/functions/writeService.md): writeService(directory): (service, options) => Promise\
+- [Function: writeServiceToDomain()](/docs/sdk/functions/writeServiceToDomain.md): writeServiceToDomain(directory): (service, domain, options) => Promise\
+- [Function: writeServiceToSystem()](/docs/sdk/functions/writeServiceToSystem.md): writeServiceToSystem(directory): (service, system, options) => Promise\
+- [Function: writeSystem()](/docs/sdk/functions/writeSystem.md): writeSystem(directory): (system, options) => Promise\
+- [Function: writeSystemToDomain()](/docs/sdk/functions/writeSystemToDomain.md): writeSystemToDomain(directory): (system, domain, options) => Promise\
+- [Function: writeTeam()](/docs/sdk/functions/writeTeam.md): writeTeam(catalogDir): (team, options) => Promise\
+- [Function: writeUser()](/docs/sdk/functions/writeUser.md): writeUser(catalogDir): (user, options) => Promise\
+- [Function: writeVersionedAgent()](/docs/sdk/functions/writeVersionedAgent.md): writeVersionedAgent(directory): (agent) => Promise\
+- [Function: writeVersionedFlow()](/docs/sdk/functions/writeVersionedFlow.md): writeVersionedFlow(directory): (flow) => Promise\
+- [Function: writeVersionedService()](/docs/sdk/functions/writeVersionedService.md): writeVersionedService(directory): (service) => Promise\
+- [Type Alias: FlowActorStepInput](/docs/sdk/type-aliases/FlowActorStepInput.md): FlowActorStepInput: FlowStepInput & object
+- [Type Alias: FlowAgentStepInput](/docs/sdk/type-aliases/FlowAgentStepInput.md): FlowAgentStepInput: FlowStepInput & object
+- [Type Alias: FlowBuilderInput](/docs/sdk/type-aliases/FlowBuilderInput.md): FlowBuilderInput: Omit\ & object
+- [Type Alias: FlowCustomStepInput](/docs/sdk/type-aliases/FlowCustomStepInput.md): FlowCustomStepInput: FlowStepInput & object
+- [Type Alias: FlowDataProductStepInput](/docs/sdk/type-aliases/FlowDataProductStepInput.md): FlowDataProductStepInput: FlowStepInput & object
+- [Type Alias: FlowDataStoreStepInput](/docs/sdk/type-aliases/FlowDataStoreStepInput.md): FlowDataStoreStepInput: FlowStepInput & object
+- [Type Alias: FlowExternalSystemStepInput](/docs/sdk/type-aliases/FlowExternalSystemStepInput.md): FlowExternalSystemStepInput: FlowStepInput & object
+- [Type Alias: FlowMessageStepInput<TMessageId>](/docs/sdk/type-aliases/FlowMessageStepInput.md): FlowMessageStepInput\: FlowStepInput & object
+- [Type Alias: FlowServiceStepInput](/docs/sdk/type-aliases/FlowServiceStepInput.md): FlowServiceStepInput: FlowStepInput & object
+- [Type Alias: FlowStepInput](/docs/sdk/type-aliases/FlowStepInput.md): FlowStepInput: object
+- [Type Alias: FlowSubFlowStepInput](/docs/sdk/type-aliases/FlowSubFlowStepInput.md): FlowSubFlowStepInput: FlowStepInput & object
+
+### services
+
+- [Add resources to services](/docs/services/add-resources-to-services.md): Add messages, data stores, and entities to your services.
+- [Ownership & components](/docs/services/ownership-and-components.md): Add owners and custom components to services.
+- [Versioning & lifecycle](/docs/services/versioning-and-lifecycle.md): Version, deprecate, and document changes to services.
+
+### starting-a-new-project
+
+- [Starting a new project](/docs/starting-a-new-project/getting-started.md): Learn how to install EventCatalog.
+
+### studio
+
+- [Adding comments](/docs/studio/diagrams/adding-comments.md): Understanding how to use comments in EventCatalog Studio
+- [Adding documentation](/docs/studio/diagrams/adding-documentation.md): Understanding how to use nodes in EventCatalog Studio
+- [Deleting designs](/docs/studio/diagrams/deleting-designs.md): How to delete designs in EventCatalog Studio
+- [Export as prompt](/docs/studio/diagrams/diagram-to-prompt.md): Exporting your diagram as a prompt
+- [Embed into EventCatalog](/docs/studio/diagrams/eventcatalog-embed.md): Understanding how to use nodes in EventCatalog Studio
+- [Import EventCatalog resources](/docs/studio/diagrams/import-eventcatalog-resources.md): Understanding how to import EventCatalog resources into EventCatalog Studio
+- [Import & Export](/docs/studio/diagrams/import-export.md): Understanding how to use nodes in EventCatalog Studio
+- [Reset your environment](/docs/studio/diagrams/reset-your-environment.md): Understanding how to reset your environment in EventCatalog Studio
+- [Templates](/docs/studio/diagrams/templates.md): Using templates in EventCatalog Studio
+- [Using nodes](/docs/studio/diagrams/using-nodes.md): Understanding how to use nodes in EventCatalog Studio
+- [Version Control & Audits](/docs/studio/enterprise/audits.md): Version Control & Audits for designs in EventCatalog Studio
+- [Self-host](/docs/studio/enterprise/self-host.md): Understand the CLI of EventCatalog
+- [Getting Started](/docs/studio/getting-started.md): Getting started with EventCatalog Studio
+- [Managing your organization](/docs/studio/organization-teams/inviting-users.md): Understand the CLI of EventCatalog
+- [Organization settings](/docs/studio/organization-teams/organization-settings.md): Understand the CLI of EventCatalog
+- [Upgrade to a paid plan](/docs/studio/organization-teams/upgrade.md): Understand the CLI of EventCatalog
+- [Contributing](/docs/studio/project/contributing.md): Understand the CLI of EventCatalog
+- [Open Source](/docs/studio/project/opensource.md): Understand the CLI of EventCatalog
+- [Roadmap](/docs/studio/project/roadmap.md): Understand the CLI of EventCatalog
+- [Welcome to EventCatalog Studio](/docs/studio/welcome.md): Understand the CLI of EventCatalog
+- [Why EventCatalog Studio?](/docs/studio/why-studio.md): Understand the CLI of EventCatalog
+
+### systems
+
+A collection of guides to help you understand systems and how they work with EventCatalog.
+
+- [Systems](/docs/systems.md): A collection of guides to help you understand systems and how they work with EventCatalog.
+
+### tutorial
+
+Learn what you will build in the EventCatalog tutorial.
+
+- [Introduction](/docs/tutorial.md): Learn what you will build in the EventCatalog tutorial.
+- [Add ownership](/docs/tutorial/add-ownership.md): Create a team and assign it to your services and event.
+- [Build and deploy your catalog](/docs/tutorial/build-your-catalog.md): Build your EventCatalog site and choose a deployment path.
+- [Consume the event from a service](/docs/tutorial/consume-event.md): Create InventoryService and mark it as a consumer of OrderPlaced.
+- [Create a domain](/docs/tutorial/create-a-domain.md): Group the tutorial services into a domain.
+- [Create a service](/docs/tutorial/create-a-service.md): Add the first service to your tutorial catalog.
+- [Create an event](/docs/tutorial/create-event.md): Add the first event and schema to your tutorial catalog.
+- [Install EventCatalog](/docs/tutorial/install-eventcatalog.md): Create a new EventCatalog project from the command line.
+- [Next steps](/docs/tutorial/next-steps.md): Grow your catalog beyond the tutorial.
+- [Publish the event from a service](/docs/tutorial/publish-event.md): Update OrderService so EventCatalog knows it publishes OrderPlaced.
+- [Visualize your catalog](/docs/tutorial/visualize-your-catalog.md): Use EventCatalog visualizations to inspect the tutorial architecture.

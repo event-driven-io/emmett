@@ -1,0 +1,8 @@
+app/src/main/java/io/apicurio/registry/cncf
+app/src/main/java/io/apicurio/registry/cncf/schemaregistry
+app/src/main/java/io/apicurio/registry/cncf/schemaregistry/SchemagroupsResource.java
+app/src/main/java/io/apicurio/registry/cncf/schemaregistry/beans
+app/src/main/java/io/apicurio/registry/cncf/schemaregistry/beans/SchemaGroup.java
+app/src/main/java/io/apicurio/registry/cncf/schemaregistry/beans/SchemaId.java
+app/src/main/java/io/apicurio/registry/cncf/schemaregistry/impl
+app/src/main/java/io/apicurio/registry/cncf/schemaregistry/impl/CNCFApiUtil.java

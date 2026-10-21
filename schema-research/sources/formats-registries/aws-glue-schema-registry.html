@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+    <html xmlns="http://www.w3.org/1999/xhtml" lang="en-US"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>AWS Glue Schema registry - AWS Glue</title><meta name="viewport" content="width=device-width,initial-scale=1" /><meta name="assets_root" content="/assets" /><meta name="target_state" content="schema-registry" /><meta name="default_state" content="schema-registry" /><link rel="icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="shortcut icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="canonical" href="https://docs.aws.amazon.com/glue/latest/dg/schema-registry.html" /><meta name="description" content="Describes the use of the AWS Glue Schema registry." /><meta name="deployment_region" content="IAD" /><meta name="product" content="AWS Glue" /><meta name="guide" content="User Guide" /><meta name="abstract" content="How to use and program AWS Glue." /><meta name="guide-locale" content="en_us" /><meta name="tocs" content="toc-contents.json" /><link rel="canonical" href="https://docs.aws.amazon.com/glue/latest/dg/schema-registry.html" /><link rel="alternate" href="https://docs.aws.amazon.com/id_id/glue/latest/dg/schema-registry.html" hreflang="id-id" /><link rel="alternate" href="https://docs.aws.amazon.com/id_id/glue/latest/dg/schema-registry.html" hreflang="id" /><link rel="alternate" href="https://docs.aws.amazon.com/de_de/glue/latest/dg/schema-registry.html" hreflang="de-de" /><link rel="alternate" href="https://docs.aws.amazon.com/de_de/glue/latest/dg/schema-registry.html" hreflang="de" /><link rel="alternate" href="https://docs.aws.amazon.com/glue/latest/dg/schema-registry.html" hreflang="en-us" /><link rel="alternate" href="https://docs.aws.amazon.com/glue/latest/dg/schema-registry.html" hreflang="en" /><link rel="alternate" href="https://docs.aws.amazon.com/es_es/glue/latest/dg/schema-registry.html" hreflang="es-es" /><link rel="alternate" href="https://docs.aws.amazon.com/es_es/glue/latest/dg/schema-registry.html" hreflang="es" /><link rel="alternate" href="https://docs.aws.amazon.com/fr_fr/glue/latest/dg/schema-registry.html" hreflang="fr-fr" /><link rel="alternate" href="https://docs.aws.amazon.com/fr_fr/glue/latest/dg/schema-registry.html" hreflang="fr" /><link rel="alternate" href="https://docs.aws.amazon.com/it_it/glue/latest/dg/schema-registry.html" hreflang="it-it" /><link rel="alternate" href="https://docs.aws.amazon.com/it_it/glue/latest/dg/schema-registry.html" hreflang="it" /><link rel="alternate" href="https://docs.aws.amazon.com/ja_jp/glue/latest/dg/schema-registry.html" hreflang="ja-jp" /><link rel="alternate" href="https://docs.aws.amazon.com/ja_jp/glue/latest/dg/schema-registry.html" hreflang="ja" /><link rel="alternate" href="https://docs.aws.amazon.com/ko_kr/glue/latest/dg/schema-registry.html" hreflang="ko-kr" /><link rel="alternate" href="https://docs.aws.amazon.com/ko_kr/glue/latest/dg/schema-registry.html" hreflang="ko" /><link rel="alternate" href="https://docs.aws.amazon.com/pt_br/glue/latest/dg/schema-registry.html" hreflang="pt-br" /><link rel="alternate" href="https://docs.aws.amazon.com/pt_br/glue/latest/dg/schema-registry.html" hreflang="pt" /><link rel="alternate" href="https://docs.aws.amazon.com/zh_cn/glue/latest/dg/schema-registry.html" hreflang="zh-cn" /><link rel="alternate" href="https://docs.aws.amazon.com/zh_tw/glue/latest/dg/schema-registry.html" hreflang="zh-tw" /><link rel="alternate" href="https://docs.aws.amazon.com/glue/latest/dg/schema-registry.html" hreflang="x-default" /><meta name="feedback-item" content="Glue" /><meta name="this_doc_product" content="AWS Glue" /><meta name="this_doc_guide" content="User Guide" /><head xmlns="http://www.w3.org/1999/xhtml"> <script defer="" src="/assets/r/awsdocs-doc-page.2.0.0.js"></script><link href="/assets/r/awsdocs-doc-page.2.0.0.css" rel="stylesheet"/></head>
+<script defer="" id="awsc-panorama-bundle" type="text/javascript" src="https://prod.pa.cdn.uis.awsstatic.com/panorama-nav-init.js" data-config="{'appEntity':'aws-documentation','region':'us-east-1','service':'glue'}"></script><meta id="panorama-serviceSubSection" value="User Guide" /><meta id="panorama-serviceConsolePage" value="AWS Glue Schema registry" /></head><body class="awsdocs awsui"><div class="awsdocs-container"><p><a href="schema-registry.md">View a markdown version of this page</a></p><awsdocs-header></awsdocs-header><awsui-app-layout id="app-layout" class="awsui-util-no-gutters" ng-controller="ContentController as $ctrl" header-selector="awsdocs-header" navigation-hide="false" navigation-width="$ctrl.navWidth" navigation-open="$ctrl.navOpen" navigation-change="$ctrl.onNavChange($event)" tools-hide="$ctrl.hideTools" tools-width="$ctrl.toolsWidth" tools-open="$ctrl.toolsOpen" tools-change="$ctrl.onToolsChange($event)"><div id="guide-toc" dom-region="navigation"><awsdocs-toc></awsdocs-toc></div><div id="main-column" dom-region="content" tabindex="-1"><awsdocs-view class="awsdocs-view"><div id="awsdocs-content"><head><title>AWS Glue Schema registry - AWS Glue</title><meta name="pdf" content="/pdfs/glue/latest/dg/glue-dg.pdf#schema-registry" /><meta name="rss" content="aws-glue-release-notes.rss" /><meta name="forums" content="https://repost.aws/tags/TABBptUaVOS1mAM7TXuTuxWQ" /><meta name="feedback" content="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=Glue&amp;topic_url=https://docs.aws.amazon.com/en_us/glue/latest/dg/schema-registry.html" /><meta name="feedback-yes" content="feedbackyes.html?topic_url=https://docs.aws.amazon.com/en_us/glue/latest/dg/schema-registry.html" /><meta name="feedback-no" content="feedbackno.html?topic_url=https://docs.aws.amazon.com/en_us/glue/latest/dg/schema-registry.html" /><meta name="keywords" content="AWS Glue,AWS Glue Data Catalog,Data Catalog,AWS Glue jobs system,Jobs system,ETL,crawler,schema registry,classifiers,Schema registry" /><link rel="alternate" type="text/markdown" href="schema-registry.md" title="Markdown version" /><script type="application/ld+json">
+{
+    "@context" : "https://schema.org",
+    "@type" : "BreadcrumbList",
+    "itemListElement" : [
+      {
+        "@type" : "ListItem",
+        "position" : 1,
+        "name" : "AWS",
+        "item" : "https://aws.amazon.com"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 2,
+        "name" : "AWS Glue",
+        "item" : "https://docs.aws.amazon.com/glue/index.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 3,
+        "name" : "User Guide",
+        "item" : "https://docs.aws.amazon.com/glue/latest/dg"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 4,
+        "name" : "Data discovery and cataloging in AWS Glue",
+        "item" : "https://docs.aws.amazon.com/glue/latest/dg/catalog-and-crawler.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 5,
+        "name" : "AWS Glue Schema registry",
+        "item" : "https://docs.aws.amazon.com/glue/latest/dg/catalog-and-crawler.html"
+      }
+    ]
+}
+</script></head><body><div id="main"><div style="display: none"><a href="/pdfs/glue/latest/dg/glue-dg.pdf#schema-registry" target="_blank" rel="noopener noreferrer" title="Open PDF"></a></div><div id="breadcrumbs" class="breadcrumb"><a href="/index.html">Documentation</a><a href="/glue/index.html">AWS Glue</a><a href="what-is-glue.html">User Guide</a></div><div id="page-toc-src"><a href="#schema-registry-schemas">Schemas</a><a href="#schema-registry-registries">Registries</a><a href="#schema-registry-compatibility">Schema versioning and compatibility</a><a href="#schema-registry-serde-libraries">Open source Serde libraries</a><a href="#schema-registry-quotas">Quotas of the Schema Registry</a></div><div id="main-content" class="awsui-util-container"><div id="main-col-body"><awsdocs-language-banner data-service="$ctrl.pageService"></awsdocs-language-banner><h1 class="topictitle" id="schema-registry">AWS Glue Schema registry</h1><div class="awsdocs-page-header-container"><awsdocs-page-header></awsdocs-page-header><awsdocs-filter-selector id="awsdocs-filter-selector"></awsdocs-filter-selector></div><div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>Note</h6></div><div class="awsdocs-note-text"><p>AWS Glue Schema Registry is not supported in the following Regions in the
+            AWS Glue console: Middle East (UAE).</p></div></div><p>The AWS Glue Schema registry allows you to centrally discover, control,
+        and evolve data stream schemas. A <em>schema</em> defines the structure and
+        format of a data record. With AWS Glue Schema registry, you can manage and enforce schemas on
+        your data streaming applications using convenient integrations with Apache Kafka, <a href="https://aws.amazon.com/msk/" rel="noopener noreferrer" target="_blank"><span>Amazon Managed Streaming for Apache Kafka</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>, <a href="https://aws.amazon.com/kinesis/data-streams/" rel="noopener noreferrer" target="_blank"><span>Amazon Kinesis Data Streams</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>, <a href="https://aws.amazon.com/kinesis/data-analytics/" rel="noopener noreferrer" target="_blank"><span>Amazon Managed Service for Apache Flink</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>,
+        and <a href="https://aws.amazon.com/lambda/" rel="noopener noreferrer" target="_blank"><span>AWS Lambda</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>.</p><p>The Schema registry supports AVRO (v1.11.4) data format,
+      JSON Data format with <a href="https://json-schema.org/" rel="noopener noreferrer" target="_blank"><span>JSON Schema format</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>
+      for the schema (specifications Draft-04, Draft-06, and Draft-07) with JSON schema validation using the <a href="https://github.com/everit-org/json-schema" rel="noopener noreferrer" target="_blank"><span>Everit library</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>,
+      Protocol Buffers (Protobuf) versions proto2 and proto3 without support for <code class="code">extensions</code> or <code class="code">groups</code>, and Java language support, with other data formats and languages to come.
+      Supported features include compatibility, schema sourcing via metadata, auto-registration of schemas, IAM compatibility, and optional ZLIB compression to reduce storage and data transfer. The Schema registry is serverless and free to use.</p><p>Using a schema as a data format contract between producers and consumers leads to improved data governance, higher quality data, and enables data consumers to be resilient to compatible upstream changes.</p><p>The Schema registry allows disparate systems to share a schema for serialization and de-serialization. For example, assume you have a producer and consumer of data. The producer knows the schema when it publishes the data. The Schema Registry supplies a serializer and deserializer for certain systems such as Amazon MSK or Apache Kafka.    </p><p> For more information, see <a href="./schema-registry-works.html">How the schema registry works</a>.</p><div class="highlights"><h6>Topics</h6><ul><li><p><a href="#schema-registry-schemas">Schemas</a></p></li><li><p><a href="#schema-registry-registries">Registries</a></p></li><li><p><a href="#schema-registry-compatibility">Schema versioning and compatibility</a></p></li><li><p><a href="#schema-registry-serde-libraries">Open source Serde libraries</a></p></li><li><p><a href="#schema-registry-quotas">Quotas of the Schema Registry</a></p></li><li><p><a href="./schema-registry-works.html">How the schema registry works</a></p></li><li><p><a href="./schema-registry-gs.html">Getting started with schema registry</a></p></li></ul></div>
+        <h2 id="schema-registry-schemas">Schemas</h2>
+
+  <p>A <em>schema</em> defines the structure and format of a data record. A schema is a versioned specification for reliable data publication, consumption, or storage.</p>
+
+  <p>In this example schema for Avro, the format and structure are defined by the layout and field names, and the format of the field names is defined by the data types (e.g., <code class="code">string</code>, <code class="code">int</code>).</p>
+
+ <pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli ()--><code class=""><span>{</span>
+    "type": "record",
+    "namespace": "ABC_Organization",
+    "name": "Employee",
+    "fields": [
+        <span>{</span>
+            "name": "Name",
+            "type": "string"
+        },
+        <span>{</span>
+            "name": "Age",
+            "type": "int"
+        },
+        <span>{</span>
+            "name": "address",
+            "type": <span>{</span>
+                "type": "record",
+                "name": "addressRecord",
+                "fields": [
+                    <span>{</span>
+                        "name": "street",
+                        "type": "string"
+                    },
+                    <span>{</span>
+                        "name": "zipcode",
+                        "type": "int" 
+                    }
+                ]
+            }
+        }
+    ]
+}</code></pre>
+
+
+<p>In this example JSON schema draft-07 for JSON, the format is defined by the <a href="https://json-schema.org/" rel="noopener noreferrer" target="_blank"><span>JSON Schema organization</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>.</p>
+
+<pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli ()--><code class=""><span>{</span>
+	"$id": "https://example.com/person.schema.json",
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "Person",
+	"type": "object",
+	"properties": <span>{</span>
+		"firstName": <span>{</span>
+			"type": "string",
+			"description": "The person's first name."
+		},
+		"lastName": <span>{</span>
+			"type": "string",
+			"description": "The person's last name."
+		},
+		"age": <span>{</span>
+			"description": "Age in years which must be equal to or greater than zero.",
+			"type": "integer",
+			"minimum": 0
+		}
+	}
+}</code></pre>
+
+
+<p>In this example for Protobuf, the format is defined by the <a href="https://developers.google.com/protocol-buffers/docs/reference/proto2-spec" rel="noopener noreferrer" target="_blank"><span>version 2 of the Protocol Buffers language (proto2)</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>.</p>
+
+<pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli ()--><code class="">syntax = "proto2";
+
+package tutorial;
+
+option java_multiple_files = true;
+option java_package = "com.example.tutorial.protos";
+option java_outer_classname = "AddressBookProtos";
+
+message Person <span>{</span>
+  optional string name = 1;
+  optional int32 id = 2;
+  optional string email = 3;
+
+  enum PhoneType <span>{</span>
+    MOBILE = 0;
+    HOME = 1;
+    WORK = 2;
+  }
+
+  message PhoneNumber <span>{</span>
+    optional string number = 1;
+    optional PhoneType type = 2 [default = HOME];
+  }
+
+  repeated PhoneNumber phones = 4;
+}
+
+message AddressBook <span>{</span>
+  repeated Person people = 1;
+}</code></pre>
+
+
+
+      
+        <h2 id="schema-registry-registries">Registries</h2>
+
+       <p>A <em>registry</em> is a logical container of schemas. Registries allow you to organize your schemas, as well as manage access control for your applications. A registry has an Amazon Resource Name (ARN) to allow you to organize and set different access permissions to schema operations within the registry.</p>
+
+	  <p>You may use the default registry or create as many new registries as necessary.</p>
+            <div class="table-container"><div class="table-contents"><table id="w729aac12c35c19b7"><caption>AWS Glue Schema Registry Hierarchy</caption>
+                        <tr>
+                            <td tabindex="-1">
+                                <div class="itemizedlist">
+                                     
+                                <ul class="itemizedlist"><li class="listitem">
+                                        <p>RegistryName: [string]</p>
+                                        <div class="itemizedlist">
+                                             
+                                             
+                                             
+                                        <ul class="itemizedlist"><li class="listitem">
+                                                <p>RegistryArn: [AWS ARN]</p>
+                                            </li><li class="listitem">
+                                                <p>CreatedTime: [timestamp]</p>
+                                            </li><li class="listitem">
+                                                <p>UpdatedTime: [timestamp]</p>
+                                            </li></ul></div>
+                                    </li></ul></div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td tabindex="-1">
+                                <div class="itemizedlist">
+                                     
+                                <ul class="itemizedlist"><li class="listitem">
+                                        <p>SchemaName: [string]</p>
+                                        <div class="itemizedlist">
+                                             
+                                             
+                                             
+                                             
+                                             
+                                             
+                                             
+                                        <ul class="itemizedlist"><li class="listitem">
+												<p>SchemaArn: [AWS ARN]</p>
+                                            </li><li class="listitem">
+                                                <p>DataFormat: [Avro, Json, or Protobuf]</p>
+                                            </li><li class="listitem">
+                                                <p>Compatibility: [eg. BACKWARD, BACKWARD_ALL, FORWARD, FORWARD_ALL, FULL, FULL_ALL, NONE, DISABLED]</p>
+                                            </li><li class="listitem">
+                                                <p>Status: [eg. PENDING, AVAILABLE, DELETING]</p>
+                                            </li><li class="listitem">
+                                                <p>SchemaCheckpoint: [integer]</p>
+                                            </li><li class="listitem">
+                                                <p>CreatedTime: [timestamp]</p>
+                                            </li><li class="listitem">
+                                                <p>UpdatedTime: [timestamp]</p>
+                                            </li></ul></div>
+                                    </li></ul></div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td tabindex="-1">
+                                <div class="itemizedlist">
+                                     
+                                <ul class="itemizedlist"><li class="listitem">
+                                            <p>SchemaVersion: [string]</p>
+                                        <div class="itemizedlist">
+                                             
+                                             
+                                             
+                                             
+                                        <ul class="itemizedlist"><li class="listitem">
+                                                <p>SchemaVersionNumber: [integer]</p>
+                                            </li><li class="listitem">
+                                                <p>Status: [eg. PENDING, AVAILABLE, DELETING,
+                                                    FAILURE]</p>
+                                            </li><li class="listitem">
+                                                <p>SchemaDefinition: [string, Value: JSON]</p>
+                                            </li><li class="listitem">
+                                                <p>CreatedTime: [timestamp]</p>
+                                            </li></ul></div>
+                                    </li></ul></div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td tabindex="-1">
+                                <div class="itemizedlist">
+                                     
+
+                                <ul class="itemizedlist"><li class="listitem">
+                                            <p>SchemaVersionMetadata: [list]</p>
+                                        <div class="itemizedlist">
+                                             
+                                             
+                                             
+                                             
+                                        <ul class="itemizedlist"><li class="listitem">
+                                                <p>MetadataKey: [string]</p>
+                                            </li><li class="listitem">
+                                                <p>MetadataInfo</p>
+                                            </li><li class="listitem">
+                                                <p>MetadataValue: [string]</p>
+                                            </li><li class="listitem">
+                                               <p>CreatedTime: [timestamp]</p></li></ul></div>
+                                    </li></ul></div>
+                            </td>
+                        </tr>
+                    </table></div></div>
+
+
+
+     
+        <h2 id="schema-registry-compatibility">Schema versioning and compatibility</h2>
+
+   <p>Each schema can have multiple versions. Versioning is governed by a compatibility rule that is applied on a schema. Requests to register new schema versions are checked against this rule by the Schema Registry before they can succeed. </p>
+
+   <p>A schema version that is marked as a checkpoint is used to determine the compatibility of registering new versions of a schema. When a schema first gets created the default checkpoint will be the first version. As the schema evolves with more versions, you can use the CLI/SDK to change the checkpoint to a version of a schema using the <code class="code">UpdateSchema</code> API that adheres to a set of constraints. In the console, editing the schema definition or compatibility mode will change the checkpoint to the latest version by default. </p>
+
+   <p>Compatibility modes allow you to control how schemas can or cannot evolve over time. These modes form the contract between applications producing and consuming data. When a new version of a schema is submitted to the registry, the compatibility rule applied to the schema name is used to determine if the new version can be accepted. There are 8 compatibility modes: NONE, DISABLED, BACKWARD, BACKWARD_ALL, FORWARD, FORWARD_ALL, FULL, FULL_ALL.</p>
+
+   <p>In the Avro data format, fields may be optional or required. An optional field is one in which the <code class="code">Type</code> includes null. Required fields do not have null as the <code class="code">Type</code>.</p>
+
+   <p>In the Protobuf data format, fields can be optional (including repeated) or required in proto2 syntax, while all fields are optional (including repeated) in proto3 syntax. All compatibility rules are determined based on the understanding of the Protocol Buffers specifications as well as the guidance from the <a href="https://developers.google.com/protocol-buffers/docs/overview#updating" rel="noopener noreferrer" target="_blank"><span>Google Protocol Buffers documentation</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>.</p>
+
+   <div class="itemizedlist">
+     
+     
+	 
+     
+	 
+	 
+	 
+	 
+  <ul class="itemizedlist"><li class="listitem"><p><em>NONE</em>: No compatibility mode applies. You can use this choice in development scenarios or if you do not know the compatibility modes that you want to apply to schemas. Any new version added will be accepted without undergoing a compatibility check.</p></li><li class="listitem"><p><em>DISABLED</em>: This compatibility choice prevents versioning for a particular schema. No new versions can be added.</p></li><li class="listitem"><p><em>BACKWARD</em>: This compatibility choice is recommended because it allows consumers to read both the current and the previous schema version. You can use this choice to check compatibility against the previous schema version when you delete fields or add optional fields. A typical use case for BACKWARD is when your application has been created for the most recent schema.</p>
+
+	 
+	  <h6>AVRO</h6>
+  	  <p>For example, assume you have a schema defined by first name (required), last name (required), email (required), and phone number (optional).</p>
+	 
+	<p>If your next schema version removes the required email field, this would successfully register. BACKWARD compatibility requires consumers to be able to read the current and previous schema version. Your consumers will be able to read the new schema as the extra email field from old messages is ignored.</p>
+	<p>If you have a proposed new schema version that adds a required field, for example, zip code, this would not successfully register with BACKWARD compatibility. Your consumers on the new version would not be able to read old messages before the schema change, as they are missing the required zip code field. However, if the zip code field was set as optional in the new schema, then the proposed version would successfully register as consumers can read the old schema without the optional zip code field.</p>
+
+     
+	  <h6>JSON</h6>
+	<p>For example, assume you have a schema version defined by first name (optional), last name (optional), email (optional) and phone number (optional).</p>
+	 
+	<p>If your next schema version adds the optional phone number property, this would successfully register as long as the original schema version does not allow any additional properties by setting the <code class="code">additionalProperties</code> field to false. BACKWARD compatibility requires consumers to be able to read the current and previous schema version. Your consumers will be able to read data produced with the original schema where phone number property does not exist.</p>
+	<p>If you have a proposed new schema version that adds the optional phone number property, this would not successfully register with BACKWARD compatibility when the original schema version sets the <code class="code">additionalProperties</code> field to true, namely allowing any additional property. Your consumers on the new version would not be able to read old messages before the schema change, as they cannot read data with phone number property in a different type, for example string instead of number.</p>
+
+     
+	  <h6>PROTOBUF</h6>
+	<p>For example, assume you have a schema version defined by a Message <code class="code">Person</code> with <code class="code">first name</code> (required), <code class="code">last name</code> (required), <code class="code">email</code> (required), and <code class="code">phone number</code> (optional) fields under proto2 syntax.</p>
+	 
+	<p>Similar to AVRO scenarios, if your next schema version removes the required <code class="code">email</code> field, this would successfully register. BACKWARD compatibility requires consumers to be able to read the current and previous schema version. Your consumers will be able to read the new schema as the extra <code class="code">email</code> field from old messages is ignored.</p>
+	<p>If you have a proposed new schema version that adds a required field, for example, <code class="code">zip code</code>, this would not successfully register with BACKWARD compatibility. Your consumers on the new version would not be able to read old messages before the schema change, as they are missing the required <code class="code">zip code</code> field. However, if the <code class="code">zip code</code> field was set as optional in the new schema, then the proposed version would successfully register as consumers can read the old schema without the optional <code class="code">zip code</code> field.</p>
+	<p>In case of a gRPC use case, adding new RPC service or RPC method is a backward compatible change. For example, assume you have a schema version defined by an RPC service <code class="code">MyService</code> with two RPC methods <code class="code">Foo</code> and <code class="code">Bar</code>.</p>
+	<p>If your next schema version adds a new RPC method called <code class="code">Baz</code>, this would successfully register. Your consumers will be able to read data produced with the original schema according to BACKWARD compatibility since the newly added RPC method <code class="code">Baz</code> is optional. </p>
+	<p>If you have a proposed new schema version that removes the existing RPC method <code class="code">Foo</code>, this would not successfully register with BACKWARD compatibility. Your consumers on the new version would not be able to read old messages before the schema change, as they cannot understand and read data with the non-existent RPC method <code class="code">Foo</code> in a gRPC application.</p>
+
+	</li><li class="listitem"><p><em>BACKWARD_ALL</em>: This compatibility choice allows consumers to read both the current and all previous schema versions. You can use this choice to check compatibility against all previous schema versions when you delete fields or add optional fields.</p></li><li class="listitem"><p><em>FORWARD</em>: This compatibility choice allows consumers to read both the current and the subsequent schema versions, but not necessarily later versions. You can use this choice to check compatibility against the last schema version when you add fields or delete optional fields. A typical use case for FORWARD is when your application has been created for a previous schema and should be able to process a more recent schema.</p>
+
+	 
+	  <h6>AVRO</h6>
+	<p>For example, assume you have a schema version defined by first name (required), last name (required), email (optional).</p>
+	 
+	<p>If you have a new schema version that adds a required field, e.g. phone number, this would successfully register. FORWARD compatibility requires consumers to be able to read data produced with the new schema by using the previous version.</p>
+	<p>If you have a proposed schema version that deletes the required first name field, this would not successfully register with FORWARD compatibility. Your consumers on the prior version would not be able to read the proposed schemas as they are missing the required first name field. However, if the first name field was originally optional, then the proposed new schema would successfully register as the consumers can read data based on the new schema that doesn’t have the optional first name field.</p>
+
+	 
+	  <h6>JSON</h6>
+	<p>For example, assume you have a schema version defined by first name (optional), last name (optional), email (optional) and phone number (optional).</p>
+	 
+    <p>If you have a new schema version that removes the optional phone number property, this would successfully register as long as the new schema version does not allow any additional properties by setting the <code class="code">additionalProperties</code> field to false. FORWARD compatibility requires consumers to be able to read data produced with the new schema by using the previous version.</p>
+	<p>If you have a proposed schema version that deletes the optional phone number property, this would not successfully register with FORWARD compatibility when the new schema version sets the <code class="code">additionalProperties</code> field to true, namely allowing any additional property. Your consumers on the prior version would not be able to read the proposed schemas as they could have phone number property in a different type, for example string instead of number.</p>
+
+
+	 
+	  <h6>PROTOBUF</h6>
+	<p>For example, assume you have a schema version defined by a Message <code class="code">Person</code> with <code class="code">first name</code> (required), <code class="code">last name</code> (required), <code class="code">email</code> (optional) fields under proto2 syntax.</p>
+	 
+	<p>Similar to AVRO scenarios, if you have a new schema version that adds a required field, e.g. <code class="code">phone number</code>, this would successfully register. FORWARD compatibility requires consumers to be able to read data produced with the new schema by using the previous version.</p>
+	<p>If you have a proposed schema version that deletes the required <code class="code">first name</code> field, this would not successfully register with FORWARD compatibility. Your consumers on the prior version would not be able to read the proposed schemas as they are missing the required <code class="code">first name</code> field. However, if the <code class="code">first name</code> field was originally optional, then the proposed new schema would successfully register as the consumers can read data based on the new schema that doesn’t have the optional <code class="code">first name</code> field.</p>
+	<p>In case of a gRPC use case, removing an RPC service or RPC method is a forward-compatible change. For example, assume you have a schema version defined by an RPC service <code class="code">MyService</code> with two RPC methods <code class="code">Foo</code> and <code class="code">Bar</code>. </p>
+	<p>If your next schema version deletes the existing RPC method named <code class="code">Foo</code>, this would successfully register according to FORWARD compatibility as the consumers can read data produced with the new schema by using the previous version. If you have a proposed new schema version that adds an RPC method <code class="code">Baz</code>, this would not successfully register with FORWARD compatibility. Your consumers on the prior version would not be able to read the proposed schemas as they are missing the RPC method <code class="code">Baz</code>.</p>
+
+	</li><li class="listitem"><p><em>FORWARD_ALL</em>: This compatibility choice allows consumers to read data written by producers of any new registered schema. You can use this choice when you need to add fields or delete optional fields, and check compatibility against all previous schema versions.</p></li><li class="listitem"><p><em>FULL</em>: This compatibility choice allows consumers to read data written by producers using the previous or next version of the schema, but not earlier or later versions. You can use this choice to check compatibility against the last schema version when you add or remove optional fields.</p></li><li class="listitem"><p><em>FULL_ALL</em>: This compatibility choice allows consumers to read data written by producers using all previous schema versions. You can use this choice to check compatibility against all previous schema versions when you add or remove optional fields.</p></li></ul></div>
+
+      
+        <h2 id="schema-registry-serde-libraries">Open source Serde libraries</h2>
+
+          <p>AWS provides open-source Serde libraries as a framework for serializing and deserializing data. The open source design of these libraries allows common open-source applications and frameworks to support these libraries in their projects.</p>
+
+          <p>For more details on how the Serde libraries work, see <a href="./schema-registry-works.html">How the schema registry works</a>.</p>
+
+     
+        <h2 id="schema-registry-quotas">Quotas of the Schema Registry</h2>
+
+  <p>Quotas, also referred to as limits in AWS, are the maximum values for the resources, actions, and items in your AWS account. The following are soft limits for the Schema Registry in AWS Glue.</p>
+
+		 
+		<h6>Schema version metadata key-value pairs</h6>
+        <p>You can have up to 10 key-value pairs per SchemaVersion per AWS Region.</p>
+		 
+
+	     <p>You can view or set the key-value metadata pairs using the <a href="./aws-glue-api-schema-registry-api.html#aws-glue-api-schema-registry-api-QuerySchemaVersionMetadata">QuerySchemaVersionMetadata action (Python: query_schema_version_metadata)</a> or <a href="./aws-glue-api-schema-registry-api.html#aws-glue-api-schema-registry-api-PutSchemaVersionMetadata">PutSchemaVersionMetadata action (Python: put_schema_version_metadata)</a> APIs.</p>
+
+		<p>The following are hard limits for the Schema Registry in AWS Glue.</p>
+
+		 
+		<h6>Registries</h6>
+        <p>You can have up to 100 registries per AWS Region for this account.</p>
+		 
+
+		 
+		<h6>SchemaVersion</h6>
+        <p>You can have up to 10000 schema versions per AWS Region for this account.</p>
+		 
+
+		<p>Each new schema creates a new schema version, so you can theoretically have up to 10000 schemas per account per region, if each schema has only one version.</p>
+
+		 
+		<h6>Schema payloads</h6>
+        <p>There is a size limit of 170KB for schema payloads.</p>
+		 
+
+
+
+    <awsdocs-copyright class="copyright-print"></awsdocs-copyright><awsdocs-thumb-feedback right-edge="{{$ctrl.thumbFeedbackRightEdge}}"></awsdocs-thumb-feedback></div><noscript><div><div><div><div id="js_error_message"><p><img src="https://d1ge0kk1l5kms0.cloudfront.net/images/G/01/webservices/console/warning.png" alt="Warning" /> <strong>Javascript is disabled or is unavailable in your browser.</strong></p><p>To use the Amazon Web Services Documentation, Javascript must be enabled. Please refer to your browser's Help pages for instructions.</p></div></div></div></div></noscript><div id="main-col-footer" class="awsui-util-font-size-0"><div id="doc-conventions"><a target="_top" href="/general/latest/gr/docconventions.html">Document Conventions</a></div><div class="prev-next"><div id="previous" class="prev-link" accesskey="p" href="./data-catalog-cloudwatch-metrics.html">Monitoring Data Catalog usage metrics in Amazon CloudWatch</div><div id="next" class="next-link" accesskey="n" href="./schema-registry-works.html">How it works</div></div></div><awsdocs-page-utilities></awsdocs-page-utilities></div><div id="quick-feedback-yes" style="display: none;"><div class="title">Did this page help you? - Yes</div><div class="content"><p>Thanks for letting us know we're doing a good job!</p><p>If you've got a moment, please tell us what we did right so we can do more of it.</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="Feedback" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=Glue&amp;topic_url=https://docs.aws.amazon.com/en_us/glue/latest/dg/schema-registry.html"></awsui-button></p></div></div><div id="quick-feedback-no" style="display: none;"><div class="title">Did this page help you? - No</div><div class="content"><p>Thanks for letting us know this page needs work. We're sorry we let you down.</p><p>If you've got a moment, please tell us how we can make the documentation better.</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="Feedback" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=Glue&amp;topic_url=https://docs.aws.amazon.com/en_us/glue/latest/dg/schema-registry.html"></awsui-button></p></div></div></div></body></div></awsdocs-view><div class="page-loading-indicator" id="page-loading-indicator"><awsui-spinner size="large"></awsui-spinner></div></div><div id="tools-panel" dom-region="tools"><awsdocs-tools-panel id="awsdocs-tools-panel"></awsdocs-tools-panel></div></awsui-app-layout><awsdocs-cookie-banner class="doc-cookie-banner"></awsdocs-cookie-banner></div></body></html>

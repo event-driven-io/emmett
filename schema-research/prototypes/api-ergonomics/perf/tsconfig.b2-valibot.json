@@ -1,0 +1,1 @@
+{ "extends": "../tsconfig.json", "include": ["../styles/b2-valibot/shoppingCart.ts", "../styles/b2-valibot/businessLogic.ts"], "exclude": [] }

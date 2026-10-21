@@ -1,0 +1,639 @@
+---
+title: Configuration
+---
+
+A great out-of-the-box experience is a core goal of ArkType, including safe defaults and helpful messages for complex errors.
+
+However, it's equally important that when you need different behavior, you can easily configure it with the right granularity.
+
+### Levels
+
+<table>
+  <thead>
+    <tr>
+      <th>Level</th>
+      <th>Applies To</th>
+      <th>Example</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>**default**</td>
+      <td>built-in defaults for all Types</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>**global**</td>
+      <td>all Types parsed after the config is applied</td>
+      <td>
+```ts title="config.ts"
+import { configure } from "arktype/config"
+// use the "arktype/config" entrypoint
+configure({ numberAllowsNaN: true })
+```
+
+```ts title="app.ts"
+import "./config.ts"
+// import your config file before arktype
+import { type } from "arktype"
+
+type.number.allows(Number.NaN) // true
+```
+
+     </td>
+    </tr>
+    <tr>
+      <td>**scope**</td>
+      <td>all Types parsed in the configured Scope</td>
+      <td>
+
+```ts
+const myScope = scope(
+	{ User: { age: "number < 100" } },
+	{
+		max: {
+			actual: () => "unacceptably large"
+		}
+	}
+)
+const types = myScope.export()
+// ArkErrors: age must be less than 100 (was unacceptably large)
+types.User({ name: "Alice", age: 101 })
+const parsedAfter = myScope.type({
+	age: "number <= 100"
+})
+// ArkErrors: age must be at most 100 (was unacceptably large)
+parsedAfter({ age: 101 })
+```
+
+      </td>
+    </tr>
+    <tr>
+      <td>**type**</td>
+      <td>all Types shallowly referenced by the configured Type</td>
+      <td>
+
+```ts
+// avoid logging "was xxx" for password
+const Password = type("string >= 8").configure({ actual: () => "" })
+const User = type({
+	email: "string.email",
+	password: Password
+})
+// ArkErrors: password must be at least length 8
+const out = User({
+	email: "david@arktype.io",
+	password: "ez123"
+})
+```
+
+      </td>
+    </tr>
+
+  </tbody>
+</table>
+
+Some options only apply at specific levels, as reflected in the corresponding input types.
+
+<Callout
+	type="warn"
+	title='Use the `"arktype/config"` entrypoint in a separate file for global config!'
+>
+	If you need your config to apply to built-in keywords (important for options
+	like `jitless`, `numberAllowsNaN`, `dateAllowsInvalid`), you should import and
+	`configure` from `"arktype/config"` before importing anything from
+	`"arktype"`.
+
+Otherwise, keywords will have already been parsed by the time your config applies!
+
+</Callout>
+
+### Errors
+
+To allow custom errors to be integrated seamlessly with built-in logic for composite errors (i.e. `union` and `intersection`), ArkType supports a set of composable options:
+
+<table>
+<thead>
+<tr>
+<th>optional</th>
+<th>description</th>
+<th>example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>**description**</td>
+<td>
+✅ a summary of the constraint that could complete the phrase "must be ___"
+
+🥇 reused by other metadata and should be your first go-to for customizing a message
+
+</td>
+<td>
+```ts
+const Password = type.string.atLeastLength(8).describe("a valid password")
+// ArkErrors: must be a valid password
+const out = Password("ez123")
+```
+</td>
+</tr>
+<tr>
+<td>**expected**</td>
+<td>
+✅ a function accepting the error context and returning a string of the format "must be ___"
+
+✅ specific to errors and takes precedence over `description` in those cases
+
+</td>
+    <td>
+```ts
+const Password = type.string.atLeastLength(8).configure({
+	expected: ctx =>
+		ctx.code === "minLength" ? `${ctx.rule} characters or better` : "way better"
+})
+// ArkErrors: must be 8 characters or better (was 5)
+const out1 = Password("ez123").toString()
+// ArkErrors: must be way better (was a number)
+const out2 = Password(12345678).toString()
+```
+</td>
+</tr>
+<tr>
+<td>**actual**</td>
+<td>
+✅ a function accepting the data that caused the error and returning a string of the format "(was ___)"
+
+✅ if an empty string is returned, the actual portion of the message will be omitted
+
+</td>
+    <td>
+```ts
+const Password = type("string >= 8").configure({ actual: () => "" })
+// ArkErrors: must be at least length 8
+const out = Password("ez123")
+```
+</td>
+</tr>
+<tr>
+<td>**problem**</td>
+<td>
+✅ a function accepting the results of `expected` and `actual` in addition to other context and returning a complete description of the problem like "must be a string (was a number)"
+
+❌ may not apply to composite errors like unions
+
+</td>
+<td>
+```ts
+const Password = type("string >= 8").configure({
+	problem: ctx => `${ctx.actual} isn't ${ctx.expected}`
+})
+// ArkErrors: 5 isn't at least length 8
+const out1 = Password("ez123")
+// ArkErrors: a number isn't a string
+const out2 = Password(12345678)
+```
+</td>
+</tr>
+<tr>
+<td>**message**</td>
+<td>
+✅ a function accepting the result of `problem` in addition to other context and returning a complete description of the problem including the path at which it occurred
+
+❌ may not apply to composite errors like unions
+
+</td>
+<td>
+```ts
+const User = type({
+	password: "string >= 8"
+}).configure({
+	message: ctx =>
+		`${ctx.propString || "(root)"}: ${ctx.actual} isn't ${ctx.expected}`
+})
+// ArkErrors: (root): a string isn't an object
+const out1 = User("ez123")
+// `.configure` only applies shallowly, so the nested error isn't changed!
+// ArkErrors: password must be at least length 8 (was 5)
+const out2 = User({ password: "ez123" })
+```
+</td>
+</tr>
+</tbody>
+</table>
+
+#### By Code
+
+Errors can also be configured by their associated `code` property at a _scope_ or _global_ level.
+
+For example:
+
+```ts
+const mod = type.module(
+	{ isEven: "number%2" },
+	{
+		divisor: {
+			// the available `ctx` types will include data specific to your errors
+			expected: ctx => `% ${ctx.rule} !== 0`,
+			problem: ctx => `${ctx.actual} ${ctx.expected}`
+		}
+	}
+)
+// ArkErrors: 3 % 2 !== 0
+mod.isEven(3)
+```
+
+#### ArkErrors
+
+For use cases like i18n that fall outside the scope of this composable message config, the `ArkErrors` array returned on validation failure contains `ArkError` instances that can be discriminated via calls like `.hasCode("divisor")` and contain contextual data specific to that error type as well as getters for each composable error part.
+
+These `ArkError` instances can be arbitrarily transformed and composed with an internationalization library. This is still a topic we're working on investigating and documenting, so please reach out with any questions or feedback!
+
+#### Serialization
+
+`ArkErrors` and `ArkError` are JSON stringifiable via `JSON.stringify()` or `.toJSON()`.
+
+Two additional properties provide structured access to errors grouped by path:
+
+```ts
+const T = type({ n: "number % 2 >= 2" })
+
+const out = T({ n: 1 })
+
+if (out instanceof type.errors) {
+	out.flatByPath
+	// { n: [{ data: 1, path: ["n"], code: "divisor", ... }, { data: 1, path: ["n"], code: "min", ... }] }
+
+	out.flatProblemsByPath
+	// { n: ["must be even (was 1)", "must be at least 2 (was 1)"] }
+}
+```
+
+`flatByPath` maps each path string to an array of `ArkError` objects (decomposing union errors into their individual branches). `flatProblemsByPath` maps each path string to an array of human-readable problem strings.
+
+Unhandled validation errors (e.g. via `.assert()`) throw a `TraversalError`, which extends `Error` with cleaner multi-error formatting and a non-enumerable `arkErrors` property for programmatic access.
+
+### Keywords
+
+Built-in keywords like `string.email` can be globally configured.
+
+This can be very helpful for customizing error messages without needing to create your own aliases or wrappers.
+
+```ts title="config.ts"
+import { configure } from "arktype/config"
+
+configure({
+	keywords: {
+		string: "shorthand description",
+		"string.email": {
+			actual: () => "definitely fake"
+		}
+	}
+})
+```
+
+```ts title="app.ts"
+import "./config.ts"
+// import your config file before arktype
+import { type } from "arktype"
+
+const User = type({
+	name: "string",
+	email: "string.email"
+})
+
+const out = User({
+	// ArkErrors: name must be shorthand description (was a number)
+	name: 5,
+	// ArkErrors: email must be an email address (was definitely fake)
+	email: "449 Canal St"
+})
+```
+
+The options you can provide here are identical to those used to [configure a Type directly](/docs/expressions#meta), and can also be [extended at a type-level to include custom metadata](/docs/configuration#metadata).
+
+### Clone
+
+By default, before a [morph](/docs/intro/morphs-and-more) is applied, ArkType will deeply clone the original input value with a built-in `deepClone` function that tries to make reasonable assumptions about preserving prototypes etc. The implementation of `deepClone` can be found [here](https://github.com/arktypeio/arktype/blob/main/ark/util/clone.ts).
+
+You can provide an alternate clone implementation to the `clone` config option.
+
+```ts title="config.ts"
+import { configure } from "arktype/config"
+
+configure({ clone: structuredClone })
+```
+
+```ts title="app.ts"
+import "./config.ts"
+// import your config file before arktype
+import { type } from "arktype"
+
+// will now create a new object using structuredClone
+const UserForm = type({
+	age: "string.numeric.parse"
+})
+```
+
+To mutate the input object directly, you can set the `clone` config option to `false`.
+
+```ts title="config.ts"
+import { configure } from "arktype/config"
+
+configure({ clone: false })
+```
+
+```ts title="app.ts"
+import "./config.ts"
+// import your config file before arktype
+import { type } from "arktype"
+
+const UserForm = type({
+	age: "string.numeric.parse"
+})
+
+const formData = {
+	age: "42"
+}
+
+const out = UserForm(formData)
+
+// the original object's age key is now a number
+console.log(formData.age)
+```
+
+### onUndeclaredKey
+
+Like TypeScript, ArkType defaults to ignoring undeclared keys during validation. However, it also supports two additional behaviors:
+
+- `"ignore"` (default): Allow undeclared keys on input, preserve them on output
+- `"delete"`: Allow undeclared keys on input, delete them before returning output
+- `"reject"`: Reject input with undeclared keys
+
+These behaviors can be associated with individual Types via the built-in `"+"` syntax (see [those docs](/docs/objects#properties-undeclared) for more on how they work). You can also change the default globally:
+
+```ts title="config.ts"
+import { configure } from "arktype/config"
+
+configure({ onUndeclaredKey: "delete" })
+```
+
+```ts title="app.ts"
+import "./config.ts"
+// import your config file before arktype
+import { type } from "arktype"
+
+const UserForm = type({
+	name: "string"
+})
+
+// out is now { name: "Alice" }
+const out = UserForm({
+	name: "Alice",
+	age: "42"
+})
+```
+
+### exactOptionalPropertyTypes
+
+By default, ArkType validates optional keys as if [TypeScript's `exactOptionalPropertyTypes` is set to `true`](https://www.typescriptlang.org/tsconfig/#exactOptionalPropertyTypes).
+
+<details>
+	<summary>See an example</summary>
+
+```ts
+const MyObj = type({
+	"key?": "number"
+})
+
+// valid data
+const validResult = MyObj({})
+
+// Error: key must be a number (was undefined)
+const errorResult = MyObj({ key: undefined })
+```
+
+</details>
+
+This approach allows the most granular control over optionality, as `| undefined` can be added to properties that should accept it.
+
+However, if you have not enabled TypeScript's `exactOptionalPropertyTypes` setting, you may globally configure ArkType's `exactOptionalPropertyTypes` to `false` to match TypeScript's behavior. If you do this, we'd recommend making a plan to enable `exactOptionalPropertyTypes` in the future.
+
+```ts title="config.ts"
+import { configure } from "arktype/config"
+
+// since the default in ArkType is `true`, this will only have an effect if set to `false`
+configure({ exactOptionalPropertyTypes: false })
+```
+
+```ts title="app.ts"
+import "./config.ts"
+// import your config file before arktype
+import { type } from "arktype"
+
+const MyObj = type({
+	"key?": "number"
+})
+
+// valid data
+const validResult = MyObj({})
+
+// now also valid data (would be an error by default)
+const secondResult = MyObj({ key: undefined })
+```
+
+<Callout type="warn" title="exactOptionalPropertyTypes does not yet affect default values!">
+
+```ts
+const MyObj = type({
+	key: "number = 5"
+})
+
+// { key: 5 }
+const omittedResult = MyObj({})
+
+// { key: undefined }
+const undefinedResult = MyObj({ key: undefined })
+```
+
+Support for this is tracked as part of [this broader configurable defaultability issue](https://github.com/arktypeio/arktype/issues/1390).
+
+</Callout>
+
+### jitless
+
+By default, when a `Type` is instantiated, ArkType will precompile optimized validation logic that will run when the type is invoked. This behavior is disabled by default in environments that don't support `new Function`, e.g. Cloudflare Workers.
+
+If you'd like to opt out of it for another reason, you can set the `jitless` config option to `true`.
+
+```ts title="config.ts"
+import { configure } from "arktype/config"
+
+configure({ jitless: true })
+```
+
+```ts title="app.ts"
+import "./config.ts"
+// import your config file before arktype
+import { type } from "arktype"
+
+// will not be precompiled
+const MyObject = type({
+	foo: "string"
+})
+```
+
+### onFail
+
+In some domains, you may always want to throw on failed validation or transform the result in some other way.
+
+By specifying `onFail` in your global config, you can control what happens when you invoke a `Type` on invalid data:
+
+```ts title="config.ts"
+import { configure } from "arktype/config"
+
+const config = configure({
+	onFail: errors => errors.throw()
+})
+
+// be sure to specify both the runtime and static configs
+
+declare global {
+	interface ArkEnv {
+		onFail: typeof config.onFail
+	}
+}
+```
+
+```ts title="app.ts"
+import "./config.ts"
+// import your config file before arktype
+import { type } from "arktype"
+
+// data is inferred as string- no need to discriminate!
+const data = type.string("foo")
+
+// now thrown instead of returned
+// ArkErrors: must be a string (was number)
+const bad = type.string(5)
+```
+
+### metadata
+
+Additional arbitrary metadata can also be associated with a Type.
+
+It can even be made type-safe via an interface extension ArkType exposes for this purpose:
+
+```ts
+// add this anywhere in your project
+declare global {
+	interface ArkEnv {
+		meta(): {
+			// meta properties should always be optional
+			secretIngredient?: string
+		}
+	}
+}
+
+// now types you define can specify and access your metadata
+const MrPingsSecretIngredientSoup = type({
+	broth: "'miso' | 'vegetable'",
+	ingredients: "string[]"
+}).configure({ secretIngredient: "nothing!" })
+```
+
+### toJsonSchema
+
+Some ArkType features don't have JSON Schema equivalents. By default, `toJsonSchema()` will throw in these cases.
+
+This behavior can be configured granularly to match your needs.
+
+```ts
+const T = type({
+	"[symbol]": "string",
+	birthday: "Date"
+})
+
+const schema = T.toJsonSchema({
+	fallback: {
+		// ✅ the "default" key is a fallback for any non-explicitly handled code
+		// ✅ ctx includes "base" (represents the schema being generated) and other code-specific props
+		// ✅ returning `ctx.base` will effectively ignore the incompatible constraint
+		default: ctx => ctx.base,
+		// handle specific incompatibilities granularly
+		date: ctx => ({
+			...ctx.base,
+			type: "string",
+			format: "date-time",
+			description: ctx.after ? `after ${ctx.after}` : "anytime"
+		})
+	}
+})
+
+const result = {
+	$schema: "https://json-schema.org/draft/2020-12/schema",
+	type: "object",
+	properties: {
+		// Date instance is now a date-time string as specified by the `date` handler
+		birthday: { type: "string", format: "date-time", description: "anytime" }
+	},
+	required: ["birthday"]
+	// symbolic index signature ignored as specified by the `default` handler
+}
+```
+
+a `default` handler can also be specified at the root of a `fallback` config:
+
+```ts
+const T = type({
+	"[symbol]": "string",
+	birthday: "Date"
+})
+
+//--- cut ---
+
+const schema = T.toJsonSchema({
+	// "just make it work"
+	fallback: ctx => ctx.base
+})
+```
+
+These options can also be set at a [global or scope-level](/docs/configuration#levels).
+
+### Fallback Codes
+
+This is the full list of configurable reasons `toJsonSchema()` can fail.
+
+| Code                  | Description                                                 |
+| --------------------- | ----------------------------------------------------------- |
+| `arrayObject`         | arrays with object properties                               |
+| `arrayPostfix`        | arrays with postfix elements                                |
+| `defaultValue`        | non-serializable default value                              |
+| `domain`              | non-serializable type keyword (always `bigint` or `symbol`) |
+| `morph`               | transformation                                              |
+| `patternIntersection` | multiple regex constraints                                  |
+| `predicate`           | custom narrow function                                      |
+| `proto`               | non-serializable `instanceof`                               |
+| `symbolKey`           | symbolic key on an object                                   |
+| `unit`                | non-serializable `===` reference (e.g. `undefined`)         |
+| `date`                | a Date instance (supersedes `proto` for Dates)              |
+
+### prototypes
+
+When you `.infer` your Types, ArkType traverses them and extracts special values like morphs, e.g. `(In: string) => Out<number>`.
+
+Though generally this is able to preserve the original type, it is inefficient and can accidentally expand certain object types.
+
+You can use the type-level `prototypes` config to tell ArkType to treat those types as external:
+
+```ts
+declare global {
+	interface ArkEnv {
+		prototypes(): MySpecialClass
+	}
+}
+
+class MySpecialClass {}
+
+const T = type.instanceOf(MySpecialClass)
+//    ^? Type<MySpecialClass>
+```

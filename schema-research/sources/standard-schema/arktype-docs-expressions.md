@@ -1,0 +1,886 @@
+---
+title: Expressions
+---
+
+### Intersection
+
+Like its TypeScript counterpart, an intersection combines two existing `Type`s to create a new `Type` that enforces the constraints of both.
+
+<Callout
+	type="warn"
+	title="If you don't need to intersect overlapping props, spread instead!"
+>
+
+Computing an intersection is more expensive than [merging props](/docs/objects#merge), both at runtime and in-editor.
+
+If you can get away with the latter, doing so will make your Types faster and cleaner.
+
+</Callout>
+
+<SyntaxTabs>
+	<SyntaxTab string>
+
+```ts
+const MyObj = type({
+	// an email address with the domain arktype.io
+	intersected: "string.email & /@arktype\\.io$/"
+})
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab fluent>
+
+```ts
+const FooObject = type({
+	foo: "string"
+})
+
+// an object requiring both foo and bar
+const FoobarObject = FooObject.and({
+	bar: "number"
+})
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab tuple>
+
+```ts
+// an object requiring both foo and bar
+const FoobarObject = type([
+	{
+		foo: "string"
+	},
+	"&",
+	{
+		bar: "number"
+	}
+])
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab args>
+
+```ts
+// an object requiring both foo and bar
+const FoobarObject = type(
+	{
+		foo: "string"
+	},
+	"&",
+	{
+		bar: "number"
+	}
+)
+```
+
+    </SyntaxTab>
+
+</SyntaxTabs>
+
+<AnchorAliases intersection-n-ary />
+#### n-ary
+
+To create an intersection of many objects directly, `type.and` will avoid the need to chain or compose many binary expressions:
+
+```ts
+const FooObject = type({
+	foo: "string"
+})
+
+// accepts ...definitions
+const FoobarObject = type.and(
+	FooObject,
+	{
+		bar: "number"
+	},
+	{
+		baz: "string"
+	}
+)
+```
+
+### Union
+
+All unions are automatically discriminated to optimize check time and error message clarity.
+
+<SyntaxTabs>
+	<SyntaxTab string>
+
+```ts
+const Unions = type({
+	key: "string | number"
+})
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab fluent>
+
+```ts
+const Unions = type({
+	key: type.string.or(type.number)
+})
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab tuple>
+
+```ts
+const Unions = type({
+	key: ["string", "|", { name: "string" }]
+})
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab args>
+
+```ts
+const Unions = type({
+	key: type("string", "|", { name: "string" })
+})
+```
+
+    </SyntaxTab>
+
+</SyntaxTabs>
+
+<AnchorAliases union-n-ary />
+#### n-ary
+
+To create a union of many objects directly, `type.or` will avoid the need to chain or compose many binary expressions:
+
+```ts
+// accepts ...definitions
+const Union = type.or(type.string, "number", { key: "unknown" })
+```
+
+<AnchorAliases union-morphs />
+
+<Callout
+	type="warn"
+	title="A union that could apply different morphs to the same data throws a ParseError!"
+>
+```ts
+// operands overlap, but neither transforms data
+const Okay = type("number > 0").or("number < 10")
+// operand transforms data, but there's no overlap between the inputs
+const AlsoOkay = type("string.numeric.parse").or({ box: "string" })
+// operands overlap and transform data, but in the same way
+const StillOkay = type("string > 5", "=>", Number.parseFloat).or([
+	"0 < string < 10",
+	"=>",
+	Number.parseFloat
+])
+// ParseError: An unordered union of a type including a morph and a type with overlapping input is indeterminate
+const Bad = type({ box: "string.numeric.parse" }).or({ box: "string" })
+const SameError = type({ a: "string.numeric.parse" }).or({ b: "string.numeric.parse" })
+```
+
+<details>
+	<summary>Learn the set theory behind this restriction</summary>
+
+If you're relatively new to set-based types, that error might be daunting, but if you take a second to think through the example, it becomes clear why this isn't allowed. The logic of `bad` is essentially:
+
+- If the input is an object where `box` is a `string`, parse and return it as a number
+- If the input is an object where `box` is a `string`, return it as a string
+
+There is no way to deterministically return an output for this type without sacrificing the [commutativity](https://en.wikipedia.org/wiki/Commutative_property) of the union operator.
+
+`sameError` may look more innocuous, but has the same problem for an input like `{ a: "1", b: "2" }`.
+
+- Left branch would only parse `a`, resulting in `{ a: 1, b: "2" }`
+- Right branch would only parse `b`, resulting in `{ a: "1", b: 2 }`
+
+</details>
+
+</Callout>
+
+### Brand
+
+Add a type-only symbol to an existing type so that the only values that satisfy it are those that have been directly validated.
+
+<SyntaxTabs>
+
+    <SyntaxTab string>
+
+```ts
+// @noErrors
+const Even = type("(number % 2)#even")
+type Even = typeof Even.infer
+
+const good: Even = Even.assert(2)
+// TypeScript: Type 'number' is not assignable to type 'Brand<number, "even">'
+const bad: Even = 5
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab fluent>
+
+```ts
+// @noErrors
+const Even = type.number.divisibleBy(2).brand("even")
+type Even = typeof Even.infer
+
+const good: Even = Even.assert(2)
+// TypeScript: Type 'number' is not assignable to type 'Brand<number, "even">'
+const bad: Even = 5
+```
+
+    </SyntaxTab>
+
+</SyntaxTabs>
+
+Brands can be a great way to represent constraints that fall outside the scope TypeScript, but remember they don't change anything about what is enforced at runtime!
+
+For more information on branding in general, check out [this excellent article](https://www.learningtypescript.com/articles/branded-types) from [Josh Goldberg](https://github.com/joshuakgoldberg).
+
+### Narrow
+
+Narrow expressions allow you to add custom validation logic and error messages. You can read more about them in [their intro section](/docs/intro/adding-constraints#narrow).
+
+<SyntaxTabs>
+    <SyntaxTab fluent>
+
+```ts
+const Form = type({
+	password: "string",
+	confirmPassword: "string"
+}).narrow((data, ctx) => {
+	if (data.password === data.confirmPassword) {
+		return true
+	}
+	return ctx.reject({
+		expected: "identical to password",
+		// don't display the password in the error message!
+		actual: "",
+		path: ["confirmPassword"]
+	})
+})
+
+// ArkErrors: confirmPassword must be identical to password
+const out = Form({
+	password: "arktype",
+	confirmPassword: "artkype"
+})
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab tuple>
+
+```ts
+const Form = type([
+	{
+		password: "string",
+		confirmPassword: "string"
+	},
+	":",
+	(data, ctx) => {
+		if (data.password === data.confirmPassword) {
+			return true
+		}
+		return ctx.reject({
+			expected: "identical to password",
+			// don't display the password in the error message!
+			actual: "",
+			path: ["confirmPassword"]
+		})
+	}
+])
+
+// ArkErrors: confirmPassword must be identical to password
+const out = Form({
+	password: "arktype",
+	confirmPassword: "artkype"
+})
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab args>
+
+```ts
+const Form = type(
+	{
+		password: "string",
+		confirmPassword: "string"
+	},
+	":",
+	(data, ctx) => {
+		if (data.password === data.confirmPassword) {
+			return true
+		}
+		return ctx.reject({
+			expected: "identical to password",
+			// don't display the password in the error message!
+			actual: "",
+			path: ["confirmPassword"]
+		})
+	}
+)
+
+// ArkErrors: confirmPassword must be identical to password
+const out = Form({
+	password: "arktype",
+	confirmPassword: "artkype"
+})
+```
+
+    </SyntaxTab>
+
+</SyntaxTabs>
+
+If the return type of a narrow is a type predicate, that will be reflected in the inferred `Type`.
+
+<SyntaxTabs>
+    <SyntaxTab fluent>
+
+```ts
+// hover to see how the predicate is propagated to the outer `Type`
+const ArkString = type("string").narrow(
+	(data, ctx): data is `ark${string}` =>
+		data.startsWith("ark") ?? ctx.reject("a string starting with 'ark'")
+)
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab tuple>
+
+```ts
+// hover to see how the predicate is propagated to the outer `Type`
+const ArkString = type([
+	"string",
+	":",
+	(data, ctx): data is `ark${string}` =>
+		data.startsWith("ark") ?? ctx.reject("a string starting with 'ark'")
+])
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab args>
+
+```ts
+// hover to see how the predicate is propagated to the outer `Type`
+const ArkString = type(
+	"string",
+	":",
+	(data, ctx): data is `ark${string}` =>
+		data.startsWith("ark") ?? ctx.reject("a string starting with 'ark'")
+)
+```
+
+    </SyntaxTab>
+
+</SyntaxTabs>
+
+### Filter
+
+`filter` is similar to `narrow` but applies its predicate to the **input** of a type rather than the output. This distinction matters when your type includes morphs:
+
+- **`narrow`**: validates the **output** (after morphs have been applied)
+- **`filter`**: validates the **input** (before morphs run)
+
+```ts
+const ShortNumeric = type("string.numeric.parse").filter((s, ctx) => {
+	// s is a string here (the input), not a number (the output)
+	if (s.length > 10) return ctx.reject("at most 10 characters")
+	return true
+})
+
+// the filter runs on the input (string) before the morph parses it
+ShortNumeric("123") // 123
+ShortNumeric("12345678901") // ArkErrors: must be at most 10 characters
+```
+
+If the return type of a filter is a type predicate, that will be reflected in the inferred `Type`, just like with `narrow`.
+
+<AnchorAliases morph />
+### Pipe
+
+Piping allows you to transform your data after it is validated via one or more sequential **morphs**. You can read more about them in [their intro section](/docs/intro/morphs-and-more/).
+
+<SyntaxTabs>
+    <SyntaxTab fluent>
+
+```ts
+// hover to see how morphs are represented at a type-level
+const trimStringStart = type("string").pipe(str => str.trimStart())
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab tuple>
+
+```ts
+// hover to see how morphs are represented at a type-level
+const trimStringStart = type(["string", "=>", str => str.trimStart()])
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab args>
+
+```ts
+// hover to see how morphs are represented at a type-level
+const trimStringStart = type("string", "=>", str => str.trimStart())
+```
+
+    </SyntaxTab>
+
+</SyntaxTabs>
+
+#### To
+
+If a morph returns an `ArkErrors` instance, validation will fail with that result instead of it being treated as a value. This is especially useful for using other Types as morphs to validate output or chain transformations.
+
+To make this easier, there's a special `to` operator that can pipe to a parsed definition without having to wrap it in `type` to make it a function:
+
+<SyntaxTabs>
+    <SyntaxTab string>
+
+```ts
+const parseEvenTo = type("string.numeric.parse |> number % 2")
+
+const Even = type("number % 2")
+// equivalent to parseEvenTo
+const parseEvenPipe = type("string.numeric.parse").pipe(Even)
+```
+
+    </SyntaxTab>
+    <SyntaxTab fluent>
+
+```ts
+const parseEvenTo = type("string.numeric.parse").to("number % 2")
+
+const Even = type("number % 2")
+// equivalent to parseEvenTo
+const parseEvenPipe = type("string.numeric.parse").pipe(Even)
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab tuple>
+
+```ts
+const parseEvenTo = type(["string.numeric.parse", "|>", "number % 2"])
+
+const Even = type("number % 2")
+// equivalent to parseEvenTo
+const parseEvenPipe = type("string.numeric.parse").pipe(Even)
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab args>
+
+```ts
+const parseEvenTo = type("string.numeric.parse", "|>", "number % 2")
+
+const Even = type("number % 2")
+// equivalent to parseEvenTo
+const parseEvenPipe = type("string.numeric.parse").pipe(Even)
+```
+
+    </SyntaxTab>
+
+</SyntaxTabs>
+
+<AnchorAliases pipe-n-ary />
+#### n-ary
+
+Though the fluent `.pipe(...morphsOrTypes)` method already accepts any number of arguments, `type.pipe()` allows you to define such an expression directly without having to explicitly instantiate the first input Type to chain from.
+
+```ts
+// directly accepts ...morphsOrTypes
+const trimStartToNonEmpty = type.pipe(
+	type.string,
+	s => s.trimStart(),
+	type.string.atLeastLength(1)
+)
+```
+
+### Unit
+
+While embedded [literal syntax](/docs/primitives#number-literals) is usually ideal for defining exact primitive values, `===` and `type.unit` can be helpful for referencing a non-serializable value like a `symbol` from your type.
+
+<SyntaxTabs>
+
+    <SyntaxTab fluent>
+
+```ts
+const mySymbol = Symbol()
+
+const ExactValue = type.unit(mySymbol)
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab tuple>
+
+```ts
+const mySymbol = Symbol()
+
+const ExactValue = type(["===", mySymbol])
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab args>
+
+```ts
+const mySymbol = Symbol()
+
+const ExactValue = type("===", mySymbol)
+```
+
+    </SyntaxTab>
+
+</SyntaxTabs>
+
+### Enumerated
+
+`type.enumerated` defines a Type based on a list of allowed values. It is semantically equivalent to `type.unit` if provided a single value.
+
+<SyntaxTabs>
+
+    <SyntaxTab fluent>
+
+```ts
+const mySymbol = Symbol()
+
+const ExactValueFromSet = type.enumerated(1337, true, mySymbol)
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab tuple>
+
+```ts
+const mySymbol = Symbol()
+
+const ExactValueFromSet = type(["===", 1337, true, mySymbol])
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab args>
+
+```ts
+const mySymbol = Symbol()
+
+const ExactValueFromSet = type("===", 1337, true, mySymbol)
+```
+
+    </SyntaxTab>
+
+</SyntaxTabs>
+
+### valueOf
+
+`type.valueOf` defines a Type from a TypeScript `enum` or enum-like object.
+
+<Callout
+	type="warn"
+	title="`enum` should be avoided in modern TypeScript"
+>
+
+Over time, TS has shifted away from features that affect the `.js` it ultimately outputs, including `enum`.
+
+With the introduction of the [`--erasableSyntaxOnly` option](https://www.typescriptlang.org/tsconfig/#erasableSyntaxOnly) to facilitate type-stripping, `enum` is no longer considered a best practice.
+
+`type.valueOf` exists primarily to facilitate integration with legacy code that relies on `enum`, but if you have the option, prefer transparently defining value sets via `["tupleLiterals"] as const`, `{ objectLiterals: true } as const`, or directly via [`type.enumerated`](/docs/expressions#enumerated).
+
+</Callout>
+
+```ts
+enum TsEnum {
+	numeric = 1
+}
+
+const EnumType = type.valueOf(TsEnum) // Type<1>
+```
+
+It is _almost_ semantically identical to `type.enumerated(...Object.values(o))`. The only exception occurs when an object has an entry with a numeric value and entry with that value as a key mapping back to the original:
+
+```ts
+// this is the structure TsEnum compiles to in JS
+const equivalentObject = {
+	numeric: 1,
+	"1": "numeric"
+} as const
+
+// only allows the number 1 even though it is inferred
+// to also allow the string "numeric"
+const EquivalentObject = type.valueOf(equivalentObject)
+```
+
+Notice `EquivalentObject` doesn't include `"numeric"` because it inverts a numeric value entry.
+
+We recommend `type.enumerated` as the more transparent option for converting value references to a Type. However, if the described inverted entry pairs can't exist on your object, you can safely use `type.valueOf`.
+
+### fn
+
+`type.fn` defines a function with runtime-validated parameters and an optional return type. The result is a `TypedFn`- a callable with `.expression`, `.params`, and `.returns` for introspection.
+
+Parameters are defined using the same syntax as tuple types. A return type can optionally be specified after a `":"` separator.
+
+```ts
+// @errors: 2345
+const len = type.fn("string | unknown[]", ":", "number")(s => s.length)
+
+len("foo") // 3
+len([1, 2]) // 2
+
+len.expression // "(string | Array) => number"
+
+len(true) // TraversalError: value at [0] must be a string or an object (was boolean)
+```
+
+Supports defaults, optionals, and variadic parameters:
+
+```ts
+const greet = type.fn(
+	"string",
+	"string = 'world'"
+)((greeting, name) => `${greeting}, ${name}!`)
+
+greet("Hello") // "Hello, world!"
+
+const maybeDouble = type.fn(
+	"number",
+	"boolean?"
+)((n, double) => (double ? n * 2 : n))
+
+maybeDouble(5) // 5
+maybeDouble(5, true) // 10
+
+const join = type.fn(
+	"...",
+	"string[]",
+	":",
+	"string"
+)((...parts) => parts.join(","))
+
+join.expression // "(...string[]) => string"
+```
+
+If no return type is specified, the return type is inferred from the implementation. If a return type is specified, it will be validated at runtime.
+
+### Meta
+
+Metadata allows you to associate arbitrary metadata with your types.
+
+Some metadata is consumed directly by ArkType, for example `description` is referenced by default when building an error message.
+
+Other properties are introspectable, but aren't used by default internally.
+
+<SyntaxTabs>
+    <SyntaxTab fluent>
+
+```ts
+// this validator's error message will now start with "must be a special string"
+const SpecialString = type("string").configure({
+	description: "a special string"
+})
+
+// sugar for adding description metadata
+const SpecialNumber = type("number").describe("a special number")
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab tuple>
+
+```ts
+// this validator's error message will now start with "must be a special string"
+const SpecialString = type([
+	"string",
+	"@",
+	{
+		description: "a special string"
+	}
+])
+
+// sugar for adding description metadata
+const SpecialNumber = type(["number", "@", "a special number"])
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab args>
+
+```ts
+// this validator's error message will now start with "must be a special string"
+const SpecialString = type("string", "@", {
+	description: "a special string"
+})
+
+// sugar for adding description metadata
+const SpecialNumber = type("number", "@", "a special number")
+```
+
+    </SyntaxTab>
+
+</SyntaxTabs>
+
+For more control over how to apply the config to the Type's internal structure, a `NodeSelector` can be specified following the config:
+
+<SyntaxTabs>
+    <SyntaxTab fluent>
+
+```ts
+const SelectivelyConfigured = type({
+	name: "string",
+	age: "number"
+}).configure(
+	{
+		description: "a special string"
+	},
+	// add the description to all domain keywords
+	"domain"
+)
+
+SelectivelyConfigured.get("name").description // "a special string"
+SelectivelyConfigured.get("age").description // "a special string"
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab tuple>
+
+```ts
+const SelectivelyConfigured = type([
+	{
+		name: "string",
+		age: "number"
+	},
+	"@",
+	{
+		description: "a special string"
+	},
+	// add the description to all domain keywords
+	"domain"
+])
+
+SelectivelyConfigured.get("name").description // "a special string"
+SelectivelyConfigured.get("age").description // "a special string"
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab args>
+
+```ts
+const SelectivelyConfigured = type(
+	{
+		name: "string",
+		age: "number"
+	},
+	"@",
+	{
+		description: "a special string"
+	},
+	// add the description to all domain keywords
+	"domain"
+)
+
+SelectivelyConfigured.get("name").description // "a special string"
+SelectivelyConfigured.get("age").description // "a special string"
+```
+
+    </SyntaxTab>
+
+</SyntaxTabs>
+
+For more details on the select API, [see the full docs](/docs/introspection#select).
+
+### Cast
+
+Sometimes, you may want to directly specify how a `Type` should be inferred without affecting the runtime behavior. In these cases, you can use a cast expression.
+
+<SyntaxTabs>
+
+    <SyntaxTab string>
+
+```ts
+// allow any string, but suggest "foo" and "bar"
+type AutocompletedString = "foo" | "bar" | (string & {})
+
+const MyObj = type({
+	autocompletedString: "string" as type.cast<AutocompletedString>
+})
+```
+
+    </SyntaxTab>
+
+    <SyntaxTab fluent>
+
+```ts
+// allow any string, but suggest "foo" and "bar"
+type AutocompletedString = "foo" | "bar" | (string & {})
+
+const MyObj = type({
+	autocompletedString: type.string.as<AutocompletedString>()
+})
+```
+
+    </SyntaxTab>
+
+</SyntaxTabs>
+
+### Parenthetical
+
+By default, ArkType's operators follow the same precedence as TypeScript's. Also like in TypeScript, this can be overridden by wrapping an expression in parentheses.
+
+```ts
+// hover to see the distinction!
+const Groups = type({
+	stringOrArrayOfNumbers: "string | number[]",
+	arrayOfStringsOrNumbers: "(string | number)[]"
+})
+```
+
+### this
+
+`this` is a special keyword that can be used to create a recursive type referencing the root of the current definition.
+
+```ts
+const DisappointingGift = type({
+	label: "string",
+	"box?": "this"
+})
+
+const out = DisappointingGift({
+	label: "foo",
+	box: { label: "bar", box: {} }
+})
+
+if (out instanceof type.errors) {
+	// ArkErrors: box.box.label must be a string (was missing)
+	console.error(out.summary)
+} else {
+	// narrowed inference to arbitrary depth
+	console.log(out.box?.box?.label)
+	//                         ^?
+}
+```
+
+Referencing `this` from within a scope will result in a ParseError. For similar behavior within a scoped definition, just reference the alias by name:
+
+```ts
+const types = scope({
+	DisappointingGift: {
+		label: "string",
+		// Resolves correctly to the root of the current type
+		"box?": "DisappointingGift"
+	}
+}).export()
+```

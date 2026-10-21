@@ -1,0 +1,1 @@
+import { event } from '@event-driven-io/emmett'; import type { ShoppingCartConfirmed } from '../styles/today/shoppingCart'; console.log(event<ShoppingCartConfirmed>('ShoppingCartConfirmed', { shoppingCartId: '1', confirmedAt: new Date() }, { clientId: 'c' }));

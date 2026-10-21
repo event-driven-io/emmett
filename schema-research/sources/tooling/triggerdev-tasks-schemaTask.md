@@ -1,0 +1,418 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://trigger.dev/docs/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# schemaTask
+
+> Define tasks with a runtime payload schema and validate the payload before running the task.
+
+The `schemaTask` function allows you to define a task with a runtime payload schema. This schema is used to validate the payload before running the task or when triggering a task directly. If the payload does not match the schema, the task will not execute.
+
+## Usage
+
+```ts theme={"theme":"css-variables"}
+import { schemaTask } from "@trigger.dev/sdk";
+import { z } from "zod";
+
+const myTask = schemaTask({
+  id: "my-task",
+  schema: z.object({
+    name: z.string(),
+    age: z.number(),
+  }),
+  run: async (payload) => {
+    console.log(payload.name, payload.age);
+  },
+});
+```
+
+`schemaTask` takes all the same options as [task](/docs/tasks/overview), with the addition of a `schema` field. The `schema` field is a schema parser function from a schema library or or a custom parser function.
+
+<Note>
+  We will probably eventually combine `task` and `schemaTask` into a single function, but because
+  that would be a breaking change, we are keeping them separate for now.
+</Note>
+
+When you trigger the task directly, the payload will be validated against the schema before the [run](/docs/runs) is created:
+
+```ts theme={"theme":"css-variables"}
+import { tasks } from "@trigger.dev/sdk";
+import { myTask } from "./trigger/myTasks";
+
+// This will call the schema parser function and validate the payload
+await myTask.trigger({ name: "Alice", age: "oops" }); // this will throw an error
+
+// This will NOT call the schema parser function
+await tasks.trigger<typeof myTask>("my-task", { name: "Alice", age: "oops" }); // this will not throw an error
+```
+
+The error thrown when the payload does not match the schema will be the same as the error thrown by the schema parser function. For example, if you are using Zod, the error will be a `ZodError`.
+
+We will also validate the payload every time before the task is run, so you can be sure that the payload is always valid. In the example above, the task would fail with a `TaskPayloadParsedError` error and skip retrying if the payload does not match the schema.
+
+## Input/output schemas
+
+Certain schema libraries, like Zod, split their type inference into "schema in" and "schema out". This means that you can define a single schema that will produce different types when triggering the task and when running the task. For example, you can define a schema that has a default value for a field, or a string coerced into a date:
+
+```ts theme={"theme":"css-variables"}
+import { schemaTask } from "@trigger.dev/sdk";
+import { z } from "zod";
+
+const myTask = schemaTask({
+  id: "my-task",
+  schema: z.object({
+    name: z.string().default("John"),
+    age: z.number(),
+    dob: z.coerce.date(),
+  }),
+  run: async (payload) => {
+    console.log(payload.name, payload.age);
+  },
+});
+```
+
+In this case, the trigger payload type is `{ name?: string, age: number; dob: string }`, but the run payload type is `{ name: string, age: number; dob: Date }`. So you can trigger the task with a payload like this:
+
+```ts theme={"theme":"css-variables"}
+await myTask.trigger({ age: 30, dob: "2020-01-01" }); // this is valid
+await myTask.trigger({ name: "Alice", age: 30, dob: "2020-01-01" }); // this is also valid
+```
+
+## Task-backed AI tools
+
+Use a `schemaTask` as the implementation of a Vercel [AI SDK](https://vercel.com/docs/ai-sdk) tool: the model calls the tool, and Trigger runs your task as a **subtask** with tool-call metadata, optional [chat context](/docs/ai-chat/patterns/sub-agents), and the same payload validation as a normal trigger.
+
+### Recommended: `ai.toolExecute` with `tool()`
+
+Prefer building the tool with the AI SDK’s [`tool()`](https://sdk.vercel.ai/docs/ai-sdk-core/tools-and-tool-calling) and passing **`execute: ai.toolExecute(yourTask)`**. You keep full control of `description`, `inputSchema`, and AI-SDK-only options (for example `experimental_toToolResultContent`), and your types follow the `ai` version installed in **your** app.
+
+```ts theme={"theme":"css-variables"}
+import { ai } from "@trigger.dev/sdk/ai";
+import { schemaTask } from "@trigger.dev/sdk";
+import { tool, generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
+import { z } from "zod";
+
+const myToolTask = schemaTask({
+  id: "my-tool-task",
+  schema: z.object({
+    foo: z.string(),
+  }),
+  run: async ({ foo }) => {
+    return { bar: foo.toUpperCase() };
+  },
+});
+
+const myTool = tool({
+  description: myToolTask.description ?? "",
+  inputSchema: myToolTask.schema!,
+  execute: ai.toolExecute(myToolTask),
+});
+
+export const myAiTask = schemaTask({
+  id: "my-ai-task",
+  schema: z.object({
+    text: z.string(),
+  }),
+  run: async ({ text }) => {
+    const { text: reply } = await generateText({
+      prompt: text,
+      model: openai("gpt-4o"),
+      tools: {
+        myTool,
+      },
+    });
+    return reply;
+  },
+});
+```
+
+`experimental_toToolResultContent` and other tool-level options belong on **`tool({ ... })`**, not on `ai.toolExecute`:
+
+```ts theme={"theme":"css-variables"}
+import { openai } from "@ai-sdk/openai";
+import { Sandbox } from "@e2b/code-interpreter";
+import { ai } from "@trigger.dev/sdk/ai";
+import { schemaTask } from "@trigger.dev/sdk";
+import { generateObject, tool } from "ai";
+import { z } from "zod";
+
+const chartTask = schemaTask({
+  id: "chart",
+  description: "Generate a chart using natural language",
+  schema: z.object({
+    input: z.string().describe("The chart to generate"),
+  }),
+  run: async ({ input }) => {
+    const code = await generateObject({
+      model: openai("gpt-4o"),
+      schema: z.object({
+        code: z.string().describe("The Python code to execute"),
+      }),
+      system: `You are a helpful assistant that generates matplotlib code. End with plt.show().`,
+      prompt: input,
+    });
+
+    const sandbox = await Sandbox.create();
+    const execution = await sandbox.runCode(code.object.code);
+    const firstResult = execution.results[0];
+
+    if (firstResult.png) {
+      return { chart: firstResult.png };
+    }
+    throw new Error("No chart generated");
+  },
+});
+
+export const chartTool = tool({
+  description: chartTask.description ?? "",
+  inputSchema: chartTask.schema!,
+  execute: ai.toolExecute(chartTask),
+  experimental_toToolResultContent: (result) => [
+    { type: "image", data: result.chart, mimeType: "image/png" },
+  ],
+});
+```
+
+Inside the task run, you can read tool execution context with **`ai.currentToolOptions()`** (and helpers like `ai.toolCallId()`, `ai.chatContext()` when running inside a [`chat.agent`](/docs/ai-chat/overview)):
+
+```ts theme={"theme":"css-variables"}
+import { ai } from "@trigger.dev/sdk/ai";
+import { schemaTask } from "@trigger.dev/sdk";
+import { tool } from "ai";
+import { z } from "zod";
+
+const myToolTask = schemaTask({
+  id: "my-tool-task",
+  schema: z.object({
+    foo: z.string(),
+  }),
+  run: async ({ foo }) => {
+    const toolOptions = ai.currentToolOptions();
+    console.log(toolOptions);
+    return { foo };
+  },
+});
+
+export const myTool = tool({
+  description: myToolTask.description ?? "",
+  inputSchema: myToolTask.schema!,
+  execute: ai.toolExecute(myToolTask),
+});
+```
+
+See the [AI SDK tool execution options](https://sdk.vercel.ai/docs/ai-sdk-core/tools-and-tool-calling#tool-execution-options) for fields passed through the runtime.
+
+<Note>
+  `ai.toolExecute` works with `schemaTask` definitions that use Zod, ArkType, or any schema that provides a JSON schema via `.toJsonSchema()` (same coverage as the legacy `ai.tool` wrapper).
+</Note>
+
+### Deprecated: `ai.tool`
+
+The **`ai.tool(task, options?)`** helper is **deprecated**. It constructs an AI SDK `Tool` for you (using `tool()` for Zod-like schemas and `dynamicTool()` otherwise) and may be removed in a future major version. New code should use **`tool({ ..., execute: ai.toolExecute(task) })`** as shown above.
+
+### Legacy `ai.tool` example (deprecated)
+
+```ts theme={"theme":"css-variables"}
+import { ai } from "@trigger.dev/sdk/ai";
+import { schemaTask } from "@trigger.dev/sdk";
+import { z } from "zod";
+import { generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
+
+const myToolTask = schemaTask({
+  id: "my-tool-task",
+  schema: z.object({ foo: z.string() }),
+  run: async ({ foo }) => ({ foo }),
+});
+
+// Deprecated — prefer tool({ execute: ai.toolExecute(myToolTask), ... })
+const myTool = ai.tool(myToolTask);
+```
+
+## Supported schema types
+
+### Zod
+
+You can use the [Zod](https://zod.dev) schema library to define your schema. The schema will be validated using Zod's `parse` function.
+
+```ts theme={"theme":"css-variables"}
+import { schemaTask } from "@trigger.dev/sdk";
+import { z } from "zod";
+
+export const zodTask = schemaTask({
+  id: "types/zod",
+  schema: z.object({
+    bar: z.string(),
+    baz: z.string().default("foo"),
+  }),
+  run: async (payload) => {
+    console.log(payload.bar, payload.baz);
+  },
+});
+```
+
+### Yup
+
+```ts theme={"theme":"css-variables"}
+import { schemaTask } from "@trigger.dev/sdk";
+import * as yup from "yup";
+
+export const yupTask = schemaTask({
+  id: "types/yup",
+  schema: yup.object({
+    bar: yup.string().required(),
+    baz: yup.string().default("foo"),
+  }),
+  run: async (payload) => {
+    console.log(payload.bar, payload.baz);
+  },
+});
+```
+
+### Superstruct
+
+```ts theme={"theme":"css-variables"}
+import { schemaTask } from "@trigger.dev/sdk";
+import { object, string } from "superstruct";
+
+export const superstructTask = schemaTask({
+  id: "types/superstruct",
+  schema: object({
+    bar: string(),
+    baz: string(),
+  }),
+  run: async (payload) => {
+    console.log(payload.bar, payload.baz);
+  },
+});
+```
+
+### ArkType
+
+```ts theme={"theme":"css-variables"}
+import { schemaTask } from "@trigger.dev/sdk";
+import { type } from "arktype";
+
+export const arktypeTask = schemaTask({
+  id: "types/arktype",
+  schema: type({
+    bar: "string",
+    baz: "string",
+  }).assert,
+  run: async (payload) => {
+    console.log(payload.bar, payload.baz);
+  },
+});
+```
+
+### @effect/schema
+
+```ts theme={"theme":"css-variables"}
+import { schemaTask } from "@trigger.dev/sdk";
+import * as Schema from "@effect/schema/Schema";
+
+// For some funny typescript reason, you cannot pass the Schema.decodeUnknownSync directly to schemaTask
+const effectSchemaParser = Schema.decodeUnknownSync(
+  Schema.Struct({ bar: Schema.String, baz: Schema.String })
+);
+
+export const effectTask = schemaTask({
+  id: "types/effect",
+  schema: effectSchemaParser,
+  run: async (payload) => {
+    console.log(payload.bar, payload.baz);
+  },
+});
+```
+
+### runtypes
+
+```ts theme={"theme":"css-variables"}
+import { schemaTask } from "@trigger.dev/sdk";
+import * as T from "runtypes";
+
+export const runtypesTask = schemaTask({
+  id: "types/runtypes",
+  schema: T.Record({
+    bar: T.String,
+    baz: T.String,
+  }),
+  run: async (payload) => {
+    console.log(payload.bar, payload.baz);
+  },
+});
+```
+
+### valibot
+
+```ts theme={"theme":"css-variables"}
+import { schemaTask } from "@trigger.dev/sdk";
+
+import * as v from "valibot";
+
+// For some funny typescript reason, you cannot pass the v.parser directly to schemaTask
+const valibotParser = v.parser(
+  v.object({
+    bar: v.string(),
+    baz: v.string(),
+  })
+);
+
+export const valibotTask = schemaTask({
+  id: "types/valibot",
+  schema: valibotParser,
+  run: async (payload) => {
+    console.log(payload.bar, payload.baz);
+  },
+});
+```
+
+### typebox
+
+```ts theme={"theme":"css-variables"}
+import { schemaTask } from "@trigger.dev/sdk";
+import { Type } from "@sinclair/typebox";
+import { wrap } from "@typeschema/typebox";
+
+export const typeboxTask = schemaTask({
+  id: "types/typebox",
+  schema: wrap(
+    Type.Object({
+      bar: Type.String(),
+      baz: Type.String(),
+    })
+  ),
+  run: async (payload) => {
+    console.log(payload.bar, payload.baz);
+  },
+});
+```
+
+### Custom parser function
+
+You can also define a custom parser function that will be called with the payload before the task is run. The parser function should return the parsed payload or throw an error if the payload is invalid.
+
+```ts theme={"theme":"css-variables"}
+import { schemaTask } from "@trigger.dev/sdk";
+
+export const customParserTask = schemaTask({
+  id: "types/custom-parser",
+  schema: (data: unknown) => {
+    // This is a custom parser, and should do actual parsing (not just casting)
+    if (typeof data !== "object") {
+      throw new Error("Invalid data");
+    }
+
+    const { bar, baz } = data as { bar: string; baz: string };
+
+    return { bar, baz };
+  },
+  run: async (payload) => {
+    console.log(payload.bar, payload.baz);
+  },
+});
+```
+
+
+This documentation is built and hosted on [Mintlify](https://mintlify.com), a developer documentation platform.

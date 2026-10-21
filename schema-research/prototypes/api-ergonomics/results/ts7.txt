@@ -1,0 +1,31 @@
+## TypeScript 7.0.2, whole project
+( timeout 200 $T7 -p . 2>&1 | head -20; )  5.12s user 0.88s system 90% cpu 6.631 total
+## TypeScript 7.0.2, b5-typebox
+Files:              754
+Types:           298269
+Instantiations: 2434239
+Check time:      1.334s
+Total time:      1.498s
+## TypeScript 7.0.2, a-builtin
+Files:             354
+Types:            6547
+Instantiations:  12140
+Check time:     0.019s
+Total time:     0.145s
+## TypeScript 7.0.2, errors c-type-first
+errors/c-type-first.ts(4,43): error TS2322: Type 'number' is not assignable to type 'string'.
+errors/c-type-first.ts(7,39): error TS2322: Type 'Schema<string, string>' is not assignable to type 'StandardSchemaV1<unknown, Date>'.
+  The types of '["~standard"].validate(...)' are incompatible between these types.
+    Type 'Promise<Result<string>> | Result<string>' is not assignable to type 'Promise<Result<Date>> | Result<Date>'.
+      Type 'Promise<Result<string>>' is not assignable to type 'Promise<Result<Date>> | Result<Date>'.
+        Type 'Promise<Result<string>>' is not assignable to type 'Promise<Result<Date>>'.
+          Type 'Result<string>' is not assignable to type 'Result<Date>'.
+            Type 'SuccessResult<string>' is not assignable to type 'Result<Date>'.
+              Type 'SuccessResult<string>' is not assignable to type 'SuccessResult<Date>'.
+                Type 'string' is not assignable to type 'Date'.
+errors/c-type-first.ts(12,3): error TS2322: Type '{ shoppingCartId: Schema<string, string>; }' is not assignable to type 'SchemasFor<{ shoppingCartId: string; confirmedAt: Date; }>'.
+  Property 'confirmedAt' is missing in type '{ shoppingCartId: Schema<string, string>; }' but required in type '{ shoppingCartId: StandardSchemaV1<unknown, string>; confirmedAt: StandardSchemaV1<unknown, Date>; }'.
+errors/c-type-first.ts(17,62): error TS2353: Object literal may only specify known properties, and 'extra' does not exist in type 'SchemasFor<{ shoppingCartId: string; confirmedAt: Date; }>'.
+errors/c-type-first.ts(21,48): error TS2345: Argument of type '"ShoppingCartConfirmd"' is not assignable to parameter of type '"ShoppingCartConfirmed"'.
+errors/c-type-first.ts(26,74): error TS2345: Argument of type '{ data: { shoppingCartId: Schema<string, string>; confirmedAt: Schema<Date, string | Date>; }; }' is not assignable to parameter of type 'TypeFirstOptions<{ shoppingCartId: string; confirmedAt: Date; }, ShoppingCartEventMetadata>'.
+  Property 'metadata' is missing in type '{ data: { shoppingCartId: Schema<string, string>; confirmedAt: Schema<Date, string | Date>; }; }' but required in type '{ metadata: SchemasFor<ShoppingCartEventMetadata>; }'.

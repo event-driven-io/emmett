@@ -1,0 +1,3 @@
+samples: 10, invalid: 0 [{"shoppingCartId":"{","productId":"2]=.0nK]4KxG}YVAL <O/(zBoizjIT;8\"","quantity":2075},{"shoppingCartId":"\t","productId":"9rG`)a+?EcgJBD[8olP=-PQ%8W'zuHtnw8gfkRfpw=~2qc[l^g","quantity":1489}]
+{"dialect":"draft-2020-12","schema":{"type":"object","properties":{"shoppingCartId":{"type":"string","minLength":1},"productId":{"type":"string","minLength":1},"quantity":{"type":"integer","exclusiveMinimum":0}},"required":["shoppingCartId","productId","quantity"],"additionalProperties":true,"title":"AddProductItem","description":"Add product to cart","examples":[{"shoppingCartId":"c1","productId":"p1","quantity":1}]},"definitions":{}}
+standard vendor: effect has jsonSchema.input: function

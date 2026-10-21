@@ -1,0 +1,1 @@
+{ "extends": "../tsconfig.json", "compilerOptions": { "noEmit": false, "emitDeclarationOnly": true, "declaration": true, "isolatedDeclarations": true, "rootDir": "..", "outDir": "../bundle/dts" }, "include": ["../styles/f-class/shoppingCart.ts"], "exclude": [] }

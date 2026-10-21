@@ -1,0 +1,451 @@
+# @typespec/json-schema
+
+TypeSpec library for emitting TypeSpec to JSON Schema and converting JSON Schema to TypeSpec
+
+## Install
+
+```bash
+npm install @typespec/json-schema
+```
+
+## Usage
+
+Add the `@jsonSchema` decorator to any types or namespaces you want to emit as JSON Schema.
+
+```TypeSpec
+import "@typespec/json-schema";
+
+using JsonSchema;
+
+@jsonSchema
+namespace Example;
+
+model Car {
+  make: string;
+  modelName: string;
+}
+```
+
+## Emitter usage
+
+1. Via the command line
+
+```bash
+tsp compile . --emit=@typespec/json-schema
+```
+
+2. Via the config
+
+```yaml
+emit:
+  - "@typespec/json-schema"
+```
+
+The config can be extended with options as follows:
+
+```yaml
+emit:
+  - "@typespec/json-schema"
+options:
+  "@typespec/json-schema":
+    option: value
+```
+
+## Emitter options
+
+### `emitter-output-dir`
+
+**Type:** `absolutePath`
+
+Defines the emitter output directory. Defaults to `{output-dir}/@typespec/json-schema`
+See [Configuring output directory for more info](https://typespec.io/docs/handbook/configuration/configuration/#configuring-output-directory)
+
+### `file-type`
+
+**Type:** `"yaml" | "json"`
+
+Serialize the schema as either yaml or json.
+
+### `int64-strategy`
+
+**Type:** `"string" | "number"`
+
+How to handle 64 bit integers on the wire. Options are:
+
+- string: serialize as a string (widely interoperable)
+- number: serialize as a number (not widely interoperable)
+
+### `bundleId`
+
+**Type:** `string`
+
+When provided, bundle all the schemas into a single json schema document with schemas under $defs. The provided id is the id of the root document and is also used for the file name.
+
+### `emitAllModels`
+
+**Type:** `boolean`
+
+When true, emit all model declarations to JSON Schema without requiring the @jsonSchema decorator.
+
+### `emitAllRefs`
+
+**Type:** `boolean`
+
+When true, emit all references as json schema files, even if the referenced type does not have the `@jsonSchema` decorator or is not within a namespace with the `@jsonSchema` decorator.
+
+### `seal-object-schemas`
+
+**Type:** `boolean`
+
+**Default:** `false`
+
+If true, then for models emitted as object schemas we default `unevaluatedProperties` to `{ not: {} }`,
+if not explicitly specified elsewhere.
+Default: `false`
+
+### `polymorphic-models-strategy`
+
+**Type:** `"ignore" | "oneOf" | "anyOf"`
+
+**Default:** `"ignore"`
+
+Strategy for emitting models with the @discriminator decorator:
+
+- ignore: Emit as regular object schema (default). Derived models use allOf to reference their base model.
+- oneOf: Emit a oneOf schema with references to all derived models (closed union)
+- anyOf: Emit an anyOf schema with references to all derived models (open union)
+
+When using oneOf or anyOf, derived models will inline all properties from their base model
+instead of using allOf references. This avoids circular references in the generated schemas,
+since the base model references derived models via oneOf/anyOf.
+
+## Decorators
+
+### TypeSpec.JsonSchema
+
+- [`@baseUri`](#@baseuri)
+- [`@contains`](#@contains)
+- [`@contentEncoding`](#@contentencoding)
+- [`@contentMediaType`](#@contentmediatype)
+- [`@contentSchema`](#@contentschema)
+- [`@extension`](#@extension)
+- [`@id`](#@id)
+- [`@jsonSchema`](#@jsonschema)
+- [`@maxContains`](#@maxcontains)
+- [`@maxProperties`](#@maxproperties)
+- [`@minContains`](#@mincontains)
+- [`@minProperties`](#@minproperties)
+- [`@multipleOf`](#@multipleof)
+- [`@oneOf`](#@oneof)
+- [`@prefixItems`](#@prefixitems)
+- [`@uniqueItems`](#@uniqueitems)
+
+#### `@baseUri`
+
+Set the base URI for any schemas emitted from types within this namespace.
+
+```typespec
+@TypeSpec.JsonSchema.baseUri(baseUri: valueof string)
+```
+
+##### Target
+
+`Namespace`
+
+##### Parameters
+
+| Name    | Type             | Description                                                              |
+| ------- | ---------------- | ------------------------------------------------------------------------ |
+| baseUri | `valueof string` | The base URI. Schema IDs inside this namespace are relative to this URI. |
+
+#### `@contains`
+
+Specify that the array must contain at least one instance of the provided type.
+Use `@minContains` and `@maxContains` to customize how many instances to expect.
+
+```typespec
+@TypeSpec.JsonSchema.contains(value: unknown)
+```
+
+##### Target
+
+`unknown[] | ModelProperty`
+
+##### Parameters
+
+| Name  | Type      | Description                      |
+| ----- | --------- | -------------------------------- |
+| value | `unknown` | The type the array must contain. |
+
+#### `@contentEncoding`
+
+Specify the encoding used for the contents of a string.
+
+```typespec
+@TypeSpec.JsonSchema.contentEncoding(value: valueof string)
+```
+
+##### Target
+
+`string | ModelProperty`
+
+##### Parameters
+
+| Name  | Type             | Description |
+| ----- | ---------------- | ----------- |
+| value | `valueof string` | <br />      |
+
+#### `@contentMediaType`
+
+Specify the content type of content stored in a string.
+
+```typespec
+@TypeSpec.JsonSchema.contentMediaType(value: valueof string)
+```
+
+##### Target
+
+`string | ModelProperty`
+
+##### Parameters
+
+| Name  | Type             | Description                           |
+| ----- | ---------------- | ------------------------------------- |
+| value | `valueof string` | The media type of the string contents |
+
+#### `@contentSchema`
+
+Specify the schema for the contents of a string when interpreted according to the content's
+media type and encoding.
+
+```typespec
+@TypeSpec.JsonSchema.contentSchema(value: unknown)
+```
+
+##### Target
+
+`string | ModelProperty`
+
+##### Parameters
+
+| Name  | Type      | Description                       |
+| ----- | --------- | --------------------------------- |
+| value | `unknown` | The schema of the string contents |
+
+#### `@extension`
+
+Specify a custom property to add to the emitted schema. This is useful for adding custom keywords
+and other vendor-specific extensions. Scalar values need to be specified using `typeof` to be converted to a schema.
+
+For example, `@extension("x-schema", typeof "foo")` will emit a JSON schema value for `x-schema`,
+whereas `@extension("x-schema", "foo")` will emit the raw code `"foo"`.
+
+The value will be treated as a raw value if any of the following are true:
+
+- The value is a scalar value (e.g. string, number, boolean, etc.)
+- The value is wrapped in the `Json<Data>` template
+- The value is provided using the value syntax (e.g. `#{}`, `#[]`)
+
+For example, `@extension("x-schema", { x: "value" })` will emit a JSON schema value for `x-schema`,
+whereas `@extension("x-schema", #{x: "value"})` and `@extension("x-schema", Json<{x: "value"}>)`
+will emit the raw JSON code `{x: "value"}`.
+
+```typespec
+@TypeSpec.JsonSchema.extension(key: valueof string, value: unknown | valueof unknown)
+```
+
+##### Target
+
+`unknown`
+
+##### Parameters
+
+| Name  | Type                           | Description                                                   |
+| ----- | ------------------------------ | ------------------------------------------------------------- |
+| key   | `valueof string`               | The name of the keyword of vendor extension, e.g. `x-custom`. |
+| value | `unknown` \| `valueof unknown` | The value of the keyword.                                     |
+
+#### `@id`
+
+Specify the JSON Schema id. If this model or a parent namespace has a base URI,
+the provided ID will be relative to that base URI.
+
+By default, the id will be constructed based on the declaration's name.
+
+```typespec
+@TypeSpec.JsonSchema.id(id: valueof string)
+```
+
+##### Target
+
+`unknown`
+
+##### Parameters
+
+| Name | Type             | Description                                     |
+| ---- | ---------------- | ----------------------------------------------- |
+| id   | `valueof string` | The id of the JSON schema for this declaration. |
+
+#### `@jsonSchema`
+
+Add to namespaces to emit models within that namespace to JSON schema.
+Add to another declaration to emit that declaration to JSON schema.
+
+Optionally, for namespaces, you can provide a baseUri, and for other declarations,
+you can provide the id.
+
+```typespec
+@TypeSpec.JsonSchema.jsonSchema(baseUri?: valueof string)
+```
+
+##### Target
+
+`unknown`
+
+##### Parameters
+
+| Name    | Type             | Description                                         |
+| ------- | ---------------- | --------------------------------------------------- |
+| baseUri | `valueof string` | Schema IDs are interpreted as relative to this URI. |
+
+#### `@maxContains`
+
+Used in conjunction with the `@contains` decorator,
+specifies that the array must contain at most a certain number of the types provided by the `@contains` decorator.
+
+```typespec
+@TypeSpec.JsonSchema.maxContains(value: valueof int32)
+```
+
+##### Target
+
+`unknown[] | ModelProperty`
+
+##### Parameters
+
+| Name  | Type            | Description                                            |
+| ----- | --------------- | ------------------------------------------------------ |
+| value | `valueof int32` | The maximum number of instances the array must contain |
+
+#### `@maxProperties`
+
+Specify the maximum number of properties this object can have.
+
+```typespec
+@TypeSpec.JsonSchema.maxProperties(value: valueof int32)
+```
+
+##### Target
+
+`Record<unknown> | ModelProperty`
+
+##### Parameters
+
+| Name  | Type            | Description                                            |
+| ----- | --------------- | ------------------------------------------------------ |
+| value | `valueof int32` | The maximum number of properties this object can have. |
+
+#### `@minContains`
+
+Used in conjunction with the `@contains` decorator,
+specifies that the array must contain at least a certain number of the types provided by the `@contains` decorator.
+
+```typespec
+@TypeSpec.JsonSchema.minContains(value: valueof int32)
+```
+
+##### Target
+
+`unknown[] | ModelProperty`
+
+##### Parameters
+
+| Name  | Type            | Description                                            |
+| ----- | --------------- | ------------------------------------------------------ |
+| value | `valueof int32` | The minimum number of instances the array must contain |
+
+#### `@minProperties`
+
+Specify the minimum number of properties this object can have.
+
+```typespec
+@TypeSpec.JsonSchema.minProperties(value: valueof int32)
+```
+
+##### Target
+
+`Record<unknown> | ModelProperty`
+
+##### Parameters
+
+| Name  | Type            | Description                                            |
+| ----- | --------------- | ------------------------------------------------------ |
+| value | `valueof int32` | The minimum number of properties this object can have. |
+
+#### `@multipleOf`
+
+Specify that the numeric type must be a multiple of some numeric value.
+
+```typespec
+@TypeSpec.JsonSchema.multipleOf(value: valueof numeric)
+```
+
+##### Target
+
+`numeric | ModelProperty`
+
+##### Parameters
+
+| Name  | Type              | Description                                        |
+| ----- | ----------------- | -------------------------------------------------- |
+| value | `valueof numeric` | The numeric type must be a multiple of this value. |
+
+#### `@oneOf`
+
+Specify that `oneOf` should be used instead of `anyOf` for that union.
+
+```typespec
+@TypeSpec.JsonSchema.oneOf
+```
+
+##### Target
+
+`Union | ModelProperty`
+
+##### Parameters
+
+None
+
+#### `@prefixItems`
+
+Specify that the target array must begin with the provided types.
+
+```typespec
+@TypeSpec.JsonSchema.prefixItems(value: unknown[])
+```
+
+##### Target
+
+`unknown[] | ModelProperty`
+
+##### Parameters
+
+| Name  | Type        | Description                                                                 |
+| ----- | ----------- | --------------------------------------------------------------------------- |
+| value | `unknown[]` | A tuple containing the types that must be present at the start of the array |
+
+#### `@uniqueItems`
+
+Specify that every item in the array must be unique.
+
+```typespec
+@TypeSpec.JsonSchema.uniqueItems
+```
+
+##### Target
+
+`unknown[] | ModelProperty`
+
+##### Parameters
+
+None

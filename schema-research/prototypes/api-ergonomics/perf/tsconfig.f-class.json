@@ -1,0 +1,1 @@
+{ "extends": "../tsconfig.json", "include": ["../styles/f-class/shoppingCart.ts", "../styles/f-class/businessLogic.ts"], "exclude": [] }

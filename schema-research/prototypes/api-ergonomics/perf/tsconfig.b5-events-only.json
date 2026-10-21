@@ -1,0 +1,1 @@
+{ "extends": "../tsconfig.json", "include": ["../styles/b5-typebox/shoppingCart.ts"], "exclude": [] }

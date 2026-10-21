@@ -1,0 +1,20 @@
+today: 0 errors in styles/today/shoppingCart.ts
+    
+a-builtin: 8 errors in styles/a-builtin/shoppingCart.ts
+    styles/a-builtin/shoppingCart.ts(7,14): error TS9010: Variable must have an explicit type annotation with --isolatedDeclarations.
+    styles/a-builtin/shoppingCart.ts(13,14): error TS9010: Variable must have an explicit type annotation with --isolatedDeclarations.
+b-zod: 9 errors in styles/b-zod/shoppingCart.ts
+    styles/b-zod/shoppingCart.ts(9,14): error TS9010: Variable must have an explicit type annotation with --isolatedDeclarations.
+    styles/b-zod/shoppingCart.ts(14,14): error TS9010: Variable must have an explicit type annotation with --isolatedDeclarations.
+c-type-first: 8 errors in styles/c-type-first/shoppingCart.ts
+    styles/c-type-first/shoppingCart.ts(8,54): error TS9013: Expression type can't be inferred with --isolatedDeclarations.
+    styles/c-type-first/shoppingCart.ts(14,14): error TS9010: Variable must have an explicit type annotation with --isolatedDeclarations.
+d-grouped: 7 errors in styles/d-grouped/shoppingCart.ts
+    styles/d-grouped/shoppingCart.ts(7,14): error TS9010: Variable must have an explicit type annotation with --isolatedDeclarations.
+    styles/d-grouped/shoppingCart.ts(13,14): error TS9010: Variable must have an explicit type annotation with --isolatedDeclarations.
+e-interface: 8 errors in styles/e-interface/shoppingCart.ts
+    styles/e-interface/shoppingCart.ts(7,14): error TS9010: Variable must have an explicit type annotation with --isolatedDeclarations.
+    styles/e-interface/shoppingCart.ts(13,14): error TS9010: Variable must have an explicit type annotation with --isolatedDeclarations.
+f-class: 8 errors in styles/f-class/shoppingCart.ts
+    styles/f-class/shoppingCart.ts(7,14): error TS9010: Variable must have an explicit type annotation with --isolatedDeclarations.
+    styles/f-class/shoppingCart.ts(13,14): error TS9010: Variable must have an explicit type annotation with --isolatedDeclarations.

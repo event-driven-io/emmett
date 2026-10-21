@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=AW-16807787881">
+</script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'AW-16807787881');
+</script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <meta property="og:image" content="https://eventmodeling.org/event-modeling-tutorial.jpg">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="2088">
+  <meta property="og:image:height" content="1225"><title>Event Modeling: What is it? - Event Modeling</title><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta property="og:title" content="Event Modeling: What is it?" />
+<meta property="og:description" content="Event Modeling is a way to design a blueprint for an Information System of any size or scale. It is done in a way that allows the clearest communication of the system&#39;s workings to the largest possible cross-section of roles in an organization. The system can be checked for completeness by following the single thread of data propagation through it." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://eventmodeling.org/posts/what-is-event-modeling/" /><meta property="article:section" content="posts" />
+<meta property="article:published_time" content="2019-06-23T19:01:58+07:00" />
+<meta property="article:modified_time" content="2019-06-23T19:01:58+07:00" />
+
+<meta name="twitter:card" content="summary"/><meta name="twitter:title" content="Event Modeling: What is it?"/>
+<meta name="twitter:description" content="Event Modeling is a way to design a blueprint for an Information System of any size or scale. It is done in a way that allows the clearest communication of the system&#39;s workings to the largest possible cross-section of roles in an organization. The system can be checked for completeness by following the single thread of data propagation through it."/>
+<link rel="stylesheet" type="text/css" media="screen" href="https://eventmodeling.org/css/tailwind.css" />
+</head>
+
+
+  <body>
+    
+    <noscript>
+      <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-N88JZ7B" height="0" width="0"
+        style="display:none;visibility:hidden"></iframe>
+    </noscript>
+    
+    <a rel="me" href="https://techhub.social/@adymitruk" style="display:none;">Mastodon</a>
+    <a rel="me" href="https://techhub.social/@yeray" style="display:none;">Mastodon</a>
+    <a rel="me" href="https://social.vivaldi.net/@leviramsey" style="display:none;">Mastodon</a>
+    <header class="pt-6 pb-12 px-4">
+  <div class="max-w-screen-xl flex flex-col sm:flex-row items-center justify-center mx-auto">
+    <a href="https://eventmodeling.org/"
+      class="sm:mr-15 font-bold text-gray-500 hover:text-gray-900 focus:outline-none focus:text-gray-900">
+      Event Modeling
+    </a>
+    <nav class="flex items-center h-10 justify-center space-x-10">
+      
+      <a href="/" class="font-medium text-gray-500 hover:text-gray-900 focus:outline-none focus:text-gray-900">
+        Home
+      </a>
+      
+      <a href="/posts" class="font-medium text-gray-500 hover:text-gray-900 focus:outline-none focus:text-gray-900">
+        Blog
+      </a>
+      
+      <a href="/resources" class="font-medium text-gray-500 hover:text-gray-900 focus:outline-none focus:text-gray-900">
+        Resources
+      </a>
+      
+      <a href="/about" class="font-medium text-gray-500 hover:text-gray-900 focus:outline-none focus:text-gray-900">
+        About
+      </a>
+      
+    </nav>
+  </div>
+</header>
+
+    
+
+<main class="max-w-screen-md mx-auto px-4">
+  <article>
+    <h1 class="text-3xl leading-9 tracking-tight font-extrabold text-gray-900 pb-5">Event Modeling: What is it?</h1>
+
+    <div class="mb-12 flex items-center">
+      <div class="flex-shrink-0">
+        <a href="https://twitter.com/adymitruk">
+          <img class="h-10 w-10 rounded-full" src="/avatars/adam-dymitruk.jpeg" alt="Adam Dymitruk's avatar" />
+        </a>
+      </div>
+      <div class="ml-3">
+        <p class="text-sm leading-5 font-medium text-gray-900">
+          <a href="https://twitter.com/adymitruk">
+            Adam Dymitruk
+          </a>
+        </p>
+        <div class="flex text-sm leading-5 text-gray-500">
+          <time datetime="2020-03-16">
+            Jun 23, 2019
+          </time>
+          <span class="mx-1">
+            &middot;
+          </span>
+          <span>
+            
+            17 minutes
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="markdown">
+      <h2 id="motivation"><a href="#motivation">Motivation</a></h2>
+<h3 id="moores-law"><a href="#moores-law">Moore&rsquo;s Law</a></h3>
+<p>Digitized Information Systems are a relatively new concept. Humans have been working with information systems for thousands of years. Over centuries banks, insurance companies and many other large scale organizations have managed to succeed.</p>
+<p>With the advent of the transistor, the speed and accuracy of processing information increased by orders of magnitude. What did not gain the same quantum leap is digital storage. This imbalance caused information systems to be optimized for a very small amount of online information. You can see this in the advent of RDBMS technology. What it means is that the compromise was to throw information away.</p>
+<h3 id="human-memory"><a href="#human-memory">Human Memory</a></h3>
+<p>Story telling is something that enables humans to pass knowledge on to subsequent generations and relies heavily on how we store memories - whether logical, visual, auditory or other. This is important because there is a parallel with how information systems were constructed. There is a &ldquo;memory&rdquo; of all your visits to the doctor. It&rsquo;s the ledger of the forms that are filled in with each visit.</p>
+<p>Specifications by example are a way to show how something is supposed to work. This can be seen in successful practices in software such as Behaviour Driven Development. This works well because we communicate by stories more effectively. It ties back to story telling as a way to keep information in society. Our brains are built for it more than they are built for flow-charts and other formats.</p>
+<h2 id="life-after"><a href="#life-after">Life After the Dawn of the Computer Age</a></h2>
+<p>In recent decades, Moore&rsquo;s Law from the side of online storage has caught up. This means that after the initial few decades of living with computer systems, our information systems that are now digitized can use the mechanics that made them effective throughout history.</p>
+<p>This means we have enough storage to not throw away information. The ability to be able to keep a history of all that has happened allows systems to be more reliable by means of audit and specification by example that literally translates to how the system is implemented.</p>
+<p>We also have enough storage to have a cache of different views into what has happened in the system. This is important as we now have made the task of trying to fit all our concerns into one model an unnecessary constraint. In 1956, an IBM harddrive that stored 10MB cost $1M and required $30K monthly budget.</p>
+<h3 id="reality-of-current-tooling"><a href="#reality-of-current-tooling">Reality of Current Tooling</a></h3>
+<p>So we are now at a cross-roads where we have very mature tooling, but that tooling is made for solving a problem we no longer have - being efficient with storage constraints. The new tooling that we see on the rise is what information systems always had: a ledger of what happened - storage is not a major issue anymore. There are many benefits to keeping ledger. They represent the natural way we think about systems - digital or not.</p>
+<h2 id="the-model-that-works"><a href="#the-model-that-works">The Model That Works</a></h2>
+<p><img src="blueprint.jpg" alt="blueprint">
+<!-- raw HTML omitted --><a href="blueprint_large.jpg">high res version</a><!-- raw HTML omitted --></p>
+<p>Time is a concept that is now a core piece of describing a system. The components and classes that we saw in computing are not as important. We can show, by example, what a system is supposed to do from start to finish, on a time line and with no branching - again to make use of that memory aspect of our brains. This is the Event Model. It is used to follow all field values in the UI to the storage of those values to where they finally end up on a report or a screen. It&rsquo;s generally done with sticky notes on a wall or whiteboard - or an online version of a whiteboard. We&rsquo;ll see that simplicity is at the heart of the approach as we will only use 3 types of building blocks as well as traditional wireframes or mockups. Further to keep things simple, we will rely on only 4 patterns of how we structure the diagram.</p>
+<h3 id="simplicity"><a href="#simplicity">Simplicity</a></h3>
+<p>When we want to adopt certain practices or processes to help one another understand and communicate, it is inversely proportional to the amount of learning individuals must do to be proficient in those methods. Put in another way, if an organization chooses to adopt a process called &ldquo;X&rdquo;, and X requires one book and a workshop that takes a week to go through, it nullifies the effectiveness of X, and here&rsquo;s the worst part, <strong>no matter how good X is</strong>.</p>
+<p>When the book is a required reading by the people in an organization, everyone will say they have read it; only half will have actually read it; half of those will claim they understood it; and only half of those will have understood it; and half of those will be able to apply it.</p>
+<p>This is why Event Modeling only uses 3 moving pieces and 4 patterns based on 2 ideas. It takes a few minutes to explain and the rest of the learning is done in practice, transparently where any deficiencies in the understanding of even those few core ideas are quickly corrected.</p>
+<p>This is how you get to an understanding in an organization.</p>
+<h3 id="events"><a href="#events">Events</a></h3>
+<p>Let&rsquo;s say we want to design a hotel website for a hotel chain for allowing our customers to book rooms online and for us to schedule cleaning and any other hotel concerns. We can show what events, or facts, are stored on a timeline of the year in that business. We can pretend we have the system already and ask ourselves what facts were stored as we move forward through time.</p>
+<h3 id="wireframes"><a href="#wireframes">Wireframes</a></h3>
+<p>To bring in the visual part of story-telling we show wireframes or web page mockups across the top. These can be organized in swim-lanes to show different people (or sometimes systems) interacting with our system. We also show any automation here with a symbol like gears to illustrate that the system is doing something. This has an easy to understand set of mechanics of a todo list that a process goes and does and marks items as done. In our hotel example, this could be a payment system or notification system.</p>
+<p><img src="innovate.jpg" alt="innovation">
+<!-- raw HTML omitted --><a href="innovate_large.jpg">high res version</a><!-- raw HTML omitted --></p>
+<p>At this point we have enough to be able to design some systems with some UX/UI people. But there are 2 very fundamental pieces that must be added to the blueprint which show 2 core features of any information system: Empowering the user and informing the user.</p>
+<h3 id="commands"><a href="#commands">Commands</a></h3>
+<p>Most information systems must give an ability for a user to affect state of the system. In our example, we must allow the booking of a room to change the system so that we don&rsquo;t over-book and when that person arrives at that future date, they have a room ready for them.</p>
+<p>Intentions to change the system are encapsulated in a command. As opposed to simply saving form data to a table in a database, this allows us to have a non-technical way to show the intentions while allowing any implementation - although certain ones have advantages as we will see.</p>
+<p><img src="empower.jpg" alt="empower">
+<!-- raw HTML omitted --><a href="empower_large.jpg">high res version</a><!-- raw HTML omitted --></p>
+<p>From the UI and UX perspective this drives a &ldquo;command based UI&rdquo; which goes a long way into helping make composable UIs. With this pattern, it&rsquo;s a lot clearer what the transactional boundaries are both from the technical and business perspectives. The hotel guest either registered successfully or not.</p>
+<p>When there are nuances to what the prerequisites are for having a command succeed, they are elaborated on &ldquo;Given-When-Then&rdquo; style specifications. This is, again, a way to tell a story of what success looks like. There may be a few of these stories to show how a command can and cannot succeed.</p>
+<p>An example might be &ldquo;<strong>Given</strong>: We have registered, and added a payment method, <strong>When</strong>: We try to book a room, <strong>Then</strong>: a room is booked.&rdquo; This form of specification is also referred to as &ldquo;Arrange, Act, Assert&rdquo; and in the UX/UI world &ldquo;Situation, Motivation, Value&rdquo;.</p>
+<h3 id="views"><a href="#views">Views (or Read Models)</a></h3>
+<p>The second part of any information system is the ability to inform the user about the state of the system. Our hotel guest should know about what days are available for certain types of rooms they are interested in staying in. There are usually many of these and support the multi-model aspect of information systems.</p>
+<p><img src="inform.jpg" alt="inform">
+<!-- raw HTML omitted --><a href="inform_large.jpg">high res version</a><!-- raw HTML omitted --></p>
+<p>A view into the facts already in the system has been changing as these new events were being stored. In our hotel system, this calendar view was being updated as new events that affected inventory were happening. Other views may be for the cleaning staff to see which rooms are ready to be cleaned as events about guests checking out are being stored.</p>
+<p>Specifying how a view behaves is very similar to the way we specify how we accept commands with one difference. The views are passive and cannot reject an event after it&rsquo;s been stored in the system. We have &ldquo;<strong>Given</strong>: hotel is set up with 12 ocean view rooms, ocean view room was booked from April 4th - 12th X 12, <strong>Then</strong>: the calendar should show all dates except April 4th - 12th for ocean view availability&rdquo;.</p>
+<h3 id="integration"><a href="#integration">Integration</a></h3>
+<p>We just covered the first 2 patterns of the 4 that are needed to describe most systems. Systems can get information from other systems and send information to other systems. It would be tempting to force these 2 patterns to be an extension of the first 2 and share the same space. However, these interactions are harder to communicate as they don&rsquo;t have that human-visible aspect to them and require some higher level patterns.</p>
+<h3 id="translation"><a href="#translation">Translation</a></h3>
+<p>When we have an external system that&rsquo;s providing us with information, it&rsquo;s helpful to translate that information into a form that is more familiar in our own system. In our hotel system, we may get events from guests&rsquo; GPS coordinates if they opted in to our highly reactive cleaning crew. We would not want to use longitude and latitude pairs as events to specify preconditions in our system. We would rather have events that mean something to us like &ldquo;Guest left hotel&rdquo;, &ldquo;Guest returned to hotel room&rdquo;.</p>
+<p><img src="understand.jpg" alt="understand">
+<!-- raw HTML omitted --><a href="understand_large.jpg">high res version</a><!-- raw HTML omitted --></p>
+<p>Often, translations are simple enough to represent as views that get their information from external events. If we don&rsquo;t use them as any &ldquo;Given&rdquo; parts of tests, the values they store in that view model are simply represented in the command parameters in our state change tests.</p>
+<h3 id="automation"><a href="#automation">Automation</a></h3>
+<p>Our system is going to need to communicate with external services. When the guests in our hotel are paying for their stay when they check out, our system makes a call to a payment processor. We can make the concept of how this occurs with the idea of a &ldquo;todo list&rdquo; for some processor in our system. This todo list shows tasks we need to complete. Our processor goes through that list from time to time (could be milliseconds or days) and sends out a command to the external system to process the payment, as an example. The reply from the external system is then translated into an event that we store back in our system. This way we keep the building blocks that we use in our system as something that&rsquo;s meaningful to us.</p>
+<p><img src="automate.jpg" alt="automate">
+<!-- raw HTML omitted --><a href="automate_large.jpg">high res version</a><!-- raw HTML omitted --></p>
+<p>We show this by putting a processor in the top of our blueprint which has the wireframes. This shows that there are things not evident on the screen but are happening behind the scenes. A user may expect a spinning icon to indicate a delay due to background tasks needing to finish. The specification for this has the form of &ldquo;<strong>Given</strong>: A view of the tasks to do, <strong>When</strong> This command is launched for each item, <strong>Then</strong> These events are expected back.&rdquo;</p>
+<p>In reality, these may be implemented in many different ways such as queues, reactive or real-time constructs. They may even actually be manual todo lists that our employees use. The goal here is to communicate how our system communicates with the outside world when it needs to affect it.</p>
+<h2 id="seven-steps"><a href="#seven-steps">Workshop Format - The 7 Steps</a></h2>
+<p>Event Modeling is done in 7 steps. We explained the end-goal already. So let&rsquo;s rewind to the beginning and show how to build up to the blueprint:</p>
+<h3 id="brain-storming"><a href="#brain-storming">1. Brain Storming</a></h3>
+<p><img src="Step-1.jpg" alt="Step 1">
+<!-- raw HTML omitted --><a href="Step-1_large.jpg">high res version</a><!-- raw HTML omitted --></p>
+<p>We have someone explain the goals of the project and other information. The participants then envision what system would look and behave like. They put down all the events that they can conceive of having happened. Here we gently introduce the concept that only state-changing events are to be specified. Often, people will name &ldquo;guest viewed calendar for room availability&rdquo;. We put those aside for now - they are not events.</p>
+<h3 id="the-plot">2. <a href="#the-plot">The Plot</a></h3>
+<p><img src="Step-2.jpg" alt="Step 2">
+<!-- raw HTML omitted --><a href="Step-2_large.jpg">high res version</a><!-- raw HTML omitted --></p>
+<p>Now the task is to create a plausible story made of these events. So they are arranged in a line and everyone reviews this time line to understand that this makes sense as events that happen in order.</p>
+<h3 id="the-story-board"><a href="#the-story-board">3. The Story Board</a></h3>
+<p><img src="Step-3.jpg" alt="Step 3">
+<!-- raw HTML omitted --><a href="Step-3_large.jpg">high res version</a><!-- raw HTML omitted --></p>
+<p>Next, the wireframes or mockups of the story are needed to address those that are visual learners. More importantly, each field must be represented so that the blueprint for the system has the source of and destination of the information represented from the user&rsquo;s perspective.</p>
+<h4 id="ux-concurrency"><a href="#ux-concurrency">3.1 UX Concurrency</a></h4>
+<p>The wireframes are generally put at the top of the blueprint. They can be divided into separate swimlanes to show what each user sees if there is more than one. There are no screens that appear above one another as we need to capture each change in the system state as a separate vertical slice of the blueprint. The different ordering can be shown in the various specifications. If it is core to the system or very important to communicate, alternate workflows will need to be added to the blueprint. This is part of the last step that shows organization but can be done earlier if helpful.</p>
+<h3 id="identify-inputs"><a href="#identify-inputs">4. Identify Inputs</a></h3>
+<p><img src="Step-4.jpg" alt="Step 4">
+<!-- raw HTML omitted --><a href="Step-4_large.jpg">high res version</a><!-- raw HTML omitted --></p>
+<p>From the earlier section we saw that we need to show how we enable the user to change the state of the system. This is usually the step in which we do this introduction of these blue boxes. Each time an event is stored due to a users action, we link that to the UI by a command that shows what we are getting from the screen or implicitly from client state if it&rsquo;s a web application.</p>
+<h3 id="identify-outputs"><a href="#identify-outputs">5. Identify Outputs</a></h3>
+<p><img src="Step-5.jpg" alt="Step 5">
+<!-- raw HTML omitted --><a href="Step-5_large.jpg">high res version</a><!-- raw HTML omitted --></p>
+<p>Again looking back at our goals for the blueprint, we now have to link information accumulated by storing events back into the UI via views (aka read-models). These may be things like the calendar view in our hotel system that will show the availability of rooms when a user is looking to book a room.</p>
+<h3 id="apply-conways-law"><a href="#apply-conways-law">6. Apply Conway&rsquo;s Law</a></h3>
+<p><img src="Step-6.jpg" alt="Step 6">
+<!-- raw HTML omitted --><a href="Step-6_large.jpg">high res version</a><!-- raw HTML omitted --></p>
+<p>Now that we know how information gets in and out of our system, we can start to look at organizing the events themselves into swimlanes. We need to do this to allow the system to exist as a set of autonomous parts that separate teams can own. This allows specialization to happen to a level that we control instead of falling out of the composition of teams. See <a href="http://melconway.com/Home/Conways_Law.html">Conway&rsquo;s Law</a> by Mel Conway.</p>
+<h3 id="elaborate-scenarios"><a href="#elaborate-scenarios">7. Elaborate Scenarios</a></h3>
+<p>Each workflow step is tied to either a command or a view/read-model. The specifications were explained earlier on. How we make them is still collaboratively with all participants in the same space. A Give-When-Then or Given-Then can be constructed one after the other very rapidly while being reviewed by multiple role representatives. This allows what is traditionally done as user story writing by a dedicated product owner in isolation in a text format, to be done visually in a very small amount of time collaboratively. What&rsquo;s very critical here, is that each specification is tied to exactly one command or view.</p>
+<h3 id="completeness-check"><a href="#completeness-check">Completeness Check</a></h3>
+<p>At this time the event model should have every field accounted for. All information has to have an origin and a destination. Events must facilitate this transition and hold the necessary fields to do so. This rigor is what is required to get the most benefits of the technique.</p>
+<p>A variation of this is where we don&rsquo;t do this final check and rely on absorbing the rework costs. There are scenarios where this is desired.</p>
+<h2 id="project-management"><a href="#project-management">Project Management</a></h2>
+<p>The final output of the exercise if done to completion is a set of very small projects defined by all the scenarios for each workflow step. They are in a format that allows them to be directly translated to what developers will use to make their unit tests. They are also coupled to the adjacent workflow steps by only the contract.</p>
+<p><img src="parallel.jpg" alt="parallel effort">
+<!-- raw HTML omitted --><a href="parallel_large.jpg">high res version</a><!-- raw HTML omitted --></p>
+<h3 id="strong-contracts"><a href="#strong-contracts">Strong Contracts</a></h3>
+<p>Many project management, business and coordination issues are mitigated by the fact that we have made explicit contracts as to the shape of the information of when we start a particular step of the workflow and what is the shape of the data when it&rsquo;s finished. These pre- and post-conditions are what allows the work to be completed in relative isolation and later snap together with the adjoining steps as designed.</p>
+<h4 id="flat-cost-curve"><a href="#flat-cost-curve">Flat Cost Curve</a></h4>
+<p>The biggest impact of using Event Modeling is the flat cost curve of the average feature cost. This is due to the fact that the effort of building each workflow step is not impacted by the development of other workflows. One important thing to understand, is that a workflow step is considered to be repeated on the event model if it uses the same command or view.</p>
+<p><img src="flat-cost-curve.jpg" alt="flat cost curve"></p>
+<p>The impact of this is very far reaching because it is what changes software development back into an engineering practice. It&rsquo;s what makes creating an information system work like the construction of a house. Features can be created in any order. Traditional development cannot rely on estimates because whether the feature gets developed early on versus later in the project impacts the amount of work required. Reprioritizing work makes any previous estimates unreliable.</p>
+<h4 id="done-is-done-done-right"><a href="#done-is-done-done-right">Done is Done Done Right</a></h4>
+<p>When a workflow step is implemented, the act of implementing any other workflow step does not cause the need to revisit this already complete workflow step. It&rsquo;s the reason that the constant feature cost curve can be realized.</p>
+<h4 id="estimates-without-estimating"><a href="#estimates-without-estimating">Estimates without Estimating</a></h4>
+<p>With a constant cost curve, the effort for an organization to implement can simply be measured over many features over time. This is an impartial way to empirically determine the velocity of teams. These numbers are then used to scope, schedule and cost out future projects.</p>
+<h5 id="technical-side-note-about-test-driven-development"><a href="#technical-side-note-about-test-driven-development">Technical Side-Note About Test Driven Development</a></h5>
+<p>This is the impact of the adoption of Agile practices in the industry to put band-aids over the core issue of lack of design. Because the scope of each set of requirements is now per workflow step, the refactoring step of TDD does not impact other workflow steps in the event model. When we don&rsquo;t have an event model, refactoring goes unrestricted and previously completed pieces of work have to be adjusted. The more work is already completed, the more that has to be reviewed and adjusted with each new addition as we build the solution.</p>
+<h4 id="subcontracting"><a href="#subcontracting">Subcontracting</a></h4>
+<p>The constant cost curve gives the opportunity to do fixed-cost projects. Once there is a velocity established for a team, you have the cost of the software for your organization. With this number, you now can price out what you are willing to give contractors in pay for each workflow step they complete.</p>
+<h5 id="guarantees"><a href="#guarantees">Guarantees</a></h5>
+<p>Since each workflow step is protected from being affected by other workflow steps, any deficiencies are to be guaranteed by who is delivering them with non-billable work. So in the case of a subcontractor doing a bad job just to get more billable items done quickly, they will have to have the next hours of work dedicated to fixing deficiencies of work already done before. This evens out their effective rate of pay because they are not working on new delivarables.</p>
+<p>This can be carried out over longer periods within an employee engagement by making these metrics available through different checkpoints for performance.</p>
+<p>Due to the effective pay self-adjusting to the capability of the individual, it is also a way to on-board new employees and pay them fairly while they are in the probation stage of the engagement. This contract-to-hire process removes the subjective and largely ineffective interview process for technical positions.</p>
+<h4 id="prioritization"><a href="#prioritization">Prioritization</a></h4>
+<p>Moving work on a schedule as to what steps are going to be implemented first is done without changing the estimated costs of each item. This ensures that prioritization of work has no impact in the total cost also. The constant cost curve is required to allow this &ldquo;agility&rdquo; of reprioritizing features.</p>
+<h4 id="change-management"><a href="#change-management">Change Management</a></h4>
+<p>When the plans change, we simply adjust the event model. This is usually done by just copying the current one and adjusting. Now we can see where the differences are. If a new piece of information is added to one event, that constitutes a new version of the workflow that creates it. Same with the views. If these have not been implemented yet, they don&rsquo;t change our estimate. If they are already implemented, they add another unit of work to our plan because it&rsquo;s considered a replacement. There are a few more rules around this. The end result is a definitive guide for change management.</p>
+<h2 id="security"><a href="#security">Security</a></h2>
+<p><img src="arrows.jpg" alt="security arrows">
+<!-- raw HTML omitted --><a href="arrows_large.jpg">high res version</a><!-- raw HTML omitted --></p>
+<p>With an event model, the solution shows exactly where, and equally importantly, when sensitive data crosses boundaries. With traditional audits, the number of interviews with staff was time consuming and at risk of missing important areas. Security concerns are addressed most responsibly when the applications have an event model to reference.</p>
+<h2 id="legacy-systems"><a href="#legacy-systems">Legacy Systems</a></h2>
+<p>Most of the scenarios that real organizations face is where a system is already in place. The main way to deal with a system that is hard to manage because of complexity and lack of understanding is to either rewrite it or to refactor it while it runs. Both of these are very costly.</p>
+<p>A third, less risky option exists: Freeze the old system. With proper buy-in, the organization can agree to not alter the existing system. Instead, dealing with bugs and adding new functionality is done on the side as a side-car solution.</p>
+<p>Events can be gathered from the database of the old system and make views of that state - employing the <a href="#translation">translate</a> pattern described previously. Y-valve redirection of user action can add new functionality in the side solution. An example which fixes a bug (notice that we use the <a href="./#automation">external integration pattern</a> and extends the old system to add profile pictures is shown here:</p>
+<p><img src="event-modeling-legacy-side-car.jpg" alt="legacy side car event model"></p>
+<p>This pattern allows an organization to stop putting energy into the sub-optimal existing system and get unblocked from delivering value via the patterns that enable the benefits of the Event Model.</p>
+<h2 id="conclusion-for-now"><a href="#conclusion-for-now">Conclusion for Now</a></h2>
+<p>Event Modeling is changing how information systems are built. With simple repeatable patterns, information systems are as predicable as engineering efforts should be.</p>
+<p>(to be continued)</p>
+<p>** This is a periodically updated article that will migrate to a page on the site as a resource.</p>
+
+    </div>
+
+    <div class="post-tags">
+      
+      
+      
+    </div></article>
+</main><aside class="max-w-screen-md mx-auto pt-12 px-4">
+  <noscript>
+    Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a>
+  </noscript>
+  <div id="disqus_thread"></div>
+  <a href="http://disqus.com/" class="dsq-brlink">Comments powered by <span class="logo-disqus">Disqus</span></a>
+</aside>
+
+<script type="text/javascript">
+  (function () {
+    
+    
+    if (window.location.hostname == "localhost") {
+      return;
+    }
+
+    var dsq = document.createElement('script');
+    dsq.type = 'text/javascript';
+    dsq.async = true;
+    dsq.src = '//eventmodeling-org.disqus.com/embed.js';
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+
+    <footer>
+  <div class="max-w-screen-xl mx-auto pt-12 pb-5 px-4">
+
+    <nav class="flex flex-col sm:flex-row justify-center text-base leading-6 text-gray-500">
+      
+      <div class="px-5 py-2">
+        <a href="/" class="hover:text-gray-900">
+          Home
+        </a>
+      </div>
+      
+      <div class="px-5 py-2">
+        <a href="/posts" class="hover:text-gray-900">
+          Blog
+        </a>
+      </div>
+      
+      <div class="px-5 py-2">
+        <a href="/resources" class="hover:text-gray-900">
+          Resources
+        </a>
+      </div>
+      
+      <div class="px-5 py-2">
+        <a href="/about" class="hover:text-gray-900">
+          About
+        </a>
+      </div>
+      
+    </nav>
+
+    <nav class="mt-8 flex justify-center text-gray-400">
+      <a href="https://twitter.com/eventmodeling" class="ml-6 hover:text-gray-500">
+        <span class="sr-only">Twitter</span>
+        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+          <path
+            d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
+        </svg>
+      </a>
+      <a href="https://github.com/event-modeling" class="ml-6 hover:text-gray-500">
+        <span class="sr-only">GitHub</span>
+        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+          <path fill-rule="evenodd"
+            d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+            clip-rule="evenodd" />
+        </svg>
+      </a>
+      <a href="/index.xml" class="ml-6 hover:text-gray-500">
+        <span class="sr-only">RSS</span>
+        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+          <circle cx="6.18" cy="17.82" r="2.18"></circle>
+          <path
+            d="M4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83c0-8.59-6.97-15.56-15.56-15.56zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z">
+          </path>
+        </svg>
+      </a>
+    </nav>
+
+    <div class="mt-8 text-base leading-6 text-gray-400 flex justify-center">
+      <p>Designed with</p>
+      <svg class="text-red-500 h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+        <path
+          d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z">
+        </path>
+      </svg>
+      <p>by <a href="https://x.com/yordisprieto" class="text-purple-500">@yordisprieto</a></p>
+    </div>
+
+  </div>
+</footer>
+
+  </body>
+
+</html>

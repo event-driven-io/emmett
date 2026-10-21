@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/ShoppingCartConfirmed",
+  "title": "ShoppingCartConfirmed",
+  "description": "Shopping cart was confirmed by the client",
+  "type": "object",
+  "properties": {
+    "shoppingCartId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "confirmedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "totalAmount": {
+      "type": "string",
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+      "x-precision": 10,
+      "x-scale": 2,
+      "x-currency": "EUR"
+    },
+    "itemsCount": {
+      "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647
+    },
+    "streamPosition": {
+      "type": "string",
+      "pattern": "^-?[0-9]+$"
+    },
+    "tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "attributes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "shoppingCartId",
+    "confirmedAt",
+    "totalAmount",
+    "streamPosition"
+  ]
+}

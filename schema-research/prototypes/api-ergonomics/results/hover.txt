@@ -1,0 +1,279 @@
+=== today: hover on 'type ShoppingCartConfirmed'
+type ShoppingCartConfirmed = Readonly<{
+    type: "ShoppingCartConfirmed";
+    data: {
+        shoppingCartId: string;
+        confirmedAt: Date;
+    };
+    metadata: ShoppingCartEventMetadata;
+}> & {
+    readonly kind?: "Event";
+}
+=== today: hover on 'type ShoppingCartEvent'
+type ShoppingCartEvent = ProductItemAddedToShoppingCart | ProductItemRemovedFromShoppingCart | ShoppingCartConfirmed | ShoppingCartCancelled
+=== today: hover on value ShoppingCartConfirmed (definition)
+type ShoppingCartConfirmed = Readonly<{
+    type: "ShoppingCartConfirmed";
+    data: {
+        shoppingCartId: string;
+        confirmedAt: Date;
+    };
+    metadata: ShoppingCartEventMetadata;
+}> & {
+    readonly kind?: "Event";
+}
+=== a-builtin: hover on 'type ShoppingCartConfirmed'
+type ShoppingCartConfirmed = Readonly<{
+    type: "ShoppingCartConfirmed";
+    data: {
+        shoppingCartId: string;
+        confirmedAt: Date;
+    };
+    metadata: {
+        clientId: string;
+    };
+}> & {
+    readonly kind?: "Event";
+}
+=== a-builtin: hover on 'type ShoppingCartEvent'
+type ShoppingCartEvent = Event<"ProductItemAddedToShoppingCart", {
+    shoppingCartId: string;
+    clientId: string;
+    productItem: {
+        productId: string;
+        quantity: number;
+        unitPrice: number;
+    };
+    addedAt: Date;
+}, {
+    clientId: string;
+}> | Event<"ProductItemRemovedFromShoppingCart", {
+    shoppingCartId: string;
+    productItem: {
+        productId: string;
+        quantity: number;
+        unitPrice: number;
+    };
+    removedAt: Date;
+}, {
+    clientId: string;
+}> | Event<"ShoppingCartConfirmed", {
+    shoppingCartId: string;
+    confirmedAt: Date;
+}, {
+    clientId: string;
+}> | Event<"ShoppingCartCancelled", {
+    shoppingCartId: string;
+    cancelledAt: Date;
+}, {
+    clientId: string;
+}>
+=== a-builtin: hover on value ShoppingCartConfirmed (definition)
+const ShoppingCartConfirmed: EventDefinition<"ShoppingCartConfirmed", {
+    shoppingCartId: string;
+    confirmedAt: Date;
+}, {
+    clientId: string;
+}>
+=== b-zod: hover on 'type ShoppingCartConfirmed'
+type ShoppingCartConfirmed = Readonly<{
+    type: "ShoppingCartConfirmed";
+    data: {
+        shoppingCartId: string;
+        confirmedAt: Date;
+    };
+    metadata: {
+        clientId: string;
+    };
+}> & {
+    readonly kind?: "Event";
+}
+=== b-zod: hover on 'type ShoppingCartEvent'
+type ShoppingCartEvent = Event<"ProductItemAddedToShoppingCart", {
+    shoppingCartId: string;
+    clientId: string;
+    productItem: {
+        productId: string;
+        quantity: number;
+        unitPrice: number;
+    };
+    addedAt: Date;
+}, {
+    clientId: string;
+}> | Event<"ProductItemRemovedFromShoppingCart", {
+    shoppingCartId: string;
+    productItem: {
+        productId: string;
+        quantity: number;
+        unitPrice: number;
+    };
+    removedAt: Date;
+}, {
+    clientId: string;
+}> | Event<"ShoppingCartConfirmed", {
+    shoppingCartId: string;
+    confirmedAt: Date;
+}, {
+    clientId: string;
+}> | Event<"ShoppingCartCancelled", {
+    shoppingCartId: string;
+    cancelledAt: Date;
+}, {
+    clientId: string;
+}>
+=== b-zod: hover on value ShoppingCartConfirmed (definition)
+const ShoppingCartConfirmed: EventDefinition<"ShoppingCartConfirmed", {
+    shoppingCartId: string;
+    confirmedAt: Date;
+}, {
+    clientId: string;
+}>
+=== c-type-first: hover on 'type ShoppingCartConfirmed'
+type ShoppingCartConfirmed = Readonly<{
+    type: "ShoppingCartConfirmed";
+    data: {
+        shoppingCartId: string;
+        confirmedAt: Date;
+    };
+    metadata: ShoppingCartEventMetadata;
+}> & {
+    readonly kind?: "Event";
+}
+=== c-type-first: hover on 'type ShoppingCartEvent'
+type ShoppingCartEvent = ProductItemAddedToShoppingCart | ProductItemRemovedFromShoppingCart | ShoppingCartConfirmed | ShoppingCartCancelled
+=== c-type-first: hover on value ShoppingCartConfirmed (definition)
+type ShoppingCartConfirmed = Readonly<{
+    type: "ShoppingCartConfirmed";
+    data: {
+        shoppingCartId: string;
+        confirmedAt: Date;
+    };
+    metadata: ShoppingCartEventMetadata;
+}> & {
+    readonly kind?: "Event";
+}
+=== d-grouped: type:ShoppingCartEvent
+type ShoppingCartEvent = Event<"ProductItemAddedToShoppingCart", {
+    shoppingCartId: string;
+    clientId: string;
+    productItem: {
+        productId: string;
+        quantity: number;
+        unitPrice: number;
+    };
+    addedAt: Date;
+}, {
+    clientId: string;
+}> | Event<"ProductItemRemovedFromShoppingCart", {
+    shoppingCartId: string;
+    productItem: {
+        productId: string;
+        quantity: number;
+        unitPrice: number;
+    };
+    removedAt: Date;
+}, {
+    clientId: string;
+}> | Event<"ShoppingCartConfirmed", {
+    shoppingCartId: string;
+    confirmedAt: Date;
+}, {
+    clientId: string;
+}> | Event<"ShoppingCartCancelled", {
+    shoppingCartId: string;
+    cancelledAt: Date;
+}, {
+    clientId: string;
+}>
+=== d-grouped: type:ShoppingCartEvents
+type ShoppingCartEvents = {
+    readonly ProductItemAddedToShoppingCart: Event<"ProductItemAddedToShoppingCart", {
+        shoppingCartId: string;
+        clientId: string;
+        productItem: {
+            productId: string;
+            quantity: number;
+            unitPrice: number;
+        };
+        addedAt: Date;
+    }, {
+        clientId: string;
+    }>;
+    readonly ProductItemRemovedFromShoppingCart: Event<"ProductItemRemovedFromShoppingCart", {
+        shoppingCartId: string;
+        productItem: {
+            productId: string;
+            quantity: number;
+            unitPrice: number;
+        };
+        removedAt: Date;
+    }, {
+        clientId: string;
+    }>;
+    readonly ShoppingCartConfirmed: Event<"ShoppingCartConfirmed", {
+        shoppingCartId: string;
+        confirmedAt: Date;
+    }, {
+        clientId: string;
+    }>;
+    readonly ShoppingCartCancelled: Event<...>;
+}
+=== d-grouped: ShoppingCartEvent
+const ShoppingCartEvent: GroupedEvents<{
+    readonly ProductItemAddedToShoppingCart: {
+        readonly shoppingCartId: Schema<string, string>;
+        readonly clientId: Schema<string, string>;
+        readonly productItem: ObjectSchema<{
+            readonly productId: Schema<string, string>;
+            readonly quantity: Schema<number, number>;
+        } & {
+            unitPrice: Schema<number, number>;
+        }>;
+        readonly addedAt: Schema<Date, string | Date>;
+    };
+    readonly ProductItemRemovedFromShoppingCart: {
+        readonly shoppingCartId: Schema<string, string>;
+        readonly productItem: ObjectSchema<...>;
+        readonly removedAt: Schema<...>;
+    };
+    readonly ShoppingCartConfirmed: {
+        ...;
+    };
+    readonly ShoppingCartCancelled: {
+        ...;
+    };
+}, {
+    ...;
+}> & GroupProps<...>
+(parameter) command: Command<"AddProductItemToShoppingCart", {
+    clientId: string;
+    shoppingCartId: string;
+    productItem: {
+        productId: string;
+        quantity: number;
+        unitPrice: number;
+    };
+}, {
+    now: Date;
+    clientId: string;
+}> | Command<"RemoveProductItemFromShoppingCart", {
+    shoppingCartId: string;
+    productItem: {
+        productId: string;
+        quantity: number;
+        unitPrice: number;
+    };
+}, {
+    now: Date;
+    clientId: string;
+}> | Command<"ConfirmShoppingCart", {
+    shoppingCartId: string;
+}, {
+    now: Date;
+    clientId: string;
+}> | Command<"CancelShoppingCart", {
+    shoppingCartId: string;
+}, {
+    now: Date;
+    clientId: string;
+}>

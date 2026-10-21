@@ -1,0 +1,701 @@
+---
+order: 2
+---
+
+# What's New
+
+## New in 26.2
+
+For breaking changes and deprecation notices, see the [upgrade guide](upgrade-guide.md).
+
+* [Licensing Changes](#licensing-changes)
+* [Kontrol Plane](#kontrol-plane)
+* [Embedded UI Improvements](#embedded-ui)
+* [Multi-field User-defined Indexes](#multi-field-user-defined-indexes)
+* [Persistent Subscriptions Truncate API](#persistent-subscriptions-truncate-api)
+* [Disable TLS Option](#disable-tls)
+* [Miscellaneous](#miscellaneous-improvements-26-2)
+
+### Licensing Changes
+
+From 26.2, all multi-node deployments require a valid license key to be configured. Single-node deployments, however, now have unrestricted access to all licensed features out of the box (excluding features that require multiple nodes).
+
+See the [blog post](https://kurrentdb.kurrent.io/blog/licensing-in-kurrentdb-v26-2-and-beyond-what-s-free-and-what-s-licensed/) and [license key documentation](installation.md#license-keys) for details.
+
+### Kontrol Plane
+
+A database cluster can now have its leader appointed by the `Kontrol Plane`, a separate Raft-based cluster, instead of electing one internally.
+
+The Kontrol Plane is a significant step in our strategy to support multiple databases and also to store distributed but ephemeral or mutable data such as distributed leases and checkpoints.
+
+The Kontrol Plane is off by default and changes nothing until you turn it on.
+
+See the Kontrol Plane [configuration guide](../configuration/kontrol-plane.md) for details.
+
+### Embedded UI
+
+The embedded web UI, which has been split for a little while between a 'new' UI and the older 'admin UI', has been unified and given a refresh with many small usability improvements including
+
+- Easier navigation in the stream browser.
+- One-click navigation between nodes.
+- Light and dark themes.
+- A friendly database name and a PRODUCTION warning shown in the top bar.
+
+See the embedded UI [documentation](../features/admin-ui.md) for details, as well as [Kurrent Navigator](https://navigator.kurrent.io/) and [Gaffer](https://gaffer.kurrent.io/).
+
+### Multi-field User-defined Indexes
+
+User defined indexes can now index multiple fields. For example, create an index:
+
+```http
+POST https://127.0.0.1:2113/v2/indexes/orders-by-country
+Content-Type: application/json
+Authorization: Basic YWRtaW46Y2hhbmdlaXQ=
+
+{
+  "filter": "rec => rec.schema.name == 'OrderCreated'",
+  "fields": [
+    {
+      "name": "country",
+      "selector": "rec => rec.value.country",
+      "type": "INDEX_FIELD_TYPE_STRING"
+    },
+    {
+      "name": "total",
+      "selector": "rec => rec.value.total",
+      "type": "INDEX_FIELD_TYPE_DOUBLE"
+    }
+  ]
+}
+```
+
+And then query it:
+
+```sql
+select * from usr."orders-by-country" where field_country = 'Mauritius' and field_total > 149.99 limit 10
+```
+
+See the user defined index [documentation](../features/indexes/user-defined.md) for details.
+
+
+### Persistent Subscriptions Truncate API
+
+Previously, messages parked by a persistent subscription could be replayed, but discarding them was only possible by deleting the parked message stream. In 26.2 a `truncateParked` API has been added which works in the same way as the `replayParked` API, except that instead of sending the messages to the clients it simply discards them. The API is available via HTTP, gRPC, and in the embedded UI.
+
+See the parked messages [documentation](../features/persistent-subscriptions.md#parked-messages) for details.
+
+### Disable TLS
+
+A new `DisableTls` option lets you run KurrentDB without TLS while keeping authentication and authorization active. This is intended for development and test environments where setting up certificates is inconvenient, and for deployments on internal trusted networks.
+
+Unlike `Insecure`, which turns off TLS *and* all authentication/authorization, `DisableTls` only turns off transport security. Users still need valid credentials, and authorization policies still apply.
+
+You must also set a `ClusterSecret` so that the node can authenticate inter-node traffic in place of mutual TLS. In a multi-node cluster, the same value must be set on every node.
+
+::: warning
+When TLS is disabled, all traffic, including authentication credentials and the `ClusterSecret`, is transmitted in cleartext. Do not enable `DisableTls` on networks where untrusted parties can observe traffic.
+:::
+
+See the [security documentation](../security/security-options.md#running-without-tls) for details.
+
+
+### Miscellaneous Improvements 26.2
+
+- Increased maximum number of chunks
+
+  The maximum number of logical chunks in a database has been raised from 400,000 to 600,000, increasing the maximum logical database size with the default 256 MB chunk size from roughly 100 TB to 150 TB. As before, the nodes log warnings and then errors as the limit is being approached.
+
+- Configurable gRPC response compression level
+
+  gRPC responses are gzip-compressed when the client supports it. The compression level, previously fixed at `Optimal`, can now be set with the `CompressionLevel` option. Allowed values are `NoCompression`, `Fastest`, `Optimal` (default), and `SmallestSize`; higher levels reduce network traffic at the cost of more CPU. See the [networking configuration](../configuration/networking.md#grpc-response-compression) for details.
+
+- Configurable location and size limit for SQL engine temporary files
+
+  Queries run by the embedded SQL engine (DuckDB) write intermediate results to disk when they don't fit in memory. The new `SqlEngineTempDirectory` option sets where these temporary files are written (default `kurrent.ddb.tmp` inside the database directory), and `SqlEngineTempDirectorySizeLimit` caps how much space they may use in bytes (default: 90% of the available space on that volume). Queries that would exceed the limit fail rather than filling the disk. See the [database configuration](../configuration/db-config.md#sql-engine-temporary-files) for details.
+
+- Disk usage metrics for index and log drives
+
+  The `kurrentdb_sys_disk_bytes` metric previously reported used and total bytes only for the drive holding the database. It now also reports the index and log drives when they are on different drives.
+
+## New in 26.1
+
+Features
+* [SQL API](#sql-api)
+* [Projections V2](#projections-v2)
+* [Connectors: Webhook Source](#connectors-webhook-source)
+
+Changes / Improvements
+* [Multi-stream Appends Improvements](#multi-stream-appends-improvements)
+* [Persistent Subscriptions Stability and Performance](#persistent-subscriptions-stability-and-performance)
+* [Per-signal OTLP Endpoint Configuration](#per-signal-otlp-endpoint-configuration)
+* [OAuth Support for Microsoft Entra](#oauth-support-for-microsoft-entra)
+* [OAuth and Ldap Plugin Configuration](#oauth-and-ldap-plugin-configuration)
+* [DisableClientAuthEkuValidation Option](#disableclientauthekuvalidation-option)
+* [Projections Access Created Property](#projections-access-created-property)
+
+For breaking changes and deprecation notices, see the [upgrade guide](upgrade-guide.md).
+
+### SQL API
+
+KurrentDB 26.1 introduces support for the [Arrow Flight SQL](https://arrow.apache.org/docs/format/FlightSql.html) protocol, giving general purpose Arrow Flight SQL clients an API to query the indexed event log.
+
+See the [documentation](../features/queries/flightsql.md) for details.
+
+### Projections V2
+
+<Badge text="Experimental" type="warning" vertical="middle"/>
+
+A new projection engine has been added, facilitating partition-based parallel processing.
+
+See the [documentation](../features/projections/engine-v2.md) for details.
+
+### Multi-stream Appends Improvements
+
+Multi-stream appends already allow writing to multiple streams in one atomic operation, with an expected version for each stream being written to which must be satisfied for the operation to be accepted. In 26.1 expected versions can be specified for streams even if they are not being written to in the operation. e.g. you can write to `streamA` conditionally upon the version of `streamB`.
+
+Within a multi-stream append operation, it used to be required that events for a particular stream must be grouped together: it was not possible to write to `streamA`, then `streamB`, then `streamA` in one operation. This limitation has been removed. A client upgrade is necessary as well as a server upgrade.
+
+A new expected version `SoftDeleted` has been added, which allows the operation to proceed only if the target stream is in a soft deleted state.
+
+### Persistent Subscriptions Stability and Performance
+
+Persistent subscriptions using the `pinned` strategies have improved performance under burst load.
+
+Other conditions have been identified and fixed where a persistent subscription may not always resume after a leader election, or after a TCP client (excluding the dotnet TCP client) disconnects and reconnects.
+
+These improvements and fixes are being backported to 24.10 and 26.0.
+
+### Per-signal OTLP Endpoint Configuration
+
+Allow metrics and logs to be exported to different OTLP endpoints by adding optional per-signal OTLP overrides under the Metrics and Logs config sections. Unspecified properties inherit from the shared OpenTelemetry:Otlp section, preserving backwards compatibility.
+
+Also applies to Headers and other properties of OtlpExporterOptions
+
+See the [documentation](../diagnostics/integrations.md#per-signal-otlp-endpoints) for details.
+
+### OAuth Support for Microsoft Entra
+
+The new setting `OAuth:DisableCodeChallengeMethodsSupportedValidation` disables validation of the `code_challenge_methods_supported` field in the identity provider's discovery document.
+
+Enable this when using an identity provider such as Microsoft Entra that supports PKCE but does not advertise it in the discovery document.
+
+See the [documentation](../security/user-authentication.md#oauth-authentication) for details.
+
+### OAuth and Ldap Plugin Configuration
+
+The OAuth and Ldap plugins are now also able to read configuration settings from environment variables and/or command line options. Previously, and in contrast to all the other configuration options, the OAuth and Ldap plugins could only take their configuration from a file.
+
+### DisableClientAuthEkuValidation Option
+
+Publicly trusted certificate authorities are moving away from issuing certificates with the `clientAuth` EKU, largely driven by changes to the [Chrome Root Program policy](https://www.chromium.org/Home/chromium-security/root-ca-policy/).
+
+This option disables validation of the presence of the `clientAuth` EKU when a node connects to another, allowing KurrentDB to be used with new certificates issued by publicly trusted CAs.
+
+See the [documentation](../security/protocol-security.md#disable-client-authentication-eku-validation) for details.
+
+### Projections Access Created Property
+
+JavaScript projections can now access the `created` property on events, which is the ISO 8601 timestamp of when the event was written to the database. This applies to the traditional engine and also the experimental V2 engine.
+
+### Connectors: Webhook Source
+
+The Webhook Source Connector receives HTTP requests from external systems and appends them as events to KurrentDB streams, enabling seamless integration with services that publish events via webhooks.
+
+The connector exposes a configurable HTTP endpoint and offers flexible routing options to control which KurrentDB streams receive the incoming requests.
+
+Refer to the [documentation](../features/connectors/sources/webhook.md) for instructions on setting up a Webhook source connector.
+
+
+## New in 26.0
+
+Features
+* [User Defined Indexes](#user-defined-indexes)
+* [Archiving Support for GCP and Azure](#archiving-support-for-gcp-and-azure)
+* [Connectors: Kafka Source](#connectors-kafka-source)
+* [Connectors: SQL Sink](#connectors-sql-sink)
+
+Changes / Improvements
+
+* [Improved Request Processing](#improved-request-processing)
+* [Additional Thread Pool Metric](#additional-thread-pool-metric)
+* [YAML Config file priority](#yaml-config-file-priority)
+* [Configurable SLOW MESSAGE Thresholds](#configurable-slow-message-thresholds)
+* [.NET 10](#net-10)
+* [Connectors: Tracker fix](#connectors-fix-position-tracker-not-accounting-for-duplicate-track-calls)
+* [Connectors: Performance](#connectors-performance-improvements)
+
+For breaking changes and deprecation notices, see the [upgrade guide](upgrade-guide.md).
+
+### User Defined Indexes
+
+KurrentDB 26.0 adds [user-defined secondary indexes](../features/indexes/user-defined.md), which advance the [secondary indexes](../features/indexes/secondary.md) added in 25.1. Users can now define custom secondary indexes from record content for fast, field-based reads, subscriptions, and UI queries (e.g. “orders-by-country”). Indexes follow the log and store their data separately on each node, so you get targeted access without increasing log size.
+
+### Archiving support for GCP and Azure
+
+Previously, only Amazon S3 could be used as the blob storage for archived chunks. Now Azure and GCP can be used.
+- [Azure Documentation](../features/archiving.md#microsoft-azure-configuration)
+- [GCP Documentation](../features/archiving.md#google-cloud-platform-configuration)
+
+### Improved Request Processing
+
+#### Readers
+
+Previously, read requests were distributed round-robin across multiple reader queues, with the number of queues controlled by the `ReaderThreadsCount` setting. It was possible for a fast request to be delayed behind a slow one if both landed in the same queue, even while other queues were idle.
+
+Now all read requests go through a single virtual queue, and `ReaderThreadsCount` controls the number of reads that can be executed concurrently. A fast request can no longer be delayed behind a slow one unless the maximum number of reads that can be executed concurrently are already in progress.
+
+#### Workers
+
+The `WorkerThreads` setting is now deprecated and has no effect. Similarly to the readers, it was possible for a fast work item to be delayed behind a slow one even while another worker was idle. The work done by the workers is now executed without a concurrency limit. Work items for the same TCP connection are still executed in order.
+
+### Additional Thread Pool Metric
+
+The length of the thread pool queue in seconds is now included as a metric, similarly to the other queues.
+
+The length of the thread pool queue in items is now included in the stats files, similarly to the other queues.
+
+### YAML Config File Priority
+
+The primary yaml config file now takes precedence over the json files (`logconfig.json`, `kestrelsettings.json`, `metricsconfig.json` and any custom json in the configuration directory).
+
+This allows the main config file to override the defaults provided in those `.json` files that ship with the product, without having to edit those files.
+
+### Configurable SLOW MESSAGE Thresholds
+
+KurrentDB logs when message handling takes more than an expected threshold. Historically, these thresholds have been somewhat arbitrary, resulting in unnecessary noise on some deployments.
+
+The thresholds can now be configured per queue or bus in `metricsconfig.json` (which is now populated with the previous defaults), or can be overridden in the main yaml config file as follows:
+
+```yaml
+Metrics:
+	SlowMessageMilliseconds:
+		MainBus: 48
+		PersistentSubscriptionsBus: 50
+		ProjectionManagerInputBus: 48
+		ProjectionManagerOutputBus: 48
+		ProjectionWorkerInputBus: 48
+		ProjectionWorkerOutputBus: 48
+		StorageReaderBus: 200
+		StorageWriterBus: 500
+		SubscriptionsBus: 50
+		WorkerBus: 200
+```
+
+Use -1 to indicate that slow messages should not be logged.
+
+### .NET 10
+
+Under the hood, KurrentDB 26.0 uses the latest dotnet runtime: .NET 10.
+
+### Connectors: Kafka Source
+
+The Kafka Source Connector consumes messages from Kafka topics and appends them to KurrentDB streams, enabling seamless integration between the two platforms.
+
+The connector supports consuming from multiple partitions concurrently and offers flexible routing options to control which KurrentDB streams receive the messages. 
+
+Refer to the [documentation](../features/connectors/sources/kafka.md) for instructions on setting up a Kafka source connector.
+
+### Connectors: SQL Sink
+
+The SQL Sink Connector writes events from KurrentDB to SQL databases (Microsoft SQL Server and PostgreSQL) by executing configurable SQL statements.
+
+You can define custom SQL statement templates with parameter placeholders and JavaScript functions to extract values from event data and map them to SQL parameters.
+
+Refer to the [documentation](../features/connectors/sinks/sql.md) for instructions on setting up a SQL sink connector.
+
+### Connectors: Fix position tracker not accounting for duplicate track calls
+
+The position tracker in connectors has been updated to correctly handle duplicate track calls. Previously, duplicate calls to track the same position would cause an IndexOutOfRangeException. This fix ensures that duplicate track calls are safely ignored, improving connector reliability.
+
+### Connectors: Performance improvements
+
+Improved connector performance through a new position tracker and optimized asynchronous operations. Memory allocations and overhead are reduced, particularly when operations complete synchronously.
+
+## New in 25.1
+
+These are the new features and important changes and in KurrentDB 25.1:
+
+Features
+* [Secondary Indexing](#secondary-indexing)
+* [Multi-stream Appends](#multi-stream-appends)
+* [Log Record Properties](#log-record-properties)
+* [Database Stats](#database-stats)
+* [Ad-hoc SQL Queries](#ad-hoc-sql-queries)
+* [Windows Service](#windows-service)
+* [OpenTelemetry Logs Export](#opentelemetry-logs-export)
+
+Changes / Improvements
+* [Server Garbage Collection](#server-garbage-collection)
+* [StreamInfoCacheCapacity default](#streaminfocachecapacity-default)
+* [Connectors](#connectors)
+* [Archiving](#archiving)
+* [Additional Projection Metrics](#additional-projection-metrics)
+* [Additional Persistent Subscription Metrics](#additional-persistent-subscription-metrics)
+* [Miscellaneous Quality of Life Improvements](#miscellaneous-quality-of-life-improvements)
+
+For breaking changes and deprecation notices, see the [upgrade guide](upgrade-guide.md).
+
+### Secondary Indexing
+
+In addition to the [default index](../features/indexes/default.md), KurrentDB v25.1 introduces default secondary indexes for categories and event types. These indexes provide functionality that is similar to the existing `$by-category` and `$by-event-type` system projections, but with significant performance and storage efficiency improvements.
+
+Future releases will add support for custom secondary indexes, aiming to mitigate the need to use custom projections that produce link records.
+
+Learn more about [secondary indexes](../features/indexes/secondary.md).
+
+### Multi-stream Appends
+
+The server now supports appending to multiple streams atomically in one write request.
+
+Events `e1, ..., eN` can be appended to stream `s1` and events `f1, ..., fN` being appended to stream `s2`, and so on with other streams, all in one atomic operation.
+
+An optimistic concurrency check can be provided for each stream, and the write operation will only succeed if all the checks are successful.
+
+Using this feature requires the latest client libraries that support it.
+
+### Log record properties
+
+Historically events have been appended with optional bytes for event metadata. The server now supports receiving this data in a structured way. The primary goal is to allow adding and retrieving event properties without serialization and deserialization overhead. In KurrentDB, log record (event) properties are stored as key-value pairs, where keys are strings and values can be of various types (string, int, bool, etc). This makes properties close to the Headers concept that is known in HTTP, messaging systems, and other similar technologies.
+
+In client libraries, log record properties are surfaced as a dictionary-like structure that allows adding, retrieving, and removing properties by key. Using this feature requires the latest client libraries that support it.
+
+### Database stats
+
+The embedded Web UI now includes a Database Stats page showing detailed statistics about database content, such as number of streams, events, etc. This feature only works with secondary indexes enabled.
+
+### Ad-hoc SQL queries
+
+The embedded Web UI now includes a Queries page allowing you to run ad-hoc SQL queries against event data stored in KurrentDB. This feature only works with secondary indexes enabled. Learn more about [the Queries UI](../features/queries/ui.md).
+
+### Windows Service
+
+KurrentDB can now be run as a Windows Service. See the [documentation](installation.md#running-as-a-service) for more information.
+
+### OpenTelemetry logs export
+
+The [OpenTelemetry Integration](../diagnostics/integrations.md#opentelemetry-exporter) can now be used to export logs as well as metrics.
+
+### Server garbage collection
+
+The .NET runtime Server Garbage Collection is now enabled by default, increasing the performance of the server. See [the documentation](../configuration/db-config.md#garbage-collection) for more information.
+
+### StreamInfoCacheCapacity default
+
+`StreamInfoCacheCapacity` is now `100,000` by default rather than `0` (dynamically sized).
+
+StreamInfoCache dynamic sizing was introduced introduced in v21.10 and enabled by default. It allows the StreamInfoCache to grow much larger, according to the amount of free memory which is reevaluated periodically. This is desirable for some workloads, but it comes with a tradeoff of very significantly increased managed memory usage, which in turn causes additional GC pressure and can lead to more frequent elections. On balance we have decided that a default of 100,000 (which is the value used before v21.10) is a better default, favouring its predictability and stability.
+
+Users wishing to keep dynamic sizing can enable it by setting StreamInfoCacheCapacity to 0. Additional can be found in the [StreamInfoCache documentation](../configuration/README.md#streaminfocachecapacity)
+
+### Connectors
+
+#### Pulsar sink connector
+
+The Apache Pulsar sink connector writes events from your KurrentDB stream to a specified Pulsar topic. 
+
+Refer to the [documentation](../features/connectors/sinks/pulsar.md) for instructions on setting up a Pulsar sink.
+
+#### Connectors no longer periodically acquire leases
+
+Since connectors now run only on the leader node, leases are no longer needed and have been disabled, reducing the number of events written to the database.
+
+#### Connector headers improvements
+
+Header keys now retain their original casing when delivered to connector destinations. The default headers `esdb-record-partition-key` and `esdb-record-is-transformed` are no longer added to outgoing messages. You can also choose whether to include system headers in sink metadata.
+
+### Archiving
+
+The headers of remote chunks are now only read on demand and not on startup, improving startup times when there are a large number of remote chunks.
+
+### Additional projection metrics
+
+Several new metrics have been added to track important properties of projections.
+
+- `kurrentdb_projection_state_size` contains the state size of projections and their state partitions that are over 50% of the state size limit (`MaxProjectionStateSize`).
+  This helps to show if any projections are in danger of reaching the limit.
+
+- `kurrentdb_projection_state_size_bound` contains the projection state size `LIMIT` (driven by `MaxProjectionStateSize`) and the `THRESHOLD` for displaying a projection or partition in `kurrentdb_projection_state_size` (50% of the limit).
+  This makes it easy to graph what the limit is and how close projections are to it.
+
+- `kurrentdb_projection_state_serialization_duration_max_seconds` contains the recent maximum time that each custom projection has taken to serialize its state.
+
+- `kurrentdb_projection_execution_duration_max_seconds` contains the recent maximum time that each custom projection has taken to execute an event.
+
+- `kurrentdb_projection_execution_duration_seconds_bucket` creates a histogram for each (Projection x Function) pair showing, for example, the distribution of how long each custom projection takes to process each event type.
+  This creates a lot of timeseries and is off by default. It can be enabled by setting `ProjectionExecutionByFunction` to true in `metricsconfig.json`.
+  Typically this would only be enabled in development environments.
+
+See [the documentation](../diagnostics/metrics.md#projections) for more information.
+
+### Additional persistent subscription metrics
+
+- `kurrentdb_persistent_sub_parked_message_replays` counts the number of messages that have been parked by stream, group, and reason. Reason can be `client-nak` meaning that the client `nak`ed the message, or `max-retries` meaning that the server retried sending it to the clients until the maximum attempts was reached.
+
+- `kurrentdb_persistent_sub_park_message_requests` counts the number of requests to replay parked messages by stream and group.
+
+See [the documentation](../diagnostics/metrics.md#persistent-subscriptions) for more information.
+
+### Miscellaneous quality of life improvements
+
+- Added server configuration option for TCP read expiry
+
+  The option is `TcpReadTimeoutMs` and it defaults to 10000 (10s, which matches the previous behavior).
+
+  It applies to reads received via the TCP client API. When a read has been in the server queue for longer than this, it will be discarded without being executed. If your TCP clients are configured to timeout after X milliseconds, it is advisable to set this server option to be the same, so that the server will not execute reads that the client is no longer waiting for.
+
+  For gRPC clients, the server-side discarding is already driven by the deadline on the read itself without requiring server configuration.
+
+- Log output to `Seq`
+
+  You can now configure a [Seq](https://datalust.co/) log output by adding the following to `logconfig.json`:
+  ```
+      "Serilog": {
+          "WriteTo": [
+              {
+                  "Name": "Seq",
+                  "Args": {
+                      "serverUrl": "http://localhost:5341",
+                      "restrictedToMinimumLevel": "Information"
+                  }
+              }
+          ]
+      }
+  ```
+
+- Added logging for significant garbage collections
+
+  This makes it clear from the logs if slow messages or leader elections are attributable to Garbage Collection (GC).
+
+  Execution engine (EE) suspensions longer than 48ms are logged as Information. Execution engine suspensions longer than 600ms are logged as Warnings. Full compacting GC start/end are logged as Information.
+
+  Note that the Start/End log messages may both be logged AFTER the execution engine pause has completed.
+
+  These will be logged even if the node shortly goes offline for truncation, which would likely prevent the EE suspension from appearing in the metrics.
+
+  If GC is determined as the cause of a leader election, a sensible course of action could be to reduce the Stream Info Cache Capacity (say, to the 100k traditional value) and/or consider enabling ServerGC.
+
+  Example logs:
+  ```
+  [34144,13,11:03:05.307,INF] Start of full blocking garbage collection at 06/06/2025 10:02:49. GC: #210548. Generation: 2. Reason: LargeObjectHeapAllocation. Type: BlockingOutsideBackgroundGC.
+  [34144,13,11:03:05.307,INF] End of full blocking garbage collection at 06/06/2025 10:03:05. GC: #210548. Took: 15,727ms
+  [34144,13,11:03:05.307,WRN] Garbage collection: Very long Execution Engine Suspension. Reason: GarbageCollection. Took: 15,727ms
+  ```
+
+- Lower Scavenge API GET calls to Verbose
+
+  The auto-scavenge checks on the status of in-progress scavenges frequently, which was producing unnecessary logs.
+
+- Added extra logging when UnwrapEnvelopeMessage is slow
+
+  When `UnwrapEnvelopeMessage` triggers a `SLOW QUEUE MESSAGE` log, it now includes the name of the action it was unwrapping.
+
+## New in 25.0
+
+These are the new features in KurrentDB 25.0:
+
+* [Archiving](#archiving-1)
+* [Connectors](#connectors-1)
+* [KurrentDB rebranding](#kurrentdb-rebranding)
+* [New embedded Web UI](#new-embedded-web-ui)
+* [New versioning scheme and release schedule](#new-versioning-scheme-and-release-schedule)
+
+### Archiving
+
+KurrentDB 25.0 introduces the initial release of Archiving: a new major feature to reduce costs and increase scalability of a KurrentDB cluster.
+
+With the new Archiving feature, data is uploaded to cheaper storage such as Amazon S3 and then can be removed from the volumes attached to the cluster nodes. The volumes can be correspondingly smaller and cheaper. The nodes are all able to read the archive, and when a read request from a client requires data that is stored in the archive, the node retrieves that data from the archive transparently to the client.
+
+Refer to [the documentation](../features/archiving.md) for more information about archiving and instructions on how to set it up.
+
+### Connectors
+
+#### Elasticsearch sink
+
+The Elasticsearch sink pulls messages from a KurrentDB stream and stores them in
+an Elasticsearch index. The records will be serialized into JSON documents,
+compatible with Elasticsearch's document structure.
+
+#### Data Protection
+
+We've introduced a comprehensive data protection system to enhance the security of your sensitive connector configurations.
+
+All connectors now use envelope encryption to automatically protect sensitive data such as passwords and tokens using industry-standard encryption techniques. This ensures your credentials remain secure during transmission.
+
+Setup is straightforward with token-based protection requiring minimal configuration. You can provide tokens directly in your configuration or via separate files for enhanced security in production environments.
+
+We've integrated a native Surge key vault that stores encryption keys directly within KurrentDB system streams but we will support more key vaults in the future.
+
+See the [Data Protection documentation](../features/connectors/features.md#data-protection) for complete setup instructions.
+
+### KurrentDB rebranding
+
+Event Store – the company and the product – are rebranding as Kurrent.
+
+As part of this rebrand, EventStoreDB has been renamed to KurrentDB, with the first release of KurrentDB being version 25.0.
+
+Read more about the rebrand in the [rebrand FAQ](https://www.kurrent.io/blog/kurrent-re-brand-faq).
+
+The KurrentDB packages are still hosted on [Cloudsmith](https://cloudsmith.io/~eventstore/repos/kurrent/packages/). Refer to [the upgrade guide](./upgrade-guide.md) to see what's changed between EventStoreDB and KurrentDB, or [the installation guide](./installation.md) for updated installation instructions.
+
+### New embedded Web UI
+
+In the new embedded Web UI you can see at a glance:
+
+- A summary of the cluster status
+- A summary of resource utilization
+- Recent log messages
+- Node configuration
+- License status
+
+### New versioning scheme and release schedule
+
+We are changing the version scheme with the first official release of KurrentDB.
+
+As before, there will be two categories of release:
+* Long term support (LTS) releases which are supported for a minimum of two years, with a two month grace period.
+* Short term support (STS) releases which are supported until the next LTS or STS release.
+
+The version number will now reflect whether a release is an LTS or feature release, rather than being based on the year and month. LTS releases will have _even_ major numbers, and STS releases will have _odd_ major numbers.
+
+#### Versioning scheme
+
+The new scheme is `Major.Minor.Patch` where:
+* `Major`
+    * Is _even_ for LTS releases.
+    * Is _odd_ for STS releases.
+* `Minor`
+    * Increments with scope changes or new features.
+    * Is typically `0` for LTS releases, but may be incremented in rare cases.
+* `Patch` for bug fixes.
+
+#### New release schedule
+
+The release schedule will be changing with the versioning scheme, given that the version numbers are no longer tied to the year and month:
+
+* LTS: Approximately one LTS release per year.
+* STS: Published as necessary when sets of features are ready.
+* Patch (LTS and STS): Published as necessary with bugfixes.
+
+[More information](../release-schedule/)
+
+#### New package repositories
+
+Packages for KurrentDB will still be published to [Cloudsmith](https://cloudsmith.io/~eventstore), into the following repositories:
+
+- [kurrent-lts](https://cloudsmith.io/~eventstore/repos/kurrent-lts) containing only production-ready [LTS](../release-schedule/#long-term-support-releases) packages.
+- [kurrent-latest](https://cloudsmith.io/~eventstore/repos/kurrent-latest) containing production-ready LTS and [STS](../release-schedule/#short-term-support-releases) packages.
+- [kurrent-preview](https://cloudsmith.io/~eventstore/repos/kurrent-preview) containing non-production preview packages.
+
+[More information](../quick-start/installation.md)
+
+## New in 24.10
+
+These are the new features that were added in EventStoreDB 24.10:
+
+* [Connectors](#connectors-2):
+    * Kafka
+    * MongoDB
+    * RabbitMQ
+    * HTTP
+* [Auto-scavenge](#auto-scavenge): Schedule and execute scavenges automatically across a cluster.
+* [Stream policy](#stream-policy): Define stream access policies based on stream prefixes rather than using stream ACLs.
+* [Encryption-at-rest](#encryption-at-rest): Encrypt EventStoreDB chunks to secure them against attackers with file access to the database.
+
+### Connectors
+
+We have improved and expanded on the Connectors preview introduced in 24.2.0.
+
+The Connectors feature is enabled by default.
+
+Refer to the [documentation](../features/connectors/README.md) for instructions on setting up and configuring connectors and sinks.
+
+#### Elasticsearch sink
+
+The Elasticsearch sink pulls messages from a KurrentDB stream and stores them in
+an Elasticsearch index. The records will be serialized into JSON documents,
+compatible with Elasticsearch's document structure.
+
+Refer to the [documentation](../features/connectors/sinks/elasticsearch.md) for instructions on setting up a Elasticsearch sink.
+
+#### Kafka sink
+
+The Kafka sink writes events from EventStoreDB to a Kafka topic.
+
+It can extract the partition key from the record based on specific sources such as the stream ID, headers, or record key and also supports basic authentication and resilience
+features to handle transient errors.
+
+Refer to the [documentation](../features/connectors/sinks/kafka.md) for instructions on setting up a Kafka sink.
+
+#### MongoDB sink
+
+The MongoDB sink pulls messages from an EventStoreDB stream and stores the messages to a collection.
+
+It supports data transformation for modifying event data or metadata and the inclusion of additional headers before sending messages to the MongoDB collection. It also supports at-least-once delivery and resilience features to handle transient errors.
+
+Refer to the [documentation](../features/connectors/sinks/mongo.md) for instructions on setting up a MongoDB sink.
+
+#### RabbitMQ sink
+
+The RabbitMQ sink pulls messages from EventStoreDB and sends the messages to a RabbitMQ exchange using a specified routing key.
+
+It efficiently handles message delivery by abstracting the complexities of RabbitMQ's exchange and queue management, ensuring that messages are routed to the appropriate destinations based on the provided routing key.
+
+This sink is designed for high reliability and supports graceful error handling and recovery mechanisms to ensure consistent message delivery in a production environment.
+
+Refer to the [documentation](../features/connectors/sinks/rabbitmq.md) for instructions on setting up a RabbitMQ sink.
+
+#### HTTP sink
+
+The HTTP sink allows for integration between EventStoreDB and external
+APIs over HTTP or HTTPS. This connector consumes events from an EventStoreDB
+stream and converts each event's data into JSON format before sending it in the
+request body to a specified URL. Events are sent individually as they are
+consumed from the stream, without batching. The event data is transmitted as the
+request body, and metadata can be included as HTTP headers. The connector also
+supports Basic Authentication and Bearer Token Authentication.
+
+Refer to the [documentation](../features/connectors/sinks/http.md) for instructions on setting up an HTTP sink.
+
+#### Serilog sink
+
+The Serilog sink logs detailed messages about the connector and record details.
+
+Refer to the [documentation](../features/connectors/sinks/serilog.md) for instructions on setting up a Serilog sink.
+
+#### Data Protection
+
+We've introduced a comprehensive data protection system to enhance the security of your sensitive connector configurations.
+
+All connectors now use envelope encryption to automatically protect sensitive data such as passwords and tokens using industry-standard encryption techniques. This ensures your credentials remain secure during transmission.
+
+Setup is straightforward with token-based protection requiring minimal configuration. You can provide tokens directly in your configuration or via separate files for enhanced security in production environments.
+
+We've integrated a native Surge key vault that stores encryption keys directly within KurrentDB system streams but we will support more key vaults in the future.
+
+See the [Data Protection documentation](../features/connectors/features.md#data-protection) for complete setup instructions.
+
+### Auto-scavenge
+
+The auto-scavenge feature automatically schedules _cluster scavenges_ which are composed of multiple _node scavenges_. Only one node scavenge can be executed at a time in the cluster. The auto-scavenge feature allows the scheduling of said _cluster scavenges_.
+
+EventStoreDB will only start auto-scavenging once an administrator has set up a schedule for running cluster scavenges.
+
+Refer to the [documentation](../operations/auto-scavenge.md) for instructions on enabling and using this feature.
+
+### Stream policy
+
+Define stream access policies in one place based on stream prefixes rather than using stream ACLs.
+
+Stream access policies can be created to grant users or groups read, write, delete, or metadata access.  These policies can be applied to streams based on their prefix or to system or user streams.
+
+Refer to the [documentation](../security/user-authorization.md#stream-policy-authorization) for more information about using and configuring this feature.
+
+### Encryption-at-rest
+
+Encrypt EventStoreDB chunks to secure them against attackers with file access to the database.
+
+This feature aims to protect against an attacker who obtains access to the physical disk. In contrast to volume or filesystem encryption, file-level encryption provides some protection for attacks against the live system or remote exploits, as the plaintext data is not directly readable.
+
+If Encryption-at-rest is enabled, it is impossible to roll back to an unencrypted database after a new chunk has been created or if a chunk has been scavenged.
+
+Refer to the [documentation](../security/README.md#encryption-at-rest) for more information about using and configuring this feature.

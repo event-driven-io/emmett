@@ -1,0 +1,66 @@
+$ npx tsc -v
+Version 6.0.3
+$ npx tsc -p .   (TypeScript 6.0.3, same major as Emmett's src/package.json)
+exit code: 0
+$ node_modules/typescript7/bin/tsc -p .   (TypeScript 7.0.2)
+exit code: 0
+$ npx tsc -p . --listFilesOnly | grep -c '/styles/'
+33
+Style files checked:
+lib/message.ts
+lib/classes.ts
+lib/schema.ts
+lib/index.ts
+lib/typebox.ts
+styles/a-builtin/shoppingCart.ts
+styles/a-builtin/businessLogic.ts
+styles/a-builtin/usage.ts
+styles/b-zod/shoppingCart.ts
+styles/b-zod/businessLogic.ts
+styles/b-zod/usage.ts
+styles/b2-valibot/shoppingCart.ts
+styles/b2-valibot/businessLogic.ts
+styles/b2-valibot/usage.ts
+styles/b3-arktype/shoppingCart.ts
+styles/b3-arktype/businessLogic.ts
+styles/b3-arktype/usage.ts
+styles/b4-effect/shoppingCart.ts
+styles/b4-effect/businessLogic.ts
+styles/b4-effect/usage.ts
+styles/b5-typebox/shoppingCart.ts
+styles/b5-typebox/businessLogic.ts
+styles/b5-typebox/usage.ts
+styles/c-type-first/shoppingCart.ts
+styles/c-type-first/businessLogic.ts
+styles/c-type-first/usage.ts
+styles/d-grouped/shoppingCart.ts
+styles/d-grouped/businessLogic.ts
+styles/d-grouped/usage.ts
+styles/e-interface/shoppingCart.ts
+styles/e-interface/businessLogic.ts
+styles/e-interface/usage.ts
+styles/f-class/shoppingCart.ts
+styles/f-class/businessLogic.ts
+styles/f-class/usage.ts
+styles/today/shoppingCart.ts
+styles/today/businessLogic.ts
+styles/today/usage.ts
+experiments/compat-all.ts
+experiments/date-roundtrip.ts
+experiments/identity-cause.ts
+experiments/interface-style.ts
+experiments/no-typeof-defs.ts
+experiments/no-typeof.ts
+experiments/union-alias-display.ts
+survey/_assert.ts
+survey/arktype.ts
+survey/drizzle.ts
+survey/effect.ts
+survey/inngest.ts
+survey/redux-toolkit.ts
+survey/small-unions.ts
+survey/ts-pattern.ts
+survey/typebox.ts
+survey/valibot.ts
+survey/xstate.ts
+survey/zod.ts

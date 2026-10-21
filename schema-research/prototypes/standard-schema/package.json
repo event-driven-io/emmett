@@ -1,0 +1,24 @@
+{
+  "name": "standard-schema-prototypes",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@standard-community/standard-json": "0.3.6",
+    "@standard-schema/spec": "1.1.0",
+    "@valibot/to-json-schema": "1.8.0",
+    "@vinejs/vine": "4.4.0",
+    "arktype": "2.2.7",
+    "effect": "4.0.0",
+    "stnl": "2.2.3",
+    "sury": "11.1.0-rc.0",
+    "tsx": "4.23.15",
+    "typebox": "1.3.34",
+    "typescript": "6.0.3",
+    "valibot": "1.5.0",
+    "xsschema": "0.5.1",
+    "zod": "4.6.5"
+  }
+}

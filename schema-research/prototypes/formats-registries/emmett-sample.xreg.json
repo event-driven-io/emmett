@@ -1,0 +1,138 @@
+{
+  "specversion": "1.0-rc4",
+  "registryid": "emmett-sample",
+  "messagegroups": {
+    "shopping-carts": {
+      "messagegroupid": "shopping-carts",
+      "messages": {
+        "ShoppingCartConfirmed": {
+          "messageid": "ShoppingCartConfirmed",
+          "description": "Client confirmed the shopping cart.",
+          "labels": {
+            "emmett.kind": "event"
+          },
+          "dataschemaformat": "JsonSchema/draft/2020-12",
+          "dataschemauri": "#/schemagroups/shopping-carts/schemas/ShoppingCartConfirmed",
+          "datacontenttype": "application/json"
+        },
+        "ConfirmShoppingCart": {
+          "messageid": "ConfirmShoppingCart",
+          "description": "Confirm the shopping cart.",
+          "labels": {
+            "emmett.kind": "command"
+          },
+          "dataschemaformat": "JsonSchema/draft/2020-12",
+          "dataschemauri": "#/schemagroups/shopping-carts/schemas/ConfirmShoppingCart",
+          "datacontenttype": "application/json"
+        }
+      }
+    }
+  },
+  "schemagroups": {
+    "shopping-carts": {
+      "schemagroupid": "shopping-carts",
+      "format": "JsonSchema/draft/2020-12",
+      "schemas": {
+        "ShoppingCartConfirmed": {
+          "schemaid": "ShoppingCartConfirmed",
+          "description": "Client confirmed the shopping cart.",
+          "labels": {
+            "emmett.kind": "event"
+          },
+          "meta": {
+            "compatibility": "backward"
+          },
+          "versions": {
+            "1": {
+              "versionid": "1",
+              "ancestorid": "1",
+              "format": "JsonSchema/draft/2020-12",
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "title": "ShoppingCartConfirmed",
+                "type": "object",
+                "properties": {
+                  "shoppingCartId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "confirmedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "shoppingCartId",
+                  "confirmedAt"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "2": {
+              "versionid": "2",
+              "ancestorid": "1",
+              "format": "JsonSchema/draft/2020-12",
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "title": "ShoppingCartConfirmed",
+                "type": "object",
+                "properties": {
+                  "shoppingCartId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "confirmedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "channel": {
+                    "type": "string",
+                    "default": "web",
+                    "description": "Where the cart was confirmed."
+                  }
+                },
+                "required": [
+                  "shoppingCartId",
+                  "confirmedAt"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "ConfirmShoppingCart": {
+          "schemaid": "ConfirmShoppingCart",
+          "description": "Confirm the shopping cart.",
+          "labels": {
+            "emmett.kind": "command"
+          },
+          "meta": {
+            "compatibility": "backward"
+          },
+          "versions": {
+            "1": {
+              "versionid": "1",
+              "ancestorid": "1",
+              "format": "JsonSchema/draft/2020-12",
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "title": "ConfirmShoppingCart",
+                "type": "object",
+                "properties": {
+                  "shoppingCartId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "shoppingCartId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

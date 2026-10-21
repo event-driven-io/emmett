@@ -1,0 +1,79 @@
+@@ -14,16 +14,10 @@
+     metadata,
+   } = command;
+ 
+-  return {
+-    type: 'ProductItemAddedToShoppingCart',
+-    data: {
+-      shoppingCartId,
+-      clientId,
+-      productItem,
+-      addedAt: metadata.now,
+-    },
+-    metadata: { clientId: metadata.clientId },
+-  };
++  return ProductItemAddedToShoppingCart(
++    { shoppingCartId, clientId, productItem, addedAt: metadata.now },
++    { clientId: metadata.clientId },
++  );
+ };
+ 
+ export const removeProductItem = (
+@@ -43,15 +37,10 @@
+   if (currentQuantity < productItem.quantity)
+     throw new IllegalStateError('Not enough products');
+ 
+-  return {
+-    type: 'ProductItemRemovedFromShoppingCart',
+-    data: {
+-      shoppingCartId,
+-      productItem,
+-      removedAt: metadata.now,
+-    },
+-    metadata: { clientId: metadata.clientId },
+-  };
++  return ProductItemRemovedFromShoppingCart(
++    { shoppingCartId, productItem, removedAt: metadata.now },
++    { clientId: metadata.clientId },
++  );
+ };
+ 
+ export const confirm = (
+@@ -71,14 +60,10 @@
+     metadata,
+   } = command;
+ 
+-  return {
+-    type: 'ShoppingCartConfirmed',
+-    data: {
+-      shoppingCartId,
+-      confirmedAt: metadata.now,
+-    },
+-    metadata: { clientId: metadata.clientId },
+-  };
++  return ShoppingCartConfirmed(
++    { shoppingCartId, confirmedAt: metadata.now },
++    { clientId: metadata.clientId },
++  );
+ };
+ 
+ export const cancel = (
+@@ -93,14 +78,10 @@
+     metadata,
+   } = command;
+ 
+-  return {
+-    type: 'ShoppingCartCancelled',
+-    data: {
+-      shoppingCartId,
+-      cancelledAt: metadata.now,
+-    },
+-    metadata: { clientId: metadata.clientId },
+-  };
++  return ShoppingCartCancelled(
++    { shoppingCartId, cancelledAt: metadata.now },
++    { clientId: metadata.clientId },
++  );
+ };
+ 
+ export const decide = (command: ShoppingCartCommand, state: ShoppingCart) => {

@@ -1,0 +1,106 @@
+{
+  "messagegroups": {
+    "WindGenerator.Events": {
+      "description": "Events for wind generator operations",
+      "protocol": "KAFKA",
+      "messages": {
+        "WindGenerator.PowerOutputUpdate": {
+          "description": "Event for wind generator power output update",
+          "protocol": "KAFKA",
+          "protocoloptions": {
+            "headers": {
+              "action": {
+                "name": "action",
+                "value": "powerOutput"
+              }
+            },
+            "key": "{generatorId}"
+          },
+          "dataschemaformat": "Avro/1.11",
+          "dataschemauri": "/schemagroups/WindGenerator/schemas/WindGenerator.PowerOutputUpdateEventData"
+        },
+        "WindGenerator.StatusChange": {
+          "description": "Event for wind generator status change",
+          "protocol": "KAFKA",
+          "protocoloptions": {
+            "headers": {
+              "action": {
+                "name": "action",
+                "value": "statusChange"
+              }
+            },
+            "key": "{generatorId}"
+          },
+          "dataschemaformat": "Avro/1.11",
+          "dataschemauri": "/schemagroups/WindGenerator/schemas/WindGenerator.StatusChangeEventData"
+        }
+      }
+    }
+  },
+  "schemagroups": {
+    "WindGenerator": {
+      "schemas": {
+        "WindGenerator.PowerOutputUpdateEventData": {
+          "format": "Avro/1.11",
+          "versions": {
+            "1": {
+              "format": "Avro/1.11",
+              "schema": {
+                "type": "record",
+                "name": "PowerOutputUpdateEventData",
+                "doc": "Data schema for wind generator power output update event",
+                "fields": [
+                  {
+                    "name": "generatorId",
+                    "type": "string",
+                    "doc": "Identifier of the wind generator"
+                  },
+                  {
+                    "name": "powerOutput",
+                    "type": "double",
+                    "doc": "Current power output in kilowatts"
+                  },
+                  {
+                    "name": "timestamp",
+                    "type": "long",
+                    "doc": "Event timestamp"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "WindGenerator.StatusChangeEventData": {
+          "format": "Avro/1.11",
+          "versions": {
+            "1": {
+              "format": "Avro/1.11",
+              "schema": {
+                "type": "record",
+                "name": "StatusChangeEventData",
+                "doc": "Data schema for wind generator status change event",
+                "fields": [
+                  {
+                    "name": "generatorId",
+                    "type": "string",
+                    "doc": "Identifier of the wind generator"
+                  },
+                  {
+                    "name": "status",
+                    "type": "string",
+                    "doc": "New status of the wind generator"
+                  },
+                  {
+                    "name": "timestamp",
+                    "type": "long",
+                    "doc": "Event timestamp"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

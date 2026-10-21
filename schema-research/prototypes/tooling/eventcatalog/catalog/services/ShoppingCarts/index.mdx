@@ -1,0 +1,16 @@
+---
+id: ShoppingCarts
+name: Shopping Carts
+version: 1.0.0
+receives:
+  - id: ConfirmShoppingCart
+    version: 1.0.0
+    triggers:
+      - id: ShoppingCartConfirmed
+        version: 1.0.0
+        condition: When cart is opened and not empty
+sends:
+  - id: ShoppingCartConfirmed
+    version: 1.0.0
+---
+

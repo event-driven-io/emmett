@@ -1,0 +1,38 @@
+commands/ConfirmShoppingCart/examples/basic.json
+commands/ConfirmShoppingCart/index.mdx
+commands/ConfirmShoppingCart/schema.json
+events/ShoppingCartConfirmed/index.mdx
+events/ShoppingCartConfirmed/versioned/1.0.0/examples/basic.json
+events/ShoppingCartConfirmed/versioned/1.0.0/index.mdx
+events/ShoppingCartConfirmed/versioned/1.0.0/schema.json
+services/ShoppingCarts/index.mdx
+---
+---
+id: ConfirmShoppingCart
+name: ConfirmShoppingCart
+version: 1.0.0
+summary: Client confirms the cart
+schemaPath: schema.json
+x-emmett-kind: Command
+---
+<SchemaViewer file="schema.json" />
+
+---
+---
+id: ShoppingCarts
+name: Shopping Carts
+version: 1.0.0
+receives:
+  - id: ConfirmShoppingCart
+    version: 1.0.0
+    triggers:
+      - id: ShoppingCartConfirmed
+        version: 1.0.0
+        condition: When cart is opened and not empty
+sends:
+  - id: ShoppingCartConfirmed
+    version: 1.0.0
+---
+
+
+--- v1 still readable with schema: 1.0.0 [ 'shoppingCartId', 'confirmedAt' ]

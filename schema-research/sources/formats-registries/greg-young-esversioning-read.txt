@@ -1,0 +1,43 @@
+
+
+Read Versioning in an Event Sourced System online
+
+## Versioning in an Event Sourced System
+
+## Course overview
+
+12 chapters
+
+Begin reading
+
+Download
+
+The Book
+
+## Versioning in an Event Sourced System12 chapters
+Begin ›
+
+Status
+
+Why Version?
+
+Why can’t I update an event?
+
+Basic Type Based Versioning
+
+Weak Schema
+
+Negotiation
+
+General Versioning Concerns
+
+Whoops, I Did It Again
+
+Copy and Replace
+
+Cheating
+
+Internal vs External Models
+
+Versioning Process Managers
+

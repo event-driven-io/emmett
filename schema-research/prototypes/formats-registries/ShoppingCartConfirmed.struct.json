@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-structure.org/meta/extended/v0/#",
+  "$id": "https://example.com/schemas/ShoppingCartConfirmed",
+  "name": "ShoppingCartConfirmed",
+  "type": "object",
+  "description": "Shopping cart was confirmed by the client",
+  "properties": {
+    "shoppingCartId": { "type": "uuid", "description": "Cart id" },
+    "confirmedAt": { "type": "datetime" },
+    "totalAmount": { "type": "decimal", "precision": 10, "scale": 2, "currency": "EUR" },
+    "itemsCount": { "type": "int32" },
+    "streamPosition": { "type": "int64" },
+    "tags": { "type": "set", "items": { "type": "string" } },
+    "attributes": { "type": "map", "values": { "type": "string" } }
+  },
+  "required": ["shoppingCartId", "confirmedAt", "totalAmount", "streamPosition"]
+}

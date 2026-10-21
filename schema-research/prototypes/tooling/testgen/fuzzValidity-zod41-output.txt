@@ -1,0 +1,6 @@
+Same fuzzValidity.mjs run in an isolated scratch project with zod@4.1.12, fast-check@4.10.2, @traversable/zod-test@0.0.28 (2026-10-04):
+z.int().positive(): 4/2000 invalid [ 0, 0, 0 ]
+z.number().int().positive(): 4/2000 invalid [ 0, 0, 0 ]
+z.int().min(1): 0/2000 invalid []
+z.number().gt(0): 0/2000 invalid []
+z.string().min(1): 0/2000 invalid []

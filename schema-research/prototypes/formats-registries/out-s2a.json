@@ -1,0 +1,64 @@
+{
+  "type": "record",
+  "name": "ShoppingCartConfirmed",
+  "doc": "Shopping cart was confirmed by the client",
+  "fields": [
+    {
+      "name": "shoppingCartId",
+      "type": {
+        "type": "string",
+        "logicalType": "uuid"
+      },
+      "doc": "Cart id"
+    },
+    {
+      "name": "confirmedAt",
+      "type": {
+        "type": "string",
+        "logicalType": "rfc3339-timestamp-millis"
+      }
+    },
+    {
+      "name": "totalAmount",
+      "type": {
+        "type": "string",
+        "logicalType": "decimal"
+      },
+      "doc": "[precision: 10, scale: 2]"
+    },
+    {
+      "name": "itemsCount",
+      "type": [
+        "null",
+        "int"
+      ],
+      "default": null
+    },
+    {
+      "name": "streamPosition",
+      "type": "long"
+    },
+    {
+      "name": "tags",
+      "type": [
+        "null",
+        {
+          "type": "array",
+          "items": "string"
+        }
+      ],
+      "default": null
+    },
+    {
+      "name": "attributes",
+      "type": [
+        "null",
+        {
+          "type": "map",
+          "values": "string"
+        }
+      ],
+      "default": null
+    }
+  ]
+}

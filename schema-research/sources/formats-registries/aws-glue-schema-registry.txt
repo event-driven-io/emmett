@@ -1,0 +1,331 @@
+
+ AWS Glue Schema registry - AWS Glue
+
+View a markdown version of this page
+
+AWS Glue Schema registry - AWS Glue
+
+DocumentationAWS GlueUser Guide
+SchemasRegistriesSchema versioning and compatibilityOpen source Serde librariesQuotas of the Schema Registry
+
+## AWS Glue Schema registry
+
+## Note
+
+AWS Glue Schema Registry is not supported in the following Regions in the
+ AWS Glue console: Middle East (UAE).
+The AWS Glue Schema registry allows you to centrally discover, control,
+ and evolve data stream schemas. A schema defines the structure and
+ format of a data record. With AWS Glue Schema registry, you can manage and enforce schemas on
+ your data streaming applications using convenient integrations with Apache Kafka, Amazon Managed Streaming for Apache Kafka, Amazon Kinesis Data Streams, Amazon Managed Service for Apache Flink,
+ and AWS Lambda.
+The Schema registry supports AVRO (v1.11.4) data format,
+ JSON Data format with JSON Schema format
+ for the schema (specifications Draft-04, Draft-06, and Draft-07) with JSON schema validation using the Everit library,
+ Protocol Buffers (Protobuf) versions proto2 and proto3 without support for extensions or groups, and Java language support, with other data formats and languages to come.
+ Supported features include compatibility, schema sourcing via metadata, auto-registration of schemas, IAM compatibility, and optional ZLIB compression to reduce storage and data transfer. The Schema registry is serverless and free to use.
+Using a schema as a data format contract between producers and consumers leads to improved data governance, higher quality data, and enables data consumers to be resilient to compatible upstream changes.
+The Schema registry allows disparate systems to share a schema for serialization and de-serialization. For example, assume you have a producer and consumer of data. The producer knows the schema when it publishes the data. The Schema Registry supplies a serializer and deserializer for certain systems such as Amazon MSK or Apache Kafka. 
+ For more information, see How the schema registry works.
+
+## Topics
+
+Schemas
+
+Registries
+
+Schema versioning and compatibility
+
+Open source Serde libraries
+
+Quotas of the Schema Registry
+
+How the schema registry works
+
+Getting started with schema registry
+
+## Schemas
+
+A schema defines the structure and format of a data record. A schema is a versioned specification for reliable data publication, consumption, or storage.
+
+In this example schema for Avro, the format and structure are defined by the layout and field names, and the format of the field names is defined by the data types (e.g., string, int).
+
+{
+ "type": "record",
+ "namespace": "ABC_Organization",
+ "name": "Employee",
+ "fields": [
+ {
+ "name": "Name",
+ "type": "string"
+ },
+ {
+ "name": "Age",
+ "type": "int"
+ },
+ {
+ "name": "address",
+ "type": {
+ "type": "record",
+ "name": "addressRecord",
+ "fields": [
+ {
+ "name": "street",
+ "type": "string"
+ },
+ {
+ "name": "zipcode",
+ "type": "int" 
+ }
+ ]
+ }
+ }
+ ]
+}
+
+In this example JSON schema draft-07 for JSON, the format is defined by the JSON Schema organization.
+
+{
+ "$id": "https://example.com/person.schema.json",
+ "$schema": "http://json-schema.org/draft-07/schema#",
+ "title": "Person",
+ "type": "object",
+ "properties": {
+ "firstName": {
+ "type": "string",
+ "description": "The person's first name."
+ },
+ "lastName": {
+ "type": "string",
+ "description": "The person's last name."
+ },
+ "age": {
+ "description": "Age in years which must be equal to or greater than zero.",
+ "type": "integer",
+ "minimum": 0
+ }
+ }
+}
+
+In this example for Protobuf, the format is defined by the version 2 of the Protocol Buffers language (proto2).
+
+syntax = "proto2";
+
+package tutorial;
+
+option java_multiple_files = true;
+option java_package = "com.example.tutorial.protos";
+option java_outer_classname = "AddressBookProtos";
+
+message Person {
+ optional string name = 1;
+ optional int32 id = 2;
+ optional string email = 3;
+
+ enum PhoneType {
+ MOBILE = 0;
+ HOME = 1;
+ WORK = 2;
+ }
+
+ message PhoneNumber {
+ optional string number = 1;
+ optional PhoneType type = 2 [default = HOME];
+ }
+
+ repeated PhoneNumber phones = 4;
+}
+
+message AddressBook {
+ repeated Person people = 1;
+}
+
+## Registries
+
+A registry is a logical container of schemas. Registries allow you to organize your schemas, as well as manage access control for your applications. A registry has an Amazon Resource Name (ARN) to allow you to organize and set different access permissions to schema operations within the registry.
+
+You may use the default registry or create as many new registries as necessary.
+
+AWS Glue Schema Registry Hierarchy
+
+RegistryName: [string]
+
+RegistryArn: [AWS ARN]
+
+CreatedTime: [timestamp]
+
+UpdatedTime: [timestamp]
+
+SchemaName: [string]
+
+SchemaArn: [AWS ARN]
+
+DataFormat: [Avro, Json, or Protobuf]
+
+Compatibility: [eg. BACKWARD, BACKWARD_ALL, FORWARD, FORWARD_ALL, FULL, FULL_ALL, NONE, DISABLED]
+
+Status: [eg. PENDING, AVAILABLE, DELETING]
+
+SchemaCheckpoint: [integer]
+
+CreatedTime: [timestamp]
+
+UpdatedTime: [timestamp]
+
+SchemaVersion: [string]
+
+SchemaVersionNumber: [integer]
+
+Status: [eg. PENDING, AVAILABLE, DELETING,
+ FAILURE]
+
+SchemaDefinition: [string, Value: JSON]
+
+CreatedTime: [timestamp]
+
+SchemaVersionMetadata: [list]
+
+MetadataKey: [string]
+
+MetadataInfo
+
+MetadataValue: [string]
+
+CreatedTime: [timestamp]
+
+## Schema versioning and compatibility
+
+Each schema can have multiple versions. Versioning is governed by a compatibility rule that is applied on a schema. Requests to register new schema versions are checked against this rule by the Schema Registry before they can succeed. 
+
+A schema version that is marked as a checkpoint is used to determine the compatibility of registering new versions of a schema. When a schema first gets created the default checkpoint will be the first version. As the schema evolves with more versions, you can use the CLI/SDK to change the checkpoint to a version of a schema using the UpdateSchema API that adheres to a set of constraints. In the console, editing the schema definition or compatibility mode will change the checkpoint to the latest version by default. 
+
+Compatibility modes allow you to control how schemas can or cannot evolve over time. These modes form the contract between applications producing and consuming data. When a new version of a schema is submitted to the registry, the compatibility rule applied to the schema name is used to determine if the new version can be accepted. There are 8 compatibility modes: NONE, DISABLED, BACKWARD, BACKWARD_ALL, FORWARD, FORWARD_ALL, FULL, FULL_ALL.
+
+In the Avro data format, fields may be optional or required. An optional field is one in which the Type includes null. Required fields do not have null as the Type.
+
+In the Protobuf data format, fields can be optional (including repeated) or required in proto2 syntax, while all fields are optional (including repeated) in proto3 syntax. All compatibility rules are determined based on the understanding of the Protocol Buffers specifications as well as the guidance from the Google Protocol Buffers documentation.
+
+NONE: No compatibility mode applies. You can use this choice in development scenarios or if you do not know the compatibility modes that you want to apply to schemas. Any new version added will be accepted without undergoing a compatibility check.
+
+DISABLED: This compatibility choice prevents versioning for a particular schema. No new versions can be added.
+
+BACKWARD: This compatibility choice is recommended because it allows consumers to read both the current and the previous schema version. You can use this choice to check compatibility against the previous schema version when you delete fields or add optional fields. A typical use case for BACKWARD is when your application has been created for the most recent schema.
+
+## AVRO
+
+For example, assume you have a schema defined by first name (required), last name (required), email (required), and phone number (optional).
+
+If your next schema version removes the required email field, this would successfully register. BACKWARD compatibility requires consumers to be able to read the current and previous schema version. Your consumers will be able to read the new schema as the extra email field from old messages is ignored.
+
+If you have a proposed new schema version that adds a required field, for example, zip code, this would not successfully register with BACKWARD compatibility. Your consumers on the new version would not be able to read old messages before the schema change, as they are missing the required zip code field. However, if the zip code field was set as optional in the new schema, then the proposed version would successfully register as consumers can read the old schema without the optional zip code field.
+
+## JSON
+
+For example, assume you have a schema version defined by first name (optional), last name (optional), email (optional) and phone number (optional).
+
+If your next schema version adds the optional phone number property, this would successfully register as long as the original schema version does not allow any additional properties by setting the additionalProperties field to false. BACKWARD compatibility requires consumers to be able to read the current and previous schema version. Your consumers will be able to read data produced with the original schema where phone number property does not exist.
+
+If you have a proposed new schema version that adds the optional phone number property, this would not successfully register with BACKWARD compatibility when the original schema version sets the additionalProperties field to true, namely allowing any additional property. Your consumers on the new version would not be able to read old messages before the schema change, as they cannot read data with phone number property in a different type, for example string instead of number.
+
+## PROTOBUF
+
+For example, assume you have a schema version defined by a Message Person with first name (required), last name (required), email (required), and phone number (optional) fields under proto2 syntax.
+
+Similar to AVRO scenarios, if your next schema version removes the required email field, this would successfully register. BACKWARD compatibility requires consumers to be able to read the current and previous schema version. Your consumers will be able to read the new schema as the extra email field from old messages is ignored.
+
+If you have a proposed new schema version that adds a required field, for example, zip code, this would not successfully register with BACKWARD compatibility. Your consumers on the new version would not be able to read old messages before the schema change, as they are missing the required zip code field. However, if the zip code field was set as optional in the new schema, then the proposed version would successfully register as consumers can read the old schema without the optional zip code field.
+
+In case of a gRPC use case, adding new RPC service or RPC method is a backward compatible change. For example, assume you have a schema version defined by an RPC service MyService with two RPC methods Foo and Bar.
+
+If your next schema version adds a new RPC method called Baz, this would successfully register. Your consumers will be able to read data produced with the original schema according to BACKWARD compatibility since the newly added RPC method Baz is optional. 
+
+If you have a proposed new schema version that removes the existing RPC method Foo, this would not successfully register with BACKWARD compatibility. Your consumers on the new version would not be able to read old messages before the schema change, as they cannot understand and read data with the non-existent RPC method Foo in a gRPC application.
+
+BACKWARD_ALL: This compatibility choice allows consumers to read both the current and all previous schema versions. You can use this choice to check compatibility against all previous schema versions when you delete fields or add optional fields.
+
+FORWARD: This compatibility choice allows consumers to read both the current and the subsequent schema versions, but not necessarily later versions. You can use this choice to check compatibility against the last schema version when you add fields or delete optional fields. A typical use case for FORWARD is when your application has been created for a previous schema and should be able to process a more recent schema.
+
+## AVRO
+
+For example, assume you have a schema version defined by first name (required), last name (required), email (optional).
+
+If you have a new schema version that adds a required field, e.g. phone number, this would successfully register. FORWARD compatibility requires consumers to be able to read data produced with the new schema by using the previous version.
+
+If you have a proposed schema version that deletes the required first name field, this would not successfully register with FORWARD compatibility. Your consumers on the prior version would not be able to read the proposed schemas as they are missing the required first name field. However, if the first name field was originally optional, then the proposed new schema would successfully register as the consumers can read data based on the new schema that doesn’t have the optional first name field.
+
+## JSON
+
+For example, assume you have a schema version defined by first name (optional), last name (optional), email (optional) and phone number (optional).
+
+If you have a new schema version that removes the optional phone number property, this would successfully register as long as the new schema version does not allow any additional properties by setting the additionalProperties field to false. FORWARD compatibility requires consumers to be able to read data produced with the new schema by using the previous version.
+
+If you have a proposed schema version that deletes the optional phone number property, this would not successfully register with FORWARD compatibility when the new schema version sets the additionalProperties field to true, namely allowing any additional property. Your consumers on the prior version would not be able to read the proposed schemas as they could have phone number property in a different type, for example string instead of number.
+
+## PROTOBUF
+
+For example, assume you have a schema version defined by a Message Person with first name (required), last name (required), email (optional) fields under proto2 syntax.
+
+Similar to AVRO scenarios, if you have a new schema version that adds a required field, e.g. phone number, this would successfully register. FORWARD compatibility requires consumers to be able to read data produced with the new schema by using the previous version.
+
+If you have a proposed schema version that deletes the required first name field, this would not successfully register with FORWARD compatibility. Your consumers on the prior version would not be able to read the proposed schemas as they are missing the required first name field. However, if the first name field was originally optional, then the proposed new schema would successfully register as the consumers can read data based on the new schema that doesn’t have the optional first name field.
+
+In case of a gRPC use case, removing an RPC service or RPC method is a forward-compatible change. For example, assume you have a schema version defined by an RPC service MyService with two RPC methods Foo and Bar. 
+
+If your next schema version deletes the existing RPC method named Foo, this would successfully register according to FORWARD compatibility as the consumers can read data produced with the new schema by using the previous version. If you have a proposed new schema version that adds an RPC method Baz, this would not successfully register with FORWARD compatibility. Your consumers on the prior version would not be able to read the proposed schemas as they are missing the RPC method Baz.
+
+FORWARD_ALL: This compatibility choice allows consumers to read data written by producers of any new registered schema. You can use this choice when you need to add fields or delete optional fields, and check compatibility against all previous schema versions.
+
+FULL: This compatibility choice allows consumers to read data written by producers using the previous or next version of the schema, but not earlier or later versions. You can use this choice to check compatibility against the last schema version when you add or remove optional fields.
+
+FULL_ALL: This compatibility choice allows consumers to read data written by producers using all previous schema versions. You can use this choice to check compatibility against all previous schema versions when you add or remove optional fields.
+
+## Open source Serde libraries
+
+AWS provides open-source Serde libraries as a framework for serializing and deserializing data. The open source design of these libraries allows common open-source applications and frameworks to support these libraries in their projects.
+
+For more details on how the Serde libraries work, see How the schema registry works.
+
+## Quotas of the Schema Registry
+
+Quotas, also referred to as limits in AWS, are the maximum values for the resources, actions, and items in your AWS account. The following are soft limits for the Schema Registry in AWS Glue.
+
+## Schema version metadata key-value pairs
+
+You can have up to 10 key-value pairs per SchemaVersion per AWS Region.
+
+You can view or set the key-value metadata pairs using the QuerySchemaVersionMetadata action (Python: query_schema_version_metadata) or PutSchemaVersionMetadata action (Python: put_schema_version_metadata) APIs.
+
+The following are hard limits for the Schema Registry in AWS Glue.
+
+## Registries
+
+You can have up to 100 registries per AWS Region for this account.
+
+## SchemaVersion
+
+You can have up to 10000 schema versions per AWS Region for this account.
+
+Each new schema creates a new schema version, so you can theoretically have up to 10000 schemas per account per region, if each schema has only one version.
+
+## Schema payloads
+
+There is a size limit of 170KB for schema payloads.
+
+ Javascript is disabled or is unavailable in your browser.
+To use the Amazon Web Services Documentation, Javascript must be enabled. Please refer to your browser's Help pages for instructions.
+
+Document Conventions
+
+Monitoring Data Catalog usage metrics in Amazon CloudWatch
+How it works
+
+Did this page help you? - Yes
+
+Thanks for letting us know we're doing a good job!
+If you've got a moment, please tell us what we did right so we can do more of it.
+
+Did this page help you? - No
+
+Thanks for letting us know this page needs work. We're sorry we let you down.
+If you've got a moment, please tell us how we can make the documentation better.
+

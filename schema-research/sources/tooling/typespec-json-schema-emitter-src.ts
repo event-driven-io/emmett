@@ -1,0 +1,1186 @@
+import {
+  ArrayBuilder,
+  type Context,
+  Declaration,
+  type EmitEntity,
+  type EmittedSourceFile,
+  type EmitterOutput,
+  ObjectBuilder,
+  Placeholder,
+  type Scope,
+  type SourceFile,
+  type SourceFileScope,
+  TypeEmitter,
+  setProperty,
+} from "@typespec/asset-emitter";
+import {
+  type BooleanLiteral,
+  type DiagnosticTarget,
+  type Enum,
+  type EnumMember,
+  type IntrinsicType,
+  type Model,
+  type ModelProperty,
+  type NumericLiteral,
+  type Program,
+  type Scalar,
+  type StringLiteral,
+  type StringTemplate,
+  type Tuple,
+  type Type,
+  type Union,
+  type UnionVariant,
+  type Value,
+  compilerAssert,
+  emitFile,
+  explainStringTemplateNotSerializable,
+  getDeprecated,
+  getDirectoryPath,
+  getDiscriminator,
+  getDoc,
+  getExamples,
+  getFormat,
+  getMaxItems,
+  getMaxLength,
+  getMaxValue,
+  getMaxValueExclusive,
+  getMinItems,
+  getMinLength,
+  getMinValue,
+  getMinValueExclusive,
+  getPattern,
+  getRelativePathFromDirectory,
+  getSummary,
+  isStringType,
+  isType,
+  joinPaths,
+  sanitizePathSegment,
+  serializeValueAsJson,
+} from "@typespec/compiler";
+import { DuplicateTracker } from "@typespec/compiler/utils";
+import { stringify } from "yaml";
+import {
+  type JsonSchemaDeclaration,
+  findBaseUri,
+  getContains,
+  getContentEncoding,
+  getContentMediaType,
+  getContentSchema,
+  getExtensions,
+  getId,
+  getMaxContains,
+  getMaxProperties,
+  getMinContains,
+  getMinProperties,
+  getMultipleOf,
+  getPrefixItems,
+  getUniqueItems,
+  isJsonSchemaDeclaration,
+  isOneOf,
+} from "./index.js";
+import { type JSONSchemaEmitterOptions, reportDiagnostic } from "./lib.js";
+import { includeDerivedModel } from "./utils.js";
+
+/**
+ * Whether the type is an anonymous declaration expression (e.g. an inline
+ * `enum { ... }` or `scalar extends string` used as a property type): it is in
+ * expression position (`expression: true`) and has no name. Such types are inlined
+ * into the referencing schema rather than hoisted into their own file/`$defs`.
+ */
+function isAnonymousExpression(type: JsonSchemaDeclaration): boolean {
+  return type.expression && !type.name;
+}
+
+/** @internal */
+export class JsonSchemaEmitter extends TypeEmitter<Record<string, any>, JSONSchemaEmitterOptions> {
+  #idDuplicateTracker = new DuplicateTracker<string, DiagnosticTarget>();
+  #typeForSourceFile = new Map<SourceFile<any>, JsonSchemaDeclaration>();
+  #declDefKey = new Map<Declaration<any>, string>();
+
+  #applyModelIndexer(schema: ObjectBuilder<unknown>, model: Model) {
+    if (model.indexer) {
+      setProperty(
+        schema,
+        "unevaluatedProperties",
+        this.emitter.emitTypeReference(model.indexer.value),
+      );
+      return;
+    }
+    if (!this.emitter.getOptions()["seal-object-schemas"]) return;
+
+    const derivedModels = model.derivedModels.filter(includeDerivedModel);
+    if (!derivedModels.length) {
+      setProperty(schema, "unevaluatedProperties", { not: {} });
+    }
+  }
+
+  modelDeclaration(model: Model, name: string): EmitterOutput<object> {
+    // Check if this should emit as a discriminated union
+    const discriminator = getDiscriminator(this.emitter.getProgram(), model);
+    const strategy = this.emitter.getOptions()["polymorphic-models-strategy"];
+    if (
+      (strategy === "oneOf" || strategy === "anyOf") &&
+      discriminator &&
+      model.derivedModels.length > 0
+    ) {
+      return this.#createDiscriminatedUnionDeclaration(model, name, discriminator, strategy);
+    }
+
+    // Check if base model is using discriminated union strategy
+    // If so, don't use allOf (to avoid circular references), inline properties instead
+    const shouldInlineBase =
+      model.baseModel && this.#isBaseUsingDiscriminatedUnion(model.baseModel);
+
+    const schema = this.#initializeSchema(model, name, {
+      type: "object",
+      properties: shouldInlineBase
+        ? this.#getAllModelProperties(model)
+        : this.emitter.emitModelProperties(model),
+      required: shouldInlineBase
+        ? this.#getAllRequiredModelProperties(model)
+        : this.#requiredModelProperties(model),
+    });
+
+    if (model.baseModel && !shouldInlineBase) {
+      const allOf = new ArrayBuilder();
+      allOf.push(this.emitter.emitTypeReference(model.baseModel));
+      setProperty(schema, "allOf", allOf);
+    }
+
+    this.#applyModelIndexer(schema, model);
+
+    this.#applyConstraints(model, schema);
+    return this.#createDeclaration(model, name, schema);
+  }
+
+  #isBaseUsingDiscriminatedUnion(model: Model): boolean {
+    const discriminator = getDiscriminator(this.emitter.getProgram(), model);
+    const strategy = this.emitter.getOptions()["polymorphic-models-strategy"];
+    return (
+      (strategy === "oneOf" || strategy === "anyOf") &&
+      !!discriminator &&
+      model.derivedModels.length > 0
+    );
+  }
+
+  modelLiteral(model: Model): EmitterOutput<object> {
+    const schema = new ObjectBuilder({
+      type: "object",
+      properties: this.emitter.emitModelProperties(model),
+      required: this.#requiredModelProperties(model),
+    });
+
+    this.#applyModelIndexer(schema, model);
+
+    return schema;
+  }
+
+  modelInstantiation(model: Model, name: string | undefined): EmitterOutput<Record<string, any>> {
+    if (!name) {
+      return this.modelLiteral(model);
+    }
+
+    return this.modelDeclaration(model, name);
+  }
+
+  arrayDeclaration(array: Model, name: string, elementType: Type): EmitterOutput<object> {
+    const schema = this.#initializeSchema(array, name, {
+      type: "array",
+      items: this.emitter.emitTypeReference(elementType),
+    });
+
+    this.#applyConstraints(array, schema);
+
+    return this.#createDeclaration(array, name, schema);
+  }
+
+  arrayLiteral(array: Model, elementType: Type): EmitterOutput<object> {
+    return new ObjectBuilder({
+      type: "array",
+      items: this.emitter.emitTypeReference(elementType),
+    });
+  }
+
+  #requiredModelProperties(model: Model): string[] | undefined {
+    const requiredProps = [];
+
+    for (const prop of model.properties.values()) {
+      if (!prop.optional) {
+        requiredProps.push(prop.name);
+      }
+    }
+
+    // Add discriminator property to required if model has @discriminator decorator and property is not already defined
+    const discriminator = getDiscriminator(this.emitter.getProgram(), model);
+    if (discriminator && !model.properties.has(discriminator.propertyName)) {
+      requiredProps.push(discriminator.propertyName);
+    }
+
+    return requiredProps.length > 0 ? requiredProps : undefined;
+  }
+
+  // Get all required properties including inherited ones (for when base uses discriminated union)
+  #getAllRequiredModelProperties(model: Model): string[] | undefined {
+    const requiredProps: string[] = [];
+    const visited = new Set<Model>();
+
+    const collectRequired = (m: Model) => {
+      if (visited.has(m)) return;
+      visited.add(m);
+
+      // Collect from base first
+      if (m.baseModel) {
+        collectRequired(m.baseModel);
+      }
+
+      // Then collect from this model
+      for (const prop of m.properties.values()) {
+        if (!prop.optional && !requiredProps.includes(prop.name)) {
+          requiredProps.push(prop.name);
+        }
+      }
+
+      // Add discriminator property if defined on this model
+      const discriminator = getDiscriminator(this.emitter.getProgram(), m);
+      if (
+        discriminator &&
+        !m.properties.has(discriminator.propertyName) &&
+        !requiredProps.includes(discriminator.propertyName)
+      ) {
+        requiredProps.push(discriminator.propertyName);
+      }
+    };
+
+    collectRequired(model);
+    return requiredProps.length > 0 ? requiredProps : undefined;
+  }
+
+  // Get all properties including inherited ones (for when base uses discriminated union)
+  #getAllModelProperties(model: Model): EmitterOutput<object> {
+    const props = new ObjectBuilder();
+    const visited = new Set<Model>();
+
+    const collectProperties = (m: Model) => {
+      if (visited.has(m)) return;
+      visited.add(m);
+
+      // Collect from base first
+      if (m.baseModel) {
+        collectProperties(m.baseModel);
+      }
+
+      // Then collect from this model (overriding base if needed)
+      for (const [name, prop] of m.properties) {
+        const result = this.emitter.emitModelProperty(prop);
+        setProperty(props, name, result);
+      }
+
+      // Add discriminator property if defined on this model and not already added
+      const discriminator = getDiscriminator(this.emitter.getProgram(), m);
+      if (discriminator && !(discriminator.propertyName in props)) {
+        setProperty(props, discriminator.propertyName, {
+          type: "string",
+          description: `Discriminator property for ${m.name}.`,
+        });
+      }
+    };
+
+    collectProperties(model);
+    return props;
+  }
+
+  modelProperties(model: Model): EmitterOutput<object> {
+    const props = new ObjectBuilder();
+
+    for (const [name, prop] of model.properties) {
+      const result = this.emitter.emitModelProperty(prop);
+      setProperty(props, name, result);
+    }
+
+    // Add discriminator property if model has @discriminator decorator and property is not already defined
+    const discriminator = getDiscriminator(this.emitter.getProgram(), model);
+    if (discriminator && !(discriminator.propertyName in props)) {
+      setProperty(props, discriminator.propertyName, {
+        type: "string",
+        description: `Discriminator property for ${model.name}.`,
+      });
+    }
+
+    return props;
+  }
+
+  modelPropertyLiteral(property: ModelProperty): EmitterOutput<object> {
+    const propertyType = this.emitter.emitTypeReference(property.type);
+    compilerAssert(propertyType.kind === "code", "Unexpected non-code result from emit reference");
+
+    const result = new ObjectBuilder(propertyType.value);
+
+    if (property.defaultValue) {
+      result.default = this.#getDefaultValue(property, property.defaultValue);
+    }
+
+    if (result.anyOf && isOneOf(this.emitter.getProgram(), property)) {
+      result.oneOf = result.anyOf;
+      delete result.anyOf;
+    }
+
+    this.#applyConstraints(property, result);
+
+    return result;
+  }
+
+  #getDefaultValue(modelProperty: ModelProperty, defaultType: Value): any {
+    return serializeValueAsJson(this.emitter.getProgram(), defaultType, modelProperty);
+  }
+
+  booleanLiteral(boolean: BooleanLiteral): EmitterOutput<object> {
+    return { type: "boolean", const: boolean.value };
+  }
+
+  stringLiteral(string: StringLiteral): EmitterOutput<object> {
+    return { type: "string", const: string.value };
+  }
+
+  stringTemplate(string: StringTemplate): EmitterOutput<object> {
+    if (string.stringValue !== undefined) {
+      return { type: "string", const: string.stringValue };
+    }
+    const diagnostics = explainStringTemplateNotSerializable(string);
+    this.emitter
+      .getProgram()
+      .reportDiagnostics(diagnostics.map((x) => ({ ...x, severity: "warning" })));
+    return { type: "string" };
+  }
+
+  numericLiteral(number: NumericLiteral): EmitterOutput<object> {
+    return { type: "number", const: number.value };
+  }
+
+  enumDeclaration(en: Enum, name: string): EmitterOutput<object> {
+    const enumTypes = new Set<string>();
+    const enumValues = new Set<string | number>();
+    for (const member of en.members.values()) {
+      // ???: why do we let emitters decide what the default type of an enum is
+      enumTypes.add(typeof member.value === "number" ? "number" : "string");
+      enumValues.add(member.value ?? member.name);
+    }
+
+    const enumTypesArray = [...enumTypes];
+
+    const withConstraints = this.#initializeSchema(en, name, {
+      type: enumTypesArray.length === 1 ? enumTypesArray[0] : enumTypesArray,
+      enum: [...enumValues],
+    });
+    this.#applyConstraints(en, withConstraints);
+    return this.#createDeclaration(en, name, withConstraints);
+  }
+
+  enumMemberReference(member: EnumMember): EmitterOutput<Record<string, any>> {
+    // would like to dispatch to the same `literal` codepaths but enum members aren't literal types
+    switch (typeof member.value) {
+      case "undefined":
+        return { type: "string", const: member.name };
+      case "string":
+        return { type: "string", const: member.value };
+      case "number":
+        return { type: "number", const: member.value };
+    }
+  }
+
+  tupleLiteral(tuple: Tuple): EmitterOutput<Record<string, any>> {
+    const size = tuple.values.length;
+    return new ObjectBuilder({
+      type: "array",
+      prefixItems: this.emitter.emitTupleLiteralValues(tuple),
+      minItems: size,
+      maxItems: size,
+    });
+  }
+
+  tupleLiteralValues(tuple: Tuple): EmitterOutput<Record<string, any>> {
+    const values = new ArrayBuilder();
+    for (const value of tuple.values.values()) {
+      values.push(this.emitter.emitTypeReference(value));
+    }
+    return values;
+  }
+
+  unionInstantiation(union: Union, name: string): EmitterOutput<Record<string, any>> {
+    if (!name) {
+      return this.unionLiteral(union);
+    }
+
+    return this.unionDeclaration(union, name);
+  }
+
+  unionDeclaration(union: Union, name: string): EmitterOutput<object> {
+    const key = isOneOf(this.emitter.getProgram(), union) ? "oneOf" : "anyOf";
+
+    const withConstraints = this.#initializeSchema(union, name, {
+      [key]: this.emitter.emitUnionVariants(union),
+    });
+
+    this.#applyConstraints(union, withConstraints);
+    return this.#createDeclaration(union, name, withConstraints);
+  }
+
+  unionLiteral(union: Union): EmitterOutput<object> {
+    const key = isOneOf(this.emitter.getProgram(), union) ? "oneOf" : "anyOf";
+
+    return new ObjectBuilder({
+      [key]: this.emitter.emitUnionVariants(union),
+    });
+  }
+
+  unionVariants(union: Union): EmitterOutput<object> {
+    const variants = new ArrayBuilder();
+    for (const variant of union.variants.values()) {
+      variants.push(this.emitter.emitType(variant));
+    }
+    return variants;
+  }
+
+  unionVariant(variant: UnionVariant): EmitterOutput<object> {
+    const variantType = this.emitter.emitTypeReference(variant.type);
+    compilerAssert(variantType.kind === "code", "Unexpected non-code result from emit reference");
+
+    const result = new ObjectBuilder(variantType.value);
+
+    this.#applyConstraints(variant, result);
+
+    return result;
+  }
+
+  modelPropertyReference(property: ModelProperty): EmitterOutput<object> {
+    // this is interesting - model property references will generally need to inherit
+    // the relevant decorators from the property they are referencing. I wonder if this
+    // could be made easier, as it's a bit subtle.
+
+    const refSchema = this.emitter.emitTypeReference(property.type);
+    compilerAssert(refSchema.kind === "code", "Unexpected non-code result from emit reference");
+    const schema = new ObjectBuilder(refSchema.value);
+    this.#applyConstraints(property, schema);
+    return schema;
+  }
+
+  reference(
+    targetDeclaration: Declaration<Record<string, unknown>>,
+    pathUp: Scope<Record<string, unknown>>[],
+    pathDown: Scope<Record<string, unknown>>[],
+    commonScope: Scope<Record<string, unknown>> | null,
+  ): object | EmitEntity<Record<string, unknown>> {
+    if (targetDeclaration.value instanceof Placeholder) {
+      // I don't think this is possible, confirm.
+      throw new Error("Can't form reference to declaration that hasn't been created yet");
+    }
+
+    // these will be undefined when creating a self-reference
+    const currentSfScope = pathUp[pathUp.length - 1] as SourceFileScope<object> | undefined;
+    const targetSfScope = pathDown[0] as SourceFileScope<object> | undefined;
+
+    if (targetSfScope && currentSfScope && !targetSfScope.sourceFile.meta.shouldEmit) {
+      currentSfScope.sourceFile.meta.bundledRefs.push(targetDeclaration);
+    }
+
+    if (targetDeclaration.value.$id) {
+      return { $ref: targetDeclaration.value.$id };
+    }
+
+    if (!commonScope) {
+      if (targetSfScope && !targetSfScope.sourceFile.meta.shouldEmit) {
+        // referencing a schema which should not be emitted. In which case, it will be inlined
+        // into the defs of the root schema which references this schema.
+        return { $ref: "#/$defs/" + targetDeclaration.name };
+      } else {
+        // referencing a schema that is in a different source file, but doesn't have an id.
+        // nb: this may be dead code.
+
+        // when either targetSfScope or currentSfScope are undefined, we have a common scope
+        // (i.e. we are doing a self-reference)
+        const resolved = getRelativePathFromDirectory(
+          getDirectoryPath(currentSfScope!.sourceFile.path),
+          targetSfScope!.sourceFile.path,
+          false,
+        );
+        return { $ref: resolved };
+      }
+    }
+
+    if (!currentSfScope && !targetSfScope) {
+      // referencing ourself, and we don't have an id (otherwise we'd have
+      // returned that above), so just return a ref.
+      // This should be accurate because the only case when this can happen is if
+      // the target declaration is not a root schema, and so it will be present in
+      // the defs of some root schema, and there is only one level of defs.
+
+      return { $ref: "#/$defs/" + targetDeclaration.name };
+    }
+
+    throw new Error("JSON Pointer refs to arbitrary schemas is not supported");
+  }
+
+  scalarInstantiation(
+    scalar: Scalar,
+    name: string | undefined,
+  ): EmitterOutput<Record<string, any>> {
+    if (!name) {
+      return this.#getSchemaForScalar(scalar);
+    }
+
+    return this.scalarDeclaration(scalar, name);
+  }
+
+  scalarInstantiationContext(scalar: Scalar, name: string | undefined): Context {
+    if (name === undefined) {
+      return {};
+    } else {
+      return this.#newFileScope(scalar);
+    }
+  }
+
+  scalarDeclaration(scalar: Scalar, name: string): EmitterOutput<object> {
+    const isStd = this.#isStdType(scalar);
+    const schema = this.#getSchemaForScalar(scalar);
+    // Don't create a declaration for std types
+    if (isStd) {
+      return schema;
+    }
+
+    const builderSchema = this.#initializeSchema(scalar, name, schema);
+    return this.#createDeclaration(scalar, name, builderSchema);
+  }
+
+  #getSchemaForScalar(scalar: Scalar) {
+    let result: any;
+    const isStd = this.#isStdType(scalar);
+    if (isStd) {
+      result = this.#getSchemaForStdScalars(scalar);
+    } else if (scalar.baseScalar) {
+      result = this.#getSchemaForScalar(scalar.baseScalar);
+    } else {
+      reportDiagnostic(this.emitter.getProgram(), {
+        code: "unknown-scalar",
+        format: { name: scalar.name },
+        target: scalar,
+      });
+      return {};
+    }
+
+    const objectBuilder = new ObjectBuilder(result);
+    this.#applyConstraints(scalar, objectBuilder);
+    if (isStd) {
+      // Standard types are going to be inlined in the spec and we don't want the description of the scalar to show up
+      delete objectBuilder.description;
+    }
+    return objectBuilder;
+  }
+
+  #getSchemaForStdScalars(baseBuiltIn: Scalar) {
+    switch (baseBuiltIn.name) {
+      case "uint8":
+        return { type: "integer", minimum: 0, maximum: 255 };
+      case "uint16":
+        return { type: "integer", minimum: 0, maximum: 65535 };
+      case "uint32":
+        return { type: "integer", minimum: 0, maximum: 4294967295 };
+      case "int8":
+        return { type: "integer", minimum: -128, maximum: 127 };
+      case "int16":
+        return { type: "integer", minimum: -32768, maximum: 32767 };
+      case "int32":
+      case "unixTimestamp32":
+        return { type: "integer", minimum: -2147483648, maximum: 2147483647 };
+      case "int64":
+        const int64Strategy = this.emitter.getOptions()["int64-strategy"] ?? "string";
+        if (int64Strategy === "string") {
+          return { type: "string" };
+        } else {
+          // can't use minimum and maximum because we can't actually encode these values as literals
+          // without losing precision.
+          return { type: "integer" };
+        }
+
+      case "uint64":
+        const uint64Strategy = this.emitter.getOptions()["int64-strategy"] ?? "string";
+        if (uint64Strategy === "string") {
+          return { type: "string" };
+        } else {
+          // can't use minimum and maximum because we can't actually encode these values as literals
+          // without losing precision.
+          return { type: "integer" };
+        }
+      case "decimal":
+      case "decimal128":
+        return { type: "string" };
+      case "integer":
+        return { type: "integer" };
+      case "safeint":
+        return { type: "integer" };
+      case "float":
+        return { type: "number" };
+      case "float32":
+        return { type: "number" };
+      case "float64":
+        return { type: "number" };
+      case "numeric":
+        return { type: "number" };
+      case "string":
+        return { type: "string" };
+      case "boolean":
+        return { type: "boolean" };
+      case "plainDate":
+        return { type: "string", format: "date" };
+      case "plainTime":
+        return { type: "string", format: "time" };
+      case "offsetDateTime":
+      case "utcDateTime":
+        return { type: "string", format: "date-time" };
+      case "duration":
+        return { type: "string", format: "duration" };
+      case "url":
+        return { type: "string", format: "uri" };
+      case "bytes":
+        return { type: "string", contentEncoding: "base64" };
+      default:
+        reportDiagnostic(this.emitter.getProgram(), {
+          code: "unknown-scalar",
+          format: { name: baseBuiltIn.name },
+          target: baseBuiltIn,
+        });
+        return {};
+    }
+  }
+
+  #applySchemaExamples(
+    type: Model | Scalar | Union | Enum | ModelProperty,
+    target: ObjectBuilder<unknown>,
+  ) {
+    const program = this.emitter.getProgram();
+    const examples = getExamples(program, type);
+    if (examples.length > 0) {
+      setProperty(
+        target,
+        "examples",
+        examples.map((x) => serializeValueAsJson(program, x.value, type)),
+      );
+    }
+  }
+
+  #applyConstraints(
+    type: Scalar | Model | ModelProperty | Union | UnionVariant | Enum,
+    schema: ObjectBuilder<unknown>,
+  ) {
+    const applyConstraint = (fn: (p: Program, t: Type) => any, key: string) => {
+      const value = fn(this.emitter.getProgram(), type);
+      if (value !== undefined) {
+        schema[key] = value;
+      }
+    };
+
+    const applyTypeConstraint = (fn: (p: Program, t: Type) => Type | undefined, key: string) => {
+      const constraintType = fn(this.emitter.getProgram(), type);
+      if (constraintType) {
+        const ref = this.emitter.emitTypeReference(constraintType);
+        compilerAssert(ref.kind === "code", "Unexpected non-code result from emit reference");
+        setProperty(schema, key, ref.value);
+      }
+    };
+    if (type.kind !== "UnionVariant") {
+      this.#applySchemaExamples(type, schema);
+    }
+    applyConstraint(getMinLength, "minLength");
+    applyConstraint(getMaxLength, "maxLength");
+    applyConstraint(getMinValue, "minimum");
+    applyConstraint(getMinValueExclusive, "exclusiveMinimum");
+    applyConstraint(getMaxValue, "maximum");
+    applyConstraint(getMaxValueExclusive, "exclusiveMaximum");
+    applyConstraint(getPattern, "pattern");
+    applyConstraint(getMinItems, "minItems");
+    applyConstraint(getMaxItems, "maxItems");
+
+    // the stdlib applies a format of "url" but json schema wants "uri",
+    // so ignore this format if it's the built-in type.
+    if (!this.#isStdType(type) || type.name !== "url") {
+      applyConstraint(getFormat, "format");
+    }
+
+    applyConstraint(getMultipleOf, "multipleOf");
+    applyTypeConstraint(getContains, "contains");
+    applyConstraint(getMinContains, "minContains");
+    applyConstraint(getMaxContains, "maxContains");
+    applyConstraint(getUniqueItems, "uniqueItems");
+    applyConstraint(getMinProperties, "minProperties");
+    applyConstraint(getMaxProperties, "maxProperties");
+    applyConstraint(getContentEncoding, "contentEncoding");
+    applyConstraint(getContentMediaType, "contentMediaType");
+    applyTypeConstraint(getContentSchema, "contentSchema");
+    applyConstraint(getDoc, "description");
+    applyConstraint(getSummary, "title");
+    applyConstraint(
+      (p: Program, t: Type) => (getDeprecated(p, t) !== undefined ? true : undefined),
+      "deprecated",
+    );
+
+    const prefixItems = getPrefixItems(this.emitter.getProgram(), type);
+    if (prefixItems) {
+      const prefixItemsSchema = new ArrayBuilder<Record<string, unknown>>();
+      for (const item of prefixItems.values) {
+        prefixItemsSchema.push(this.emitter.emitTypeReference(item));
+      }
+      setProperty(schema, "prefixItems", prefixItemsSchema);
+    }
+
+    const extensions = getExtensions(this.emitter.getProgram(), type);
+    for (const { key, value } of extensions) {
+      if (this.#isTypeLike(value)) {
+        setProperty(schema, key, this.emitter.emitTypeReference(value));
+      } else {
+        setProperty(schema, key, value);
+      }
+    }
+  }
+
+  #isTypeLike(value: any): value is Type {
+    return typeof value === "object" && value !== null && isType(value);
+  }
+
+  #createDeclaration(type: JsonSchemaDeclaration, name: string, schema: ObjectBuilder<unknown>) {
+    // An *anonymous* declaration expression (e.g. an inline `enum { ... }` or
+    // `scalar extends string` used as a property type) has an empty name and is not
+    // registered in a namespace. It must not be hoisted into an (empty-named) `$defs`
+    // schema or its own file; returning the schema directly inlines it. A *named*
+    // declaration expression (e.g. `model Inner { ... }`) keeps its name and is hoisted
+    // like a regular declaration.
+    if (isAnonymousExpression(type)) {
+      return schema;
+    }
+    const decl = this.emitter.result.declaration(name, schema);
+    const sf = (decl.scope as SourceFileScope<any>).sourceFile;
+    sf.meta.shouldEmit = this.#shouldEmitRootSchema(type);
+    const explicitId = getId(this.emitter.getProgram(), type);
+    if (explicitId) {
+      this.#declDefKey.set(decl, explicitId);
+    }
+    return decl;
+  }
+
+  #initializeSchema(
+    type: JsonSchemaDeclaration,
+    name: string,
+    props: Record<string, unknown>,
+  ): ObjectBuilder<unknown> {
+    const rootSchemaProps = this.#shouldEmitRootSchema(type)
+      ? this.#getRootSchemaProps(type, name)
+      : {};
+
+    return new ObjectBuilder({
+      ...rootSchemaProps,
+      ...props,
+    });
+  }
+
+  #getRootSchemaProps(type: JsonSchemaDeclaration, name: string) {
+    return {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      $id: this.#getDeclId(type, name),
+    };
+  }
+
+  #shouldEmitRootSchema(type: JsonSchemaDeclaration) {
+    // Anonymous declaration expressions are inlined, never emitted as a root schema.
+    if (isAnonymousExpression(type)) {
+      return false;
+    }
+    return (
+      this.emitter.getOptions().emitAllRefs ||
+      this.emitter.getOptions().emitAllModels ||
+      isJsonSchemaDeclaration(this.emitter.getProgram(), type)
+    );
+  }
+
+  #isStdType(type: Type) {
+    return this.emitter.getProgram().checker.isStdType(type);
+  }
+
+  #createDiscriminatedUnionDeclaration(
+    model: Model,
+    name: string,
+    discriminator: { propertyName: string },
+    strategy: "oneOf" | "anyOf",
+  ): EmitterOutput<object> {
+    const variants = new ArrayBuilder<Record<string, unknown>>();
+    const knownDiscriminatorValues: string[] = [];
+
+    // Collect all derived models and their discriminator values
+    for (const derived of model.derivedModels) {
+      if (!includeDerivedModel(derived)) continue;
+
+      // Add reference to each derived model
+      const derivedRef = this.emitter.emitTypeReference(derived);
+      variants.push(derivedRef);
+
+      // Collect discriminator values for catch-all generation
+      const values = this.#getDiscriminatorValues(derived, discriminator.propertyName);
+      knownDiscriminatorValues.push(...values);
+    }
+
+    // Check if this is an open discriminator (discriminator property type includes string)
+    // If so, add a catch-all variant that matches any unknown discriminator value
+    if (this.#isOpenDiscriminator(model, discriminator.propertyName)) {
+      const catchAllVariant = this.#createCatchAllVariant(
+        model,
+        discriminator.propertyName,
+        knownDiscriminatorValues,
+      );
+      variants.push(catchAllVariant);
+    }
+
+    // For discriminated unions, emit the oneOf/anyOf with base model properties
+    // Since derived models inline properties (not using allOf), we can include
+    // base properties here without creating circular references
+    const schema = this.#initializeSchema(model, name, {
+      type: "object",
+      properties: this.emitter.emitModelProperties(model),
+      required: this.#requiredModelProperties(model),
+      [strategy]: variants,
+    });
+
+    this.#applyConstraints(model, schema);
+    return this.#createDeclaration(model, name, schema);
+  }
+
+  /**
+   * Check if the discriminator property type is "open" (includes the string scalar type).
+   * This means the discriminated union can accept unknown discriminator values.
+   */
+  #isOpenDiscriminator(model: Model, discriminatorPropertyName: string): boolean {
+    const prop = model.properties.get(discriminatorPropertyName);
+    if (!prop) return false;
+
+    return this.#typeIncludesString(prop.type);
+  }
+
+  /**
+   * Check if a type includes the string scalar (not just string literals).
+   */
+  #typeIncludesString(type: Type): boolean {
+    const program = this.emitter.getProgram();
+
+    switch (type.kind) {
+      case "Scalar":
+        return isStringType(program, type);
+      case "Union":
+        // Check if any variant is the string scalar
+        for (const variant of type.variants.values()) {
+          if (this.#typeIncludesString(variant.type)) {
+            return true;
+          }
+        }
+        return false;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Get string discriminator values from a model's discriminator property.
+   */
+  #getDiscriminatorValues(model: Model, discriminatorPropertyName: string): string[] {
+    const prop = model.properties.get(discriminatorPropertyName);
+    if (!prop) return [];
+
+    return this.#getStringLiteralValues(prop.type);
+  }
+
+  /**
+   * Extract string literal values from a type.
+   */
+  #getStringLiteralValues(type: Type): string[] {
+    switch (type.kind) {
+      case "String":
+        return [type.value];
+      case "Union":
+        return [...type.variants.values()].flatMap((v) => this.#getStringLiteralValues(v.type));
+      case "UnionVariant":
+        return this.#getStringLiteralValues(type.type);
+      case "EnumMember":
+        return typeof type.value !== "number" ? [type.value ?? type.name] : [];
+      default:
+        return [];
+    }
+  }
+
+  /**
+   * Create a catch-all variant for open discriminated unions.
+   * This variant matches any discriminator value not in the known values.
+   */
+  #createCatchAllVariant(
+    model: Model,
+    discriminatorPropertyName: string,
+    knownValues: string[],
+  ): Record<string, unknown> {
+    const properties = new ObjectBuilder();
+
+    // Emit all base model properties
+    for (const [propName, prop] of model.properties) {
+      if (propName === discriminatorPropertyName) {
+        // Override discriminator property to match any string NOT in known values
+        setProperty(properties, propName, {
+          type: "string",
+          not: { enum: knownValues },
+        });
+      } else {
+        const result = this.emitter.emitModelProperty(prop);
+        setProperty(properties, propName, result);
+      }
+    }
+
+    // If discriminator property is not explicitly defined, add it
+    if (!model.properties.has(discriminatorPropertyName)) {
+      setProperty(properties, discriminatorPropertyName, {
+        type: "string",
+        not: { enum: knownValues },
+      });
+    }
+
+    const required = this.#requiredModelProperties(model);
+
+    return {
+      type: "object",
+      properties: properties,
+      ...(required && { required }),
+    };
+  }
+
+  intrinsic(intrinsic: IntrinsicType, name: string): EmitterOutput<object> {
+    switch (intrinsic.name) {
+      case "null":
+        return { type: "null" };
+      case "unknown":
+        return {};
+      case "never":
+      case "void":
+        return { not: {} };
+      case "ErrorType":
+        return {};
+      default:
+        const _assertNever: never = intrinsic.name;
+        compilerAssert(false, "Unreachable");
+    }
+  }
+
+  #reportDuplicateIds() {
+    for (const [id, targets] of this.#idDuplicateTracker.entries()) {
+      for (const target of targets) {
+        reportDiagnostic(this.emitter.getProgram(), {
+          code: "duplicate-id",
+          format: { id },
+          target: target,
+        });
+      }
+    }
+  }
+  async writeOutput(sourceFiles: SourceFile<Record<string, any>>[]): Promise<void> {
+    if (this.emitter.getProgram().compilerOptions.dryRun) {
+      return;
+    }
+    this.#reportDuplicateIds();
+    const toEmit: EmittedSourceFile[] = [];
+
+    const bundleId = this.emitter.getOptions().bundleId;
+    if (bundleId) {
+      const content = {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        $id: bundleId,
+        $defs: {} as Record<string, any>,
+      };
+      for (const sf of sourceFiles) {
+        if (sf.meta.shouldEmit) {
+          const decl = sf.globalScope.declarations[0];
+          content.$defs[this.#getDefKey(decl)] = this.#finalizeSourceFileContent(sf);
+        }
+      }
+      await emitFile(this.emitter.getProgram(), {
+        path: joinPaths(this.emitter.getOptions().emitterOutputDir, bundleId),
+        content: this.#serializeSourceFileContent(content),
+      });
+    } else {
+      for (const sf of sourceFiles) {
+        const emittedSf = await this.emitter.emitSourceFile(sf);
+
+        // emitSourceFile will assert if somehow we have more than one declaration here
+        if (sf.meta.shouldEmit) {
+          toEmit.push(emittedSf);
+        }
+      }
+
+      for (const emittedSf of toEmit) {
+        await emitFile(this.emitter.getProgram(), {
+          path: emittedSf.path,
+          content: emittedSf.contents,
+        });
+      }
+    }
+  }
+
+  sourceFile(sourceFile: SourceFile<object>): EmittedSourceFile {
+    const content = this.#finalizeSourceFileContent(sourceFile);
+
+    return {
+      contents: this.#serializeSourceFileContent(content),
+      path: sourceFile.path,
+    };
+  }
+
+  #finalizeSourceFileContent(sourceFile: SourceFile<object>): Record<string, any> {
+    const decls = sourceFile.globalScope.declarations;
+    compilerAssert(decls.length === 1, "Multiple decls in single schema per file mode");
+    const content: Record<string, any> = { ...decls[0].value };
+    const bundledDecls = new Set<Declaration<object>>();
+
+    if (sourceFile.meta.bundledRefs.length > 0) {
+      // bundle any refs, including refs of refs
+      content.$defs = {};
+      const refsToBundle: Declaration<object>[] = [...sourceFile.meta.bundledRefs];
+      while (refsToBundle.length > 0) {
+        const decl = refsToBundle.shift()!;
+        if (bundledDecls.has(decl)) {
+          // already $def'd, no need to def it again.
+          continue;
+        }
+        bundledDecls.add(decl);
+        content.$defs[this.#getDefKey(decl)] = decl.value;
+
+        // all scopes are source file scopes in this emitter
+        const refSf = (decl.scope as SourceFileScope<any>).sourceFile;
+        refsToBundle.push(...refSf.meta.bundledRefs);
+      }
+    }
+
+    return content;
+  }
+
+  #serializeSourceFileContent(content: Record<string, any>): string {
+    if (this.emitter.getOptions()["file-type"] === "json") {
+      return JSON.stringify(content, null, 4);
+    } else {
+      return stringify(content, {
+        aliasDuplicateObjects: false,
+        lineWidth: 0,
+      });
+    }
+  }
+
+  #getCurrentSourceFile() {
+    let scope: Scope<object> = this.emitter.getContext().scope;
+    compilerAssert(scope, "Scope should exists");
+
+    while (scope && scope.kind !== "sourceFile") {
+      scope = scope.parentScope;
+    }
+    compilerAssert(scope, "Top level scope should be a source file");
+
+    return scope.sourceFile;
+  }
+
+  #getDeclId(type: JsonSchemaDeclaration, name: string): string {
+    const baseUri = findBaseUri(this.emitter.getProgram(), type);
+    const explicitId = getId(this.emitter.getProgram(), type);
+    if (explicitId) {
+      return this.#trackId(idWithBaseURI(explicitId, baseUri), type);
+    }
+
+    // generate the ID based on the file path
+    const base = this.emitter.getOptions().emitterOutputDir;
+    const file = this.#getCurrentSourceFile().path;
+    const relative = getRelativePathFromDirectory(base, file, false);
+
+    if (baseUri) {
+      return this.#trackId(new URL(relative, baseUri).href, type);
+    } else {
+      return this.#trackId(relative, type);
+    }
+
+    function idWithBaseURI(id: string, baseUri: string | undefined): string {
+      if (baseUri) {
+        return new URL(id, baseUri).href;
+      } else {
+        return id;
+      }
+    }
+  }
+
+  #trackId(id: string, target: DiagnosticTarget) {
+    this.#idDuplicateTracker.track(id, target);
+    return id;
+  }
+
+  #getDefKey(decl: Declaration<any>): string {
+    return this.#declDefKey.get(decl) ?? decl.name;
+  }
+
+  // #region context emitters
+  modelDeclarationContext(model: Model, name: string): Context {
+    if (this.#isStdType(model) && (model.name as any) === "object") {
+      return {};
+    }
+
+    return this.#newFileScope(model);
+  }
+
+  modelInstantiationContext(model: Model, name: string | undefined): Context {
+    if (name === undefined) {
+      return {};
+    } else {
+      return this.#newFileScope(model);
+    }
+  }
+
+  arrayDeclarationContext(array: Model): Context {
+    return this.#newFileScope(array);
+  }
+
+  enumDeclarationContext(en: Enum): Context {
+    // An anonymous `enum { ... }` expression is inlined into the referencing schema, so
+    // it must not get its own file scope (which would otherwise be left empty).
+    if (isAnonymousExpression(en)) {
+      return {};
+    }
+    return this.#newFileScope(en);
+  }
+
+  unionDeclarationContext(union: Union): Context {
+    return this.#newFileScope(union);
+  }
+
+  scalarDeclarationContext(scalar: Scalar): Context {
+    if (this.#isStdType(scalar)) {
+      return {};
+    } else if (isAnonymousExpression(scalar)) {
+      // An anonymous `scalar extends ...` expression is inlined, so no file scope.
+      return {};
+    } else {
+      return this.#newFileScope(scalar);
+    }
+  }
+
+  #newFileScope(type: JsonSchemaDeclaration) {
+    const sourceFile = this.emitter.createSourceFile(
+      `${sanitizePathSegment(this.declarationName(type)!)}.${this.#fileExtension()}`,
+    );
+
+    sourceFile.meta.shouldEmit = true;
+    sourceFile.meta.bundledRefs = [];
+
+    this.#typeForSourceFile.set(sourceFile, type);
+    return {
+      scope: sourceFile.globalScope,
+    };
+  }
+
+  #fileExtension() {
+    return this.emitter.getOptions()["file-type"] === "json" ? "json" : "yaml";
+  }
+
+  // #endregion
+}

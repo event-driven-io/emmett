@@ -1,0 +1,63 @@
+{
+    "$schema": "https://json-structure.org/meta/extended/v0/#",
+    "$id": "https://example.com/schemas/com/example/shoppingcarts/ShoppingCartConfirmed",
+    "name": "ShoppingCartConfirmed",
+    "$root": "#/definitions/com/example/shoppingcarts/ShoppingCartConfirmed",
+    "definitions": {
+        "com": {
+            "example": {
+                "shoppingcarts": {
+                    "Status": {
+                        "name": "Status",
+                        "type": "string",
+                        "enum": [
+                            "Confirmed",
+                            "Cancelled"
+                        ],
+                        "default": "Confirmed"
+                    },
+                    "ShoppingCartConfirmed": {
+                        "name": "ShoppingCartConfirmed",
+                        "type": "object",
+                        "properties": {
+                            "shoppingCartId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "description": "Cart id"
+                            },
+                            "confirmedAt": {
+                                "type": "int64",
+                                "logicalType": "timestampMillis"
+                            },
+                            "totalAmount": {
+                                "type": "string"
+                            },
+                            "streamPosition": {
+                                "type": "int64"
+                            },
+                            "note": {
+                                "type": "string"
+                            },
+                            "status": {
+                                "type": {
+                                    "$ref": "#/definitions/com/example/shoppingcarts/Status"
+                                }
+                            }
+                        },
+                        "required": [
+                            "shoppingCartId",
+                            "confirmedAt",
+                            "totalAmount",
+                            "streamPosition",
+                            "status"
+                        ],
+                        "description": "Shopping cart was confirmed by the client"
+                    }
+                }
+            }
+        }
+    },
+    "$uses": [
+        "JSONStructureValidation"
+    ]
+}

@@ -1,0 +1,388 @@
+# Inngest
+
+> Inngest is the durable workflow engine for AI applications. It provides step-level retries, event coordination, throttling, concurrency controls, and human-in-the-loop patterns. Write reliable background jobs and multi-step AI pipelines as regular code, with built-in observability and zero infrastructure to manage.
+
+- [Documentation](https://www.inngest.com/docs-markdown/)
+- [Full documentation as single file](https://www.inngest.com/llms-full.txt)
+- [LLM integration context](https://www.inngest.com/llm-context.md)
+- [Blog index](https://www.inngest.com/blog.txt)
+
+## Documentation
+
+- Introduction
+  - [Overview](https://www.inngest.com/docs-markdown)
+  - [What is Inngest?](https://www.inngest.com/docs-markdown/platform-overview)
+  - Local development
+    - [Overview](https://www.inngest.com/docs-markdown/local-development)
+    - [Using Docker](https://www.inngest.com/docs-markdown/local-development/docker)
+    - AI and MCP
+      - [Overview](https://www.inngest.com/docs-markdown/ai-dev-tools)
+      - [Inngest MCP](https://www.inngest.com/docs-markdown/ai-dev-tools/mcp)
+      - [Agent plugins and skills](https://www.inngest.com/docs-markdown/ai-dev-tools/agent-skills)
+      - [CLI for coding agents](https://www.inngest.com/docs-markdown/ai-patterns/cli-for-coding-agents)
+  - Get started
+    - [Overview](https://www.inngest.com/docs-markdown/getting-started)
+    - [Next.js](https://www.inngest.com/docs-markdown/getting-started/nextjs-quick-start)
+    - [Express](https://www.inngest.com/docs-markdown/getting-started/express-quick-start)
+    - [Astro](https://www.inngest.com/docs-markdown/getting-started/astro-quick-start)
+    - [NestJS](https://www.inngest.com/docs-markdown/getting-started/nestjs-quick-start)
+    - [H3](https://www.inngest.com/docs-markdown/getting-started/h3-quick-start)
+    - [TanStack Start](https://www.inngest.com/docs-markdown/getting-started/tanstack-start-quick-start)
+- Platform
+  - Durable Execution
+    - [Overview](https://www.inngest.com/docs-markdown/durable-execution)
+    - [Durable workflows](https://www.inngest.com/docs-markdown/durable-execution/durable-workflows)
+    - Durable endpoints
+      - [Overview](https://www.inngest.com/docs-markdown/durable-execution/durable-endpoints)
+      - [Streaming](https://www.inngest.com/docs-markdown/durable-execution/durable-endpoints/streaming)
+    - Durable agents
+      - [Overview](https://www.inngest.com/docs-markdown/durable-execution/durable-agents)
+      - [Agent tool loops](https://www.inngest.com/docs-markdown/durable-execution/durable-agents/agent-tool-loops)
+      - [Human-in-the-loop](https://www.inngest.com/docs-markdown/durable-execution/durable-agents/human-in-the-loop)
+      - [Sub-agent delegation](https://www.inngest.com/docs-markdown/durable-execution/durable-agents/sub-agent-delegation)
+    - [Concepts](https://www.inngest.com/docs-markdown/durable-execution/concepts)
+    - Quick start
+      - [Overview](https://www.inngest.com/docs-markdown/durable-execution/quick-start)
+      - [TypeScript quick start](https://www.inngest.com/docs-markdown/durable-execution/quick-start/typescript-quick-start)
+      - [Go quick start](https://www.inngest.com/docs-markdown/durable-execution/quick-start/go-quick-start)
+      - [Python quick start](https://www.inngest.com/docs-markdown/durable-execution/quick-start/python-quick-start)
+    - Primitives and steps
+      - [Overview](https://www.inngest.com/docs-markdown/durable-execution/primitives)
+      - [step.run](https://www.inngest.com/docs-markdown/durable-execution/primitives/step-run)
+      - [step.sleep](https://www.inngest.com/docs-markdown/durable-execution/primitives/step-sleep)
+      - [step.sleepUntil](https://www.inngest.com/docs-markdown/durable-execution/primitives/step-sleepuntil)
+      - [step.waitForEvent](https://www.inngest.com/docs-markdown/durable-execution/primitives/step-waitforevent)
+      - [step.waitForSignal](https://www.inngest.com/docs-markdown/durable-execution/primitives/step-waitforsignal)
+      - [step.invoke](https://www.inngest.com/docs-markdown/durable-execution/primitives/step-invoke)
+      - [step.sendEvent](https://www.inngest.com/docs-markdown/durable-execution/primitives/step-sendevent)
+      - [defer](https://www.inngest.com/docs-markdown/durable-execution/primitives/defer)
+      - [group.parallel](https://www.inngest.com/docs-markdown/durable-execution/primitives/group-parallel)
+      - [group.experiment](https://www.inngest.com/docs-markdown/durable-execution/primitives/group-experiment)
+      - [Metadata](https://www.inngest.com/docs-markdown/durable-execution/primitives/metadata)
+    - Flow control
+      - [Overview](https://www.inngest.com/docs-markdown/durable-execution/flow-control)
+      - [Step concurrency](https://www.inngest.com/docs-markdown/durable-execution/flow-control/concurrency)
+      - [Bursty concurrency](https://www.inngest.com/docs-markdown/durable-execution/flow-control/bursty-concurrency)
+      - [Throttling](https://www.inngest.com/docs-markdown/durable-execution/flow-control/throttling)
+      - [Rate limiting](https://www.inngest.com/docs-markdown/durable-execution/flow-control/rate-limiting)
+      - [Batching](https://www.inngest.com/docs-markdown/durable-execution/flow-control/batching)
+      - [Singleton](https://www.inngest.com/docs-markdown/durable-execution/flow-control/singleton)
+      - [Debounce](https://www.inngest.com/docs-markdown/durable-execution/flow-control/debounce)
+      - [Priority](https://www.inngest.com/docs-markdown/durable-execution/flow-control/priority)
+      - [Multi-tenancy](https://www.inngest.com/docs-markdown/durable-execution/flow-control/multi-tenancy)
+      - [Simulator](https://www.inngest.com/docs-markdown/durable-execution/flow-control/simulator)
+    - Events and triggers
+      - [Overview](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/events-and-triggers)
+      - [Event and trigger concepts](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/events-and-triggers/event-and-trigger-concepts)
+      - [Event payloads and schemas](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/events-and-triggers/event-payloads-and-schemas)
+      - [Send events](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/events-and-triggers/send-events)
+      - [Receive webhook events](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/events-and-triggers/receive-webhook-events)
+      - [Schedules and delayed starts](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/events-and-triggers/schedules-and-delayed-starts)
+    - Error handling
+      - [Overview](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/error-handling)
+      - [Retries](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/error-handling/retries)
+      - [Non-retriable errors](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/error-handling/non-retriable-errors)
+      - [Rollbacks](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/error-handling/rollbacks)
+      - [Failure handlers](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/error-handling/failure-handlers)
+      - [Inngest errors](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/error-handling/inngest-errors)
+    - Cancellation
+      - [Overview](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/cancellation)
+      - [Timeouts](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/cancellation/timeouts)
+      - [Cancelling via events](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/cancellation/events)
+    - Deploying functions
+      - [Overview](https://www.inngest.com/docs-markdown/durable-execution/deploying-functions)
+      - [Serve](https://www.inngest.com/docs-markdown/durable-execution/deploying-functions/serve)
+      - [Connect](https://www.inngest.com/docs-markdown/durable-execution/deploying-functions/connect)
+      - Platforms
+        - [Overview](https://www.inngest.com/docs-markdown/durable-execution/deploying-functions/platforms)
+        - [Vercel](https://www.inngest.com/docs-markdown/durable-execution/deploying-functions/platforms/vercel)
+        - [Netlify](https://www.inngest.com/docs-markdown/durable-execution/deploying-functions/platforms/netlify)
+        - [Cloudflare Pages](https://www.inngest.com/docs-markdown/durable-execution/deploying-functions/platforms/cloudflare)
+        - [Render](https://www.inngest.com/docs-markdown/durable-execution/deploying-functions/platforms/render)
+        - [DigitalOcean](https://www.inngest.com/docs-markdown/durable-execution/deploying-functions/platforms/digital-ocean)
+        - [Provider limits](https://www.inngest.com/docs-markdown/durable-execution/deploying-functions/platforms/provider-limits)
+    - Advanced
+      - [Overview](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced)
+      - [Idempotency](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/idempotency)
+      - [Versioning](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/versioning)
+      - [Testing](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/testing)
+      - Patterns
+        - [Overview](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/patterns)
+        - [Fan-out](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/patterns/fan-out)
+        - [Working with loops](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/patterns/working-with-loops)
+      - Middleware
+        - [Overview](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/middleware)
+        - [Creating middleware](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/middleware/creating-middleware)
+        - [Dependency injection](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/middleware/dependency-injection)
+        - [Encryption middleware](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/middleware/encryption-middleware)
+        - [Sentry middleware](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/middleware/sentry-middleware)
+      - [Logging](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/logging)
+      - [Checkpointing](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/checkpointing)
+      - [Writing expressions](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/writing-expressions)
+    - [Limits](https://www.inngest.com/docs-markdown/durable-execution/limits)
+    - Best practices
+      - [Overview](https://www.inngest.com/docs-markdown/durable-execution/best-practices)
+      - [Performance](https://www.inngest.com/docs-markdown/durable-execution/best-practices/performance)
+  - Sandboxes
+    - [Overview](https://www.inngest.com/docs-markdown/sandboxes/overview)
+    - [Quick start](https://www.inngest.com/docs-markdown/sandboxes/quick-start)
+    - Features
+      - [Overview](https://www.inngest.com/docs-markdown/sandboxes/features)
+      - [Base images](https://www.inngest.com/docs-markdown/sandboxes/features/base-images)
+      - [Pause and resume](https://www.inngest.com/docs-markdown/sandboxes/features/pause-and-resume)
+      - [Snapshots and restore](https://www.inngest.com/docs-markdown/sandboxes/features/snapshots-and-restore)
+      - [Cloning](https://www.inngest.com/docs-markdown/sandboxes/features/cloning)
+      - [Durable filesystems](https://www.inngest.com/docs-markdown/sandboxes/features/durable-filesystems)
+      - [SSH](https://www.inngest.com/docs-markdown/sandboxes/features/ssh)
+      - [Secrets](https://www.inngest.com/docs-markdown/sandboxes/features/secrets)
+      - [Managed lifecycle](https://www.inngest.com/docs-markdown/sandboxes/features/managed-lifecycle)
+      - [Isolation and security](https://www.inngest.com/docs-markdown/sandboxes/features/isolation-and-security)
+      - [Traces](https://www.inngest.com/docs-markdown/sandboxes/features/traces)
+    - [Guides](https://www.inngest.com/docs-markdown/sandboxes/guides)
+    - [Reference](https://www.inngest.com/docs-markdown/sandboxes/reference)
+    - [Limits](https://www.inngest.com/docs-markdown/sandboxes/limits)
+    - [Best practices](https://www.inngest.com/docs-markdown/sandboxes/best-practices)
+  - Agent Evals
+    - [Overview](https://www.inngest.com/docs-markdown/agent-evals/overview)
+    - [Quick start](https://www.inngest.com/docs-markdown/agent-evals/quick-start)
+    - [Scores](https://www.inngest.com/docs-markdown/agent-evals/scores)
+    - [Deferred scoring](https://www.inngest.com/docs-markdown/agent-evals/deferred-scoring)
+    - [Experiments](https://www.inngest.com/docs-markdown/agent-evals/experiments)
+    - [Sessions](https://www.inngest.com/docs-markdown/agent-evals/sessions)
+    - Guides
+      - [Overview](https://www.inngest.com/docs-markdown/agent-evals/guides)
+      - [Score with an LLM judge](https://www.inngest.com/docs-markdown/agent-evals/guides/llm-judge)
+      - [Score user feedback](https://www.inngest.com/docs-markdown/agent-evals/guides/user-feedback)
+      - [Compare models and prompts](https://www.inngest.com/docs-markdown/agent-evals/guides/compare-models-and-prompts)
+      - [Roll out a workflow rewrite](https://www.inngest.com/docs-markdown/agent-evals/guides/workflow-rewrite)
+      - [Read results and roll out](https://www.inngest.com/docs-markdown/agent-evals/guides/interpreting-results)
+      - [Manage eval costs](https://www.inngest.com/docs-markdown/agent-evals/guides/cost-management)
+    - [Reference](https://www.inngest.com/docs-markdown/agent-evals/reference)
+    - [Limits](https://www.inngest.com/docs-markdown/agent-evals/limits)
+    - [Best practices](https://www.inngest.com/docs-markdown/agent-evals/best-practices)
+    - [Troubleshooting](https://www.inngest.com/docs-markdown/agent-evals/troubleshooting)
+  - Realtime
+    - [Overview](https://www.inngest.com/docs-markdown/realtime/overview)
+    - [Quick start](https://www.inngest.com/docs-markdown/realtime/quick-start)
+    - [Channels and topics](https://www.inngest.com/docs-markdown/realtime/channels-and-topics)
+    - Guides
+      - [Overview](https://www.inngest.com/docs-markdown/realtime/guides)
+      - [Subscription tokens](https://www.inngest.com/docs-markdown/realtime/guides/subscription-tokens)
+      - [React hooks](https://www.inngest.com/docs-markdown/realtime/guides/react-hooks)
+      - [Stream AI responses](https://www.inngest.com/docs-markdown/realtime/guides/stream-ai-responses)
+      - [Server-side subscriptions](https://www.inngest.com/docs-markdown/realtime/guides/server-side-subscriptions)
+    - [Reference](https://www.inngest.com/docs-markdown/realtime/reference)
+    - [Limits](https://www.inngest.com/docs-markdown/realtime/limits)
+    - [Troubleshooting](https://www.inngest.com/docs-markdown/realtime/troubleshooting)
+  - [SDKs & APIs](https://www.inngest.com/docs-markdown/sdks)
+  - Platform & operations
+    - [Overview](https://www.inngest.com/docs-markdown/platform-and-operations)
+    - Observability
+      - [Overview](https://www.inngest.com/docs-markdown/platform-and-operations/observability)
+      - [Inspect events and runs](https://www.inngest.com/docs-markdown/platform-and-operations/inspect-events-and-runs)
+      - [Traces](https://www.inngest.com/docs-markdown/platform-and-operations/traces)
+      - [Metrics](https://www.inngest.com/docs-markdown/platform-and-operations/metrics)
+      - [Insights](https://www.inngest.com/docs-markdown/platform-and-operations/insights)
+    - Manage and recover
+      - [Overview](https://www.inngest.com/docs-markdown/platform-and-operations/manage-and-recover)
+      - [Rerun a run](https://www.inngest.com/docs-markdown/platform-and-operations/rerun-a-run)
+      - [Replay runs in bulk](https://www.inngest.com/docs-markdown/platform-and-operations/replay-runs-in-bulk)
+      - [Bulk cancellation](https://www.inngest.com/docs-markdown/durable-execution/guides-and-advanced/cancellation/bulk-cancellation)
+      - [Pause and resume functions](https://www.inngest.com/docs-markdown/platform-and-operations/pause-and-resume-functions)
+      - [Rotate event and signing keys](https://www.inngest.com/docs-markdown/platform-and-operations/rotate-event-and-signing-keys)
+      - [Keys and access](https://www.inngest.com/docs-markdown/platform-and-operations/keys-and-access)
+    - Integrations
+      - [Overview](https://www.inngest.com/docs-markdown/platform-and-operations/integrations)
+      - [Neon](https://www.inngest.com/docs-markdown/platform-and-operations/integrations/neon)
+      - [Datadog](https://www.inngest.com/docs-markdown/platform-and-operations/integrations/datadog)
+      - [Prometheus](https://www.inngest.com/docs-markdown/platform-and-operations/integrations/prometheus)
+    - [Apps and syncs](https://www.inngest.com/docs-markdown/platform-and-operations/apps-and-syncs)
+    - [Environments and branch deploys](https://www.inngest.com/docs-markdown/platform-and-operations/environments-and-branch-deploys)
+    - [Cloud architecture and security](https://www.inngest.com/docs-markdown/platform-and-operations/cloud-architecture-and-security)
+    - [Self-host Inngest](https://www.inngest.com/docs-markdown/platform-and-operations/self-host-inngest)
+
+## Examples
+
+- AI Agent Examples
+  - [AI Agents and RAG](https://www.inngest.com/docs-markdown/examples/ai-agents-and-rag)
+  - [AI Eval Scorer quickstart](https://www.inngest.com/docs-markdown/agent-evals/guides/llm-judge)
+  - [AI Metadata quickstart](https://www.inngest.com/docs-markdown/examples/ai-metadata-quickstart)
+- Durable Workflow Examples
+  - [All examples](https://www.inngest.com/docs-markdown/examples/)
+  - [Email Sequence](https://www.inngest.com/docs-markdown/examples/email-sequence)
+  - [Scheduling a one-off function](https://www.inngest.com/docs-markdown/examples/scheduling-one-off-function)
+  - [Fetch run status and output](https://www.inngest.com/docs-markdown/examples/fetch-run-status-and-output)
+  - [Track all function failures in Datadog](https://www.inngest.com/docs-markdown/examples/track-failures-in-datadog)
+  - [Cleanup after function cancellation](https://www.inngest.com/docs-markdown/examples/cleanup-after-function-cancellation)
+  - [Fetch: Durable HTTP requests](https://www.inngest.com/docs-markdown/examples/fetch)
+  - [Stream updates from functions](https://www.inngest.com/docs-markdown/examples/realtime)
+  - [Setup OpenTelemetry with Inngest](https://www.inngest.com/docs-markdown/examples/open-telemetry)
+  - [Durable Endpoints](https://www.inngest.com/docs-markdown/examples/durable-endpoints)
+  - [Trigger workflows from Retool](https://www.inngest.com/docs-markdown/guides/trigger-your-code-from-retool)
+  - [Instrumenting GraphQL](https://www.inngest.com/docs-markdown/guides/instrumenting-graphql)
+  - [Handle Clerk webhooks](https://www.inngest.com/docs-markdown/guides/clerk-webhook-events)
+  - [Handle Resend webhooks](https://www.inngest.com/docs-markdown/guides/resend-webhook-events)
+- Middleware
+  - [Cloudflare Workers & Hono environment variables](https://www.inngest.com/docs-markdown/examples/middleware/cloudflare-workers-environment-variables)
+- Overview
+  - [All patterns](https://www.inngest.com/docs-markdown/patterns)
+- AI Evals
+  - [Run experiments in production](https://www.inngest.com/docs-markdown/patterns/ai-evals/run-experiments-in-production)
+  - [Score agents on real outcomes](https://www.inngest.com/docs-markdown/patterns/ai-evals/score-agents-on-real-outcomes)
+  - [Score agent accuracy](https://www.inngest.com/docs-markdown/patterns/ai-evals/score-agent-accuracy)
+- Durable Workflows
+  - [Reliably run critical workflows](https://www.inngest.com/docs-markdown/patterns/durable/reliably-run-critical-workflows)
+  - [Durable token streaming](https://www.inngest.com/docs-markdown/patterns/durable/durable-token-streaming)
+- Flow Control
+  - [Flash sales and bursty workflows](https://www.inngest.com/docs-markdown/patterns/flow/flash-sales-and-bursty-workflows)
+- Event Coordination
+  - [Building flows for lost customers](https://www.inngest.com/docs-markdown/patterns/events/event-coordination-for-lost-customers)
+  - [Reliable scheduling systems](https://www.inngest.com/docs-markdown/patterns/events/reliable-scheduling-systems)
+  - [Running functions in parallel](https://www.inngest.com/docs-markdown/patterns/events/running-functions-in-parallel)
+- Scheduling
+  - [Running code at specific times](https://www.inngest.com/docs-markdown/patterns/schedule/running-at-specific-times)
+- Background Jobs
+  - [Build reliable webhooks](https://www.inngest.com/docs-markdown/patterns/jobs/build-reliable-webhooks)
+  - [Keeping your API fast](https://www.inngest.com/docs-markdown/patterns/jobs/keeping-your-api-fast)
+
+## SDKs & APIs
+
+- TypeScript SDK v3
+  - [Introduction](https://www.inngest.com/docs-markdown/reference/typescript/v3/intro)
+  - [Create the client](https://www.inngest.com/docs-markdown/reference/typescript/v3/client/create)
+  - [Create a function](https://www.inngest.com/docs-markdown/reference/typescript/v3/functions/create)
+  - [Send events](https://www.inngest.com/docs-markdown/reference/typescript/v3/events/send)
+  - [Errors](https://www.inngest.com/docs-markdown/features/inngest-functions/error-retries/inngest-errors)
+  - [Handling failures](https://www.inngest.com/docs-markdown/reference/typescript/v3/functions/handling-failures)
+  - [Cancel on](https://www.inngest.com/docs-markdown/reference/typescript/v3/functions/cancel-on)
+  - [Concurrency](https://www.inngest.com/docs-markdown/functions/concurrency)
+  - [Rate limit](https://www.inngest.com/docs-markdown/reference/typescript/v3/functions/rate-limit)
+  - [Singleton](https://www.inngest.com/docs-markdown/reference/typescript/v3/functions/singleton)
+  - [Debounce](https://www.inngest.com/docs-markdown/reference/typescript/v3/functions/debounce)
+  - [Function run priority](https://www.inngest.com/docs-markdown/reference/typescript/v3/functions/run-priority)
+  - [Extended Traces](https://www.inngest.com/docs-markdown/reference/typescript/v3/extended-traces)
+  - [Referencing functions](https://www.inngest.com/docs-markdown/functions/references)
+  - [Testing](https://www.inngest.com/docs-markdown/reference/typescript/v3/testing)
+  - [Durable Endpoints](https://www.inngest.com/docs-markdown/reference/typescript/v3/durable-endpoints)
+  - Steps
+    - [step.run()](https://www.inngest.com/docs-markdown/reference/typescript/v3/functions/step-run)
+    - [step.sleep()](https://www.inngest.com/docs-markdown/reference/typescript/v3/functions/step-sleep)
+    - [step.sleepUntil()](https://www.inngest.com/docs-markdown/reference/typescript/v3/functions/step-sleep-until)
+    - [step.invoke()](https://www.inngest.com/docs-markdown/reference/typescript/v3/functions/step-invoke)
+    - [step.waitForEvent()](https://www.inngest.com/docs-markdown/reference/typescript/v3/functions/step-wait-for-event)
+    - [step.waitForSignal()](https://www.inngest.com/docs-markdown/reference/typescript/v3/functions/step-wait-for-signal)
+    - [step.sendEvent()](https://www.inngest.com/docs-markdown/reference/typescript/v3/functions/step-send-event)
+  - Serve
+    - [Framework handlers](https://www.inngest.com/docs-markdown/learn/serving-inngest-functions)
+    - [Configuration](https://www.inngest.com/docs-markdown/reference/typescript/v3/serve)
+    - [Streaming](https://www.inngest.com/docs-markdown/streaming)
+  - Realtime
+    - [Overview](https://www.inngest.com/docs-markdown/reference/typescript/v3/realtime)
+    - [React hooks / Next.js](https://www.inngest.com/docs-markdown/reference/typescript/v3/realtime/react-hooks)
+  - Middleware
+    - [Lifecycle](https://www.inngest.com/docs-markdown/reference/typescript/v3/middleware/lifecycle)
+    - [Examples](https://www.inngest.com/docs-markdown/reference/typescript/v3/middleware/examples)
+    - [TypeScript](https://www.inngest.com/docs-markdown/features/middleware/dependency-injection?guide=typescript)
+  - Using the SDK
+    - [Environment variables](https://www.inngest.com/docs-markdown/sdk/environment-variables)
+    - [Using TypeScript](https://www.inngest.com/docs-markdown/typescript)
+    - [ESLint plugin](https://www.inngest.com/docs-markdown/sdk/eslint)
+    - [Upgrading to v3](https://www.inngest.com/docs-markdown/reference/typescript/v3/migrations/v2-to-v3)
+- TypeScript SDK v4
+  - [Introduction](https://www.inngest.com/docs-markdown/reference/typescript/v4/intro)
+  - [Create the client](https://www.inngest.com/docs-markdown/reference/typescript/v4/client/create)
+  - [Create a function](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/create)
+  - [Trigger helpers](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/triggers)
+  - [Send events](https://www.inngest.com/docs-markdown/reference/typescript/v4/events/send)
+  - [Errors](https://www.inngest.com/docs-markdown/features/inngest-functions/error-retries/inngest-errors)
+  - [Handling failures](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/handling-failures)
+  - [Cancel on](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/cancel-on)
+  - [Concurrency](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/concurrency)
+  - [Rate limit](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/rate-limit)
+  - [Singleton](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/singleton)
+  - [Debounce](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/debounce)
+  - [Function run priority](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/run-priority)
+  - [Logging](https://www.inngest.com/docs-markdown/reference/typescript/v4/logging)
+  - [Extended Traces](https://www.inngest.com/docs-markdown/reference/typescript/v4/extended-traces)
+  - [Referencing functions](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/references)
+  - [Testing](https://www.inngest.com/docs-markdown/reference/typescript/v4/testing)
+  - [Durable Endpoints](https://www.inngest.com/docs-markdown/reference/typescript/v4/durable-endpoints)
+  - [Deferred Functions](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/deferred-functions)
+  - [Scoring](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/scoring)
+  - Group
+    - [group.experiment()](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/group-experiment)
+  - Steps
+    - [step.run()](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/step-run)
+    - [step.sleep()](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/step-sleep)
+    - [step.sleepUntil()](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/step-sleep-until)
+    - [step.invoke()](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/step-invoke)
+    - [step.waitForEvent()](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/step-wait-for-event)
+    - [step.waitForSignal()](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/step-wait-for-signal)
+    - [step.sendEvent()](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/step-send-event)
+    - [step.fetch()](https://www.inngest.com/docs-markdown/reference/typescript/v4/functions/fetch)
+  - Serve
+    - [Framework handlers](https://www.inngest.com/docs-markdown/learn/serving-inngest-functions)
+    - [Configuration](https://www.inngest.com/docs-markdown/reference/typescript/v4/serve)
+    - [Streaming](https://www.inngest.com/docs-markdown/reference/typescript/v4/serve/streaming)
+  - Realtime
+    - [Overview](https://www.inngest.com/docs-markdown/reference/typescript/v4/realtime)
+    - [Channels & topics](https://www.inngest.com/docs-markdown/reference/typescript/v4/realtime/channels)
+    - [Publishing](https://www.inngest.com/docs-markdown/reference/typescript/v4/realtime/publishing)
+    - [useRealtime](https://www.inngest.com/docs-markdown/reference/typescript/v4/realtime/use-realtime)
+    - [Subscribing](https://www.inngest.com/docs-markdown/reference/typescript/v4/realtime/subscribing)
+  - Middleware
+    - [Lifecycle](https://www.inngest.com/docs-markdown/reference/typescript/v4/middleware/lifecycle)
+    - [Examples](https://www.inngest.com/docs-markdown/reference/typescript/v4/middleware/examples)
+    - [Custom serialization](https://www.inngest.com/docs-markdown/reference/typescript/v4/middleware/serialization)
+    - [Encryption](https://www.inngest.com/docs-markdown/reference/typescript/v4/middleware/encryption)
+    - [Sentry](https://www.inngest.com/docs-markdown/reference/typescript/v4/middleware/sentry)
+  - Migrations
+    - [v3 to v4](https://www.inngest.com/docs-markdown/reference/typescript/v4/migrations/v3-to-v4)
+  - Using the SDK
+    - [Environment variables](https://www.inngest.com/docs-markdown/sdk/environment-variables)
+    - [Using TypeScript](https://www.inngest.com/docs-markdown/typescript)
+    - [ESLint plugin](https://www.inngest.com/docs-markdown/sdk/eslint)
+- Python SDK
+  - [Introduction](https://www.inngest.com/docs-markdown/reference/python)
+  - [Quick start](https://www.inngest.com/docs-markdown/getting-started/python-quick-start)
+  - [Inngest Client](https://www.inngest.com/docs-markdown/reference/python/client/overview)
+  - [Create function](https://www.inngest.com/docs-markdown/reference/python/functions/create)
+  - [Send events](https://www.inngest.com/docs-markdown/reference/python/client/send)
+  - [Environment variables](https://www.inngest.com/docs-markdown/reference/python/overview/env-vars)
+  - [Production mode](https://www.inngest.com/docs-markdown/reference/python/overview/prod-mode)
+  - Steps
+    - [invoke](https://www.inngest.com/docs-markdown/reference/python/steps/invoke)
+    - [invoke_by_id](https://www.inngest.com/docs-markdown/reference/python/steps/invoke_by_id)
+    - [parallel](https://www.inngest.com/docs-markdown/reference/python/steps/parallel)
+    - [run](https://www.inngest.com/docs-markdown/reference/python/steps/run)
+    - [send_event](https://www.inngest.com/docs-markdown/reference/python/steps/send-event)
+    - [sleep](https://www.inngest.com/docs-markdown/reference/python/steps/sleep)
+    - [sleep_until](https://www.inngest.com/docs-markdown/reference/python/steps/sleep-until)
+    - [wait_for_event](https://www.inngest.com/docs-markdown/reference/python/steps/wait-for-event)
+  - Middleware
+    - [Overview](https://www.inngest.com/docs-markdown/reference/python/middleware/overview)
+    - [Lifecycle](https://www.inngest.com/docs-markdown/reference/python/middleware/lifecycle)
+  - Guides
+    - [Testing](https://www.inngest.com/docs-markdown/reference/python/guides/testing)
+    - [Modal](https://www.inngest.com/docs-markdown/reference/python/guides/modal)
+    - [Pydantic](https://www.inngest.com/docs-markdown/reference/python/guides/pydantic)
+  - Migrations
+    - [v0.4 to v0.5](https://www.inngest.com/docs-markdown/reference/python/migrations/v0.4-to-v0.5)
+    - [v0.3 to v0.4](https://www.inngest.com/docs-markdown/reference/python/migrations/v0.3-to-v0.4)
+- Go SDK
+  - [Introduction](https://www.inngest.com/docs-markdown/reference/go)
+  - [Durable Workflows](https://www.inngest.com/docs-markdown/reference/go/durable-workflows)
+  - [Durable Endpoints](https://www.inngest.com/docs-markdown/reference/go/durable-endpoints)
+  - [Development and production](https://www.inngest.com/docs-markdown/reference/go/dev-and-production)
+  - [Package reference](https://pkg.go.dev/github.com/inngest/inngestgo)
+  - Migrations
+    - [v0.15 to v0.16](https://www.inngest.com/docs-markdown/reference/go/migrations/v0.16)
+    - [v0.8 to v0.11](https://www.inngest.com/docs-markdown/reference/go/migrations/v0.8-to-v0.11)
+    - [v0.7 to v0.8](https://www.inngest.com/docs-markdown/reference/go/migrations/v0.7-to-v0.8)
+- [CLI](https://www.inngest.com/docs-markdown/cli)
+- [REST API](https://api-docs.inngest.com)
+- System events
+  - [function.failed](https://www.inngest.com/docs-markdown/reference/system-events/inngest-function-failed)
+  - [function.cancelled](https://www.inngest.com/docs-markdown/reference/system-events/inngest-function-cancelled)
+- [Self-hosting](https://www.inngest.com/docs-markdown/self-hosting)
+
