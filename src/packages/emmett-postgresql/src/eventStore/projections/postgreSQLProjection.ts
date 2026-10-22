@@ -30,7 +30,6 @@ import {
   type ProjectionHandlerContext,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import type { PgEventStoreDriver } from '../../pg';
 import type {
   AnyPostgreSQLEventStoreDriver,
   InferDumboConnectionFromEventStoreDriver,
@@ -45,7 +44,7 @@ import { postgreSQLProjectionLock } from './locks';
 import { registerProjection } from './management';
 
 export type PostgreSQLProjectionHandlerContext<
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = ProjectionHandlerContext<
   {
     execute: SQLExecutor;
@@ -64,7 +63,7 @@ export type PostgreSQLProjectionHandlerContext<
 >;
 
 export const transactionToPostgreSQLProjectionHandlerContext = <
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 >(
   session: {
     pool: Dumbo;
@@ -89,7 +88,7 @@ export type PostgreSQLProjectionHandler<
   EventType extends Event = Event,
   EventMetaDataType extends PostgresReadEventMetadata =
     PostgresReadEventMetadata,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = ProjectionHandler<
   EventType,
   EventMetaDataType,
@@ -99,7 +98,7 @@ export type PostgreSQLProjectionHandler<
 export type PostgreSQLProjectionDefinition<
   EventType extends Event = Event,
   EventPayloadType extends Event = EventType,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = ProjectionDefinition<
   EventType,
   PostgresReadEventMetadata,
@@ -225,7 +224,7 @@ export type PostgreSQLProjectionSchema = {
 export type PostgreSQLProjectionWithSchema<
   EventType extends Event = Event,
   EventPayloadType extends Event = EventType,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = PostgreSQLProjectionDefinition<EventType, EventPayloadType, Driver> & {
   schema: PostgreSQLProjectionSchema;
 };

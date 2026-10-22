@@ -20,11 +20,7 @@ import {
   type PartialHandlerContext,
   type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
-import {
-  pgEventStoreDriver,
-  type PgEventStoreDriver,
-  type PgEventStoreDriverOptions,
-} from '../../pg';
+import { pgEventStoreDriver, type PgEventStoreDriverOptions } from '../../pg';
 import type {
   AnyPostgreSQLEventStoreDriver,
   InferDumboOptionsFromEventStoreDriver,
@@ -74,7 +70,7 @@ export type PostgreSQLEventStoreConsumerConfig<
 
 export type PostgreSQLEventStoreConsumerConnectionOptions<
   ConsumerMessageType extends Message = Message,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = {
   source?: MessageSource<
     NoInfer<ConsumerMessageType>,
@@ -91,14 +87,14 @@ export type PostgreSQLEventStoreConsumerConnectionOptions<
 
 export type PostgreSQLEventStoreConsumerOptions<
   ConsumerMessageType extends Message = Message,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = PostgreSQLEventStoreConsumerConfig<ConsumerMessageType> &
   PostgreSQLEventStoreConsumerConnectionOptions<ConsumerMessageType, Driver>;
 
 export type PostgreSQLReactorFactory<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = <MessageType extends ConsumerMessageType = ConsumerMessageType>(
   options: PostgreSQLReactorOptions<MessageType, MessageType, Driver>,
 ) => PostgreSQLProcessor<MessageType, Driver>;
@@ -106,7 +102,7 @@ export type PostgreSQLReactorFactory<
 export type PostgreSQLProjectorFactory<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = <
   EventType extends ConsumerMessageType & AnyEvent = ConsumerMessageType &
     AnyEvent,
@@ -117,7 +113,7 @@ export type PostgreSQLProjectorFactory<
 export type PostgreSQLWorkflowProcessorFactory<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = <
   Input extends ConsumerMessageType,
   State,
@@ -145,7 +141,7 @@ export type PostgreSQLWorkflowProcessorFactory<
 export type PostgreSQLEventStoreConsumer<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConsumerMessageType extends AnyMessage = any,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = MessageConsumer<
   ConsumerMessageType,
   PostgreSQLReactorFactory<ConsumerMessageType, Driver>,
@@ -155,7 +151,7 @@ export type PostgreSQLEventStoreConsumer<
 
 export const postgreSQLEventStoreConsumer = <
   ConsumerMessageType extends Message = AnyMessage,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 >(
   options: PostgreSQLEventStoreConsumerOptions<ConsumerMessageType, Driver>,
 ): PostgreSQLEventStoreConsumer<ConsumerMessageType, Driver> => {

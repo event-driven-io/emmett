@@ -10,7 +10,8 @@ import {
   type RecordedMessageMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
-import { describe, it } from 'vitest';
+import { describe, expectTypeOf, it } from 'vitest';
+import type { AnyPostgreSQLEventStoreDriver } from '..';
 import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
 import {
   postgreSQLEventStoreConsumer,
@@ -149,6 +150,22 @@ void describe('PostgreSQL event store consumer', () => {
       } finally {
         await storeConsumer.close();
         await eventStore.close();
+      }
+    });
+  });
+
+  void describe('created without a driver', () => {
+    void it('has a type that libraries can export without annotation', async () => {
+      const consumer = postgreSQLEventStoreConsumer<Tested>({
+        connectionString,
+      });
+
+      try {
+        expectTypeOf(consumer).toEqualTypeOf<
+          PostgreSQLEventStoreConsumer<Tested, AnyPostgreSQLEventStoreDriver>
+        >();
+      } finally {
+        await consumer.close();
       }
     });
   });
