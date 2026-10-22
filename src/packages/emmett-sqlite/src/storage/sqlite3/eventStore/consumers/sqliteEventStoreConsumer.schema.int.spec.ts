@@ -317,6 +317,7 @@ void describe('SQLite event store consumer schema configuration', () => {
         ]);
 
         const consumer = eventStore.consumer<GuestStayEvent>({
+          includeAsyncProjections: true,
           stopWhen: { noMessagesLeft: true },
         });
 
@@ -571,6 +572,7 @@ void describe('SQLite event store consumer schema configuration', () => {
         await dropTableWithMigrations(databaseSchemaName, collectionName);
 
         const consumer = eventStore.consumer<GuestStayEvent>({
+          includeAsyncProjections: true,
           stopWhen: { noMessagesLeft: true },
         });
         try {
@@ -610,6 +612,7 @@ void describe('SQLite event store consumer schema configuration', () => {
 
       try {
         const consumer = eventStore.consumer<GuestStayEvent>({
+          includeAsyncProjections: true,
           stopWhen: { noMessagesLeft: true },
         });
         try {
@@ -657,6 +660,7 @@ void describe('SQLite event store consumer schema configuration', () => {
         await eventStoreWithoutProjections.schema.migrate();
 
         const consumer = eventStore.consumer<GuestStayEvent>({
+          includeAsyncProjections: true,
           stopWhen: { noMessagesLeft: true },
           schema: { autoMigration: 'CreateOrUpdate' },
         });
@@ -705,6 +709,7 @@ void describe('SQLite event store consumer schema configuration', () => {
         await eventStoreWithoutProjections.schema.migrate();
 
         const consumer = eventStore.consumer<GuestStayEvent>({
+          includeAsyncProjections: true,
           stopWhen: { noMessagesLeft: true },
         });
         try {

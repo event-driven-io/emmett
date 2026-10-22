@@ -74,7 +74,7 @@ Pongo and raw SQL projections declare the tables they need. The event store crea
 
 When a consumer starts, it migrates the event store schema together with the tables of all its processors, in one transaction. A consumer that you create without the event store does the same.
 
-A consumer created with `eventStore.consumer()` uses the event store's migration. If the event store already migrated, the consumer doesn't migrate again. If you don't pass `processors` to it, it runs all projections registered in the event store as async, so it migrates them too.
+A consumer created with `eventStore.consumer()` uses the event store's migration. If the event store already migrated, the consumer doesn't migrate again. If you create it with `eventStore.consumer({ includeAsyncProjections: true })`, it also runs all projections registered in the event store as async, so it migrates them too. Don't register these projections again with `consumer.projector()`, as the consumer rejects a second processor with the same id.
 
 Each setting is inherited unless you set it explicitly:
 

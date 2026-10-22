@@ -121,6 +121,7 @@ void describe('SQLite event store schema changes after the user migrated the sch
         });
         try {
           const consumer = eventStore.consumer<GuestCheckedIn>({
+            includeAsyncProjections: true,
             stopWhen: { noMessagesLeft: true },
           });
           try {
@@ -159,6 +160,7 @@ void describe('SQLite event store schema changes after the user migrated the sch
         });
         try {
           const consumer = eventStore.consumer<GuestCheckedIn>({
+            includeAsyncProjections: true,
             stopWhen: { noMessagesLeft: true },
           });
           try {
@@ -257,7 +259,9 @@ void describe('SQLite event store schema changes after the user migrated the sch
   const projectEvent = async (
     eventStore: ReturnType<typeof getSQLiteEventStore>,
   ) => {
-    const consumer = eventStore.consumer<GuestCheckedIn>();
+    const consumer = eventStore.consumer<GuestCheckedIn>({
+      includeAsyncProjections: true,
+    });
 
     void consumer.start();
     try {

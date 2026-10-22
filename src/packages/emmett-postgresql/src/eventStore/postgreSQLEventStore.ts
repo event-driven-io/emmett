@@ -101,7 +101,9 @@ export interface PostgresEventStore
     options?: AppendToStreamOptions<EventType, EventPayloadType>,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
   consumer<ConsumerMessageType extends Message = AnyMessage>(
-    options?: PostgreSQLEventStoreConsumerConfig<ConsumerMessageType>,
+    options?: PostgreSQLEventStoreConsumerConfig<ConsumerMessageType> & {
+      includeAsyncProjections?: boolean;
+    },
   ): PostgreSQLEventStoreConsumer<ConsumerMessageType>;
   close(): Promise<void>;
   streamExists(
@@ -713,7 +715,9 @@ export function getPostgreSQLEventStore(
     },
 
     consumer: <ConsumerMessageType extends Message = AnyMessage>(
-      consumerOptions?: PostgreSQLEventStoreConsumerConfig<ConsumerMessageType>,
+      consumerOptions?: PostgreSQLEventStoreConsumerConfig<ConsumerMessageType> & {
+        includeAsyncProjections?: boolean;
+      },
     ): PostgreSQLEventStoreConsumer<ConsumerMessageType> => {
       const storeMigrates =
         consumerOptions?.schema?.autoMigration === undefined;
@@ -745,7 +749,7 @@ export function getPostgreSQLEventStore(
           : undefined,
       });
 
-      if (!consumerOptions?.processors?.length)
+      if (consumerOptions?.includeAsyncProjections)
         for (const projection of asyncProjections)
           consumer.projector({
             // TODO: Fix this cast when projection registrations are typed with the consumer message type

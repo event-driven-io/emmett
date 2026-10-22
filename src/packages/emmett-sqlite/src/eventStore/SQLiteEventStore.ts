@@ -98,7 +98,9 @@ export interface SQLiteEventStore
     options?: AppendToStreamOptions<EventType, EventPayloadType>,
   ): Promise<AppendToStreamResultWithGlobalPosition>;
   consumer<ConsumerMessageType extends Message = AnyMessage>(
-    options?: SQLiteEventStoreConsumerConfig<ConsumerMessageType>,
+    options?: SQLiteEventStoreConsumerConfig<ConsumerMessageType> & {
+      includeAsyncProjections?: boolean;
+    },
   ): SQLiteEventStoreConsumer<ConsumerMessageType>;
   streamExists(
     streamName: string,
@@ -494,7 +496,9 @@ export const getSQLiteEventStore = <
     },
 
     consumer: <ConsumerMessageType extends Message = AnyMessage>(
-      consumerOptions?: SQLiteEventStoreConsumerConfig<ConsumerMessageType>,
+      consumerOptions?: SQLiteEventStoreConsumerConfig<ConsumerMessageType> & {
+        includeAsyncProjections?: boolean;
+      },
     ): SQLiteEventStoreConsumer<ConsumerMessageType> => {
       const storeMigrates =
         consumerOptions?.schema?.autoMigration === undefined;
@@ -522,7 +526,7 @@ export const getSQLiteEventStore = <
           : undefined,
       });
 
-      if (!consumerOptions?.processors?.length)
+      if (consumerOptions?.includeAsyncProjections)
         for (const projection of asyncProjections)
           consumer.projector({
             // TODO: Fix this cast when projection registrations are typed with the consumer message type
