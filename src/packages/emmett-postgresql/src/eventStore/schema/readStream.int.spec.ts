@@ -167,4 +167,101 @@ void describe('readStream', () => {
       indexes.map((i) => BigInt(i)),
     );
   });
+
+  void it('reads the schema version from event metadata', async () => {
+    const streamId = uuid();
+    const event: Event<
+      'ProductItemAdded',
+      { productItem: PricedProductItem },
+      { meta: string; schemaVersion: string }
+    > = {
+      type: 'ProductItemAdded',
+      data: { productItem: { productId: 'p1', quantity: 2, price: 30 } },
+      metadata: { meta: 'data1', schemaVersion: '2' },
+    };
+    await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', [event]),
+    );
+
+    const result = await readStream(pool.execute, streamId);
+
+    assertDeepEqual(
+      result.events.map((e) => e.metadata.schemaVersion),
+      ['2'],
+    );
+  });
+
+  void it('reads schema version 1 when event metadata has no schema version', async () => {
+    const streamId = uuid();
+    await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events),
+    );
+
+    const result = await readStream(pool.execute, streamId);
+
+    assertDeepEqual(
+      result.events.map((e) => e.metadata.schemaVersion),
+      ['1', '1'],
+    );
+  });
+
+  void it('upcasts events based on their schema version', async () => {
+    type VersionedMetadata = { meta: string; schemaVersion?: string };
+    type ProductItemAddedV1 = Event<
+      'ProductItemAdded',
+      PricedProductItem,
+      VersionedMetadata
+    >;
+    type ProductItemAddedV2 = Event<
+      'ProductItemAdded',
+      { productItem: PricedProductItem },
+      VersionedMetadata
+    >;
+    type StoredProductItemAdded = ProductItemAddedV1 | ProductItemAddedV2;
+
+    const upcast = (event: StoredProductItemAdded): ProductItemAddedV2 => {
+      switch (event.metadata.schemaVersion) {
+        case '1':
+          return {
+            ...event,
+            data: { productItem: (event as ProductItemAddedV1).data },
+          };
+        default:
+          return event as ProductItemAddedV2;
+      }
+    };
+
+    const productItem: PricedProductItem = {
+      productId: 'p1',
+      quantity: 2,
+      price: 30,
+    };
+    const storedEvents: StoredProductItemAdded[] = [
+      {
+        type: 'ProductItemAdded',
+        data: productItem,
+        metadata: { meta: 'data1' },
+      },
+      {
+        type: 'ProductItemAdded',
+        data: { productItem },
+        metadata: { meta: 'data2', schemaVersion: '2' },
+      },
+    ];
+    const streamId = uuid();
+    await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', storedEvents),
+    );
+
+    const result = await readStream<ProductItemAddedV2, StoredProductItemAdded>(
+      pool.execute,
+      streamId,
+      { schema: { versioning: { upcast } } },
+    );
+
+    assertDeepEqual(
+      result.events.map((e) => e.data),
+      [{ productItem }, { productItem }],
+    );
+  });
 });

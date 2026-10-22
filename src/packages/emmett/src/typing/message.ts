@@ -73,10 +73,13 @@ export type RecordedMessage<
   kind: NonNullable<MessageKindOf<Message>>;
 };
 
+export const DefaultMessageSchemaVersion = '1';
+
 export type CommonRecordedMessageMetadata = Readonly<{
   messageId: string;
   streamPosition: StreamPosition;
   streamName: string;
+  schemaVersion?: string;
   checkpoint?: ProcessorCheckpoint | null;
   correlationId?: string;
   causationId?: string;

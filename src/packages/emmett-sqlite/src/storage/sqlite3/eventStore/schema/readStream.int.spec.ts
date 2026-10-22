@@ -7,6 +7,7 @@ import {
   type Sqlite3Pool,
 } from '@event-driven-io/dumbo/sqlite3';
 import {
+  assertDeepEqual,
   assertEqual,
   assertFalse,
   assertIsNotNull,
@@ -117,5 +118,101 @@ void describe('appendEvent', () => {
 
     // Then
     assertFalse(result.streamExists);
+  });
+
+  void it('reads the schema version from event metadata', async () => {
+    const streamId = uuid();
+    await appendToStream(connection, streamId, 'shopping_cart', [
+      {
+        type: 'ProductItemAdded',
+        data: { productItem: { productId: '1', quantity: 2, price: 30 } },
+        metadata: { meta: 'data1', schemaVersion: '2' },
+      },
+    ]);
+
+    const result = await readStream(connection.execute, streamId, {
+      serializer,
+    });
+
+    assertDeepEqual(
+      result.events.map((e) => e.metadata.schemaVersion),
+      ['2'],
+    );
+  });
+
+  void it('reads schema version 1 when event metadata has no schema version', async () => {
+    const streamId = uuid();
+    await appendToStream(connection, streamId, 'shopping_cart', events);
+
+    const result = await readStream(connection.execute, streamId, {
+      serializer,
+    });
+
+    assertDeepEqual(
+      result.events.map((e) => e.metadata.schemaVersion),
+      ['1', '1'],
+    );
+  });
+
+  void it('upcasts events based on their schema version', async () => {
+    type VersionedMetadata = { meta: string; schemaVersion?: string };
+    type ProductItemAddedV1 = Event<
+      'ProductItemAdded',
+      PricedProductItem,
+      VersionedMetadata
+    >;
+    type ProductItemAddedV2 = Event<
+      'ProductItemAdded',
+      { productItem: PricedProductItem },
+      VersionedMetadata
+    >;
+    type StoredProductItemAdded = ProductItemAddedV1 | ProductItemAddedV2;
+
+    const upcast = (event: StoredProductItemAdded): ProductItemAddedV2 => {
+      switch (event.metadata.schemaVersion) {
+        case '1':
+          return {
+            ...event,
+            data: { productItem: (event as ProductItemAddedV1).data },
+          };
+        default:
+          return event as ProductItemAddedV2;
+      }
+    };
+
+    const productItem: PricedProductItem = {
+      productId: '1',
+      quantity: 2,
+      price: 30,
+    };
+    const streamId = uuid();
+    await appendToStream<StoredProductItemAdded>(
+      connection,
+      streamId,
+      'shopping_cart',
+      [
+        {
+          type: 'ProductItemAdded',
+          data: productItem,
+          metadata: { meta: 'data1' },
+        },
+        {
+          type: 'ProductItemAdded',
+          data: { productItem },
+          metadata: { meta: 'data2', schemaVersion: '2' },
+        },
+      ],
+    );
+
+    const result = await readStream<ProductItemAddedV2, StoredProductItemAdded>(
+      connection.execute,
+      streamId,
+      { serializer, schema: { versioning: { upcast } } },
+    );
+
+    assertDeepEqual(
+      result.events.map((e) => e.data),
+      [{ productItem }, { productItem }],
+    );
   });
 });
