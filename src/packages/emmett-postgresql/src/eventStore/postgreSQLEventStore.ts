@@ -258,7 +258,7 @@ export type PostgresEventStoreConnectionStringOptions = {
   projections?: ProjectionRegistration<
     ProjectionHandlingType,
     PostgresReadEventMetadata,
-    PostgreSQLProjectionHandlerContext
+    PostgreSQLProjectionHandlerContext<PgEventStoreDriver>
   >[];
   observability?: EmmettObservabilityConfig;
   schema?: { autoMigration?: MigrationStyle } & EventStoreDatabaseSchemaOptions;
@@ -267,7 +267,7 @@ export type PostgresEventStoreConnectionStringOptions = {
      * This hook will be called **BEFORE** event store schema is created
      */
     onBeforeSchemaCreated?: (
-      context: PostgreSQLProjectionHandlerContext,
+      context: PostgreSQLProjectionHandlerContext<PgEventStoreDriver>,
     ) => Promise<void> | void;
     /**
      * This hook will be called **BEFORE** events were stored in the event store.
@@ -284,7 +284,7 @@ export type PostgresEventStoreConnectionStringOptions = {
      * This hook will be called **AFTER** event store schema was created but before transaction commits
      */
     onAfterSchemaCreated?: (
-      context: PostgreSQLProjectionHandlerContext,
+      context: PostgreSQLProjectionHandlerContext<PgEventStoreDriver>,
     ) => Promise<void> | void;
   };
   connectionOptions?: PostgresEventStoreConnectionOptions;

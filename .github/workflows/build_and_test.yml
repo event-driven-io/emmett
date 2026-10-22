@@ -67,6 +67,10 @@ jobs:
         shell: bash
         run: echo "EMMETT_PACKAGE_FILENAME=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett | jq -r '.[] | .filename')" >> $GITHUB_ENV
 
+      - name: Pack Emmett PostgreSQL locally to tar file
+        shell: bash
+        run: echo "EMMETT_POSTGRESQL_PACKAGE_FILENAME=$(npm pack --json --pack-destination './e2e/esmCompatibility' -w @event-driven-io/emmett-postgresql | jq -r '.[] | .filename')" >> $GITHUB_ENV
+
       - name: Use Almanac in the compatibility test project
         working-directory: ./src/e2e/esmCompatibility
         run: npm install ${{ env.ALMANAC_PACKAGE_FILENAME }}
@@ -108,6 +112,30 @@ jobs:
       - name: Run browser compatibility test project
         working-directory: ./src/e2e/browser
         run: npm test
+
+      - name: Use Emmett PostgreSQL in the CommonJS library declarations test project
+        working-directory: ./src/e2e/libraryDeclarations/commonjs
+        run: npm install ../../esmCompatibility/${{ env.ALMANAC_PACKAGE_FILENAME }} ../../esmCompatibility/${{ env.EMMETT_PACKAGE_FILENAME }} ../../esmCompatibility/${{ env.EMMETT_POSTGRESQL_PACKAGE_FILENAME }}
+
+      - name: Install packages in the CommonJS library declarations test project
+        working-directory: ./src/e2e/libraryDeclarations/commonjs
+        run: npm install
+
+      - name: Build the CommonJS library declarations test project
+        working-directory: ./src/e2e/libraryDeclarations/commonjs
+        run: npm run build
+
+      - name: Use Emmett PostgreSQL in the ESM library declarations test project
+        working-directory: ./src/e2e/libraryDeclarations/esm
+        run: npm install ../../esmCompatibility/${{ env.ALMANAC_PACKAGE_FILENAME }} ../../esmCompatibility/${{ env.EMMETT_PACKAGE_FILENAME }} ../../esmCompatibility/${{ env.EMMETT_POSTGRESQL_PACKAGE_FILENAME }}
+
+      - name: Install packages in the ESM library declarations test project
+        working-directory: ./src/e2e/libraryDeclarations/esm
+        run: npm install
+
+      - name: Build the ESM library declarations test project
+        working-directory: ./src/e2e/libraryDeclarations/esm
+        run: npm run build
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
