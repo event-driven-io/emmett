@@ -5,7 +5,6 @@ import {
   type ProjectorOptions,
   type ReadEventMetadataWithGlobalPosition,
 } from '@event-driven-io/emmett';
-import type { PgEventStoreDriver } from '../../pg';
 import type { AnyPostgreSQLEventStoreDriver } from '../eventStoreDriver';
 import type { PostgreSQLProjectionDefinition } from '../projections';
 import type { LockAcquisitionPolicy } from '../projections/locks';
@@ -26,7 +25,7 @@ const defaultRebuildLockPolicy: LockAcquisitionPolicy = {
 
 export type RebuildPostgreSQLProjectionsOptions<
   EventType extends AnyEvent = AnyEvent,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 > = Omit<
   PostgreSQLEventStoreConsumerConfig<EventType>,
   'stopWhen' | 'processors'
@@ -56,7 +55,7 @@ export type RebuildPostgreSQLProjectionsOptions<
 
 export const rebuildPostgreSQLProjections = <
   EventType extends AnyEvent = AnyEvent,
-  Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
+  Driver extends AnyPostgreSQLEventStoreDriver = AnyPostgreSQLEventStoreDriver,
 >(
   options: RebuildPostgreSQLProjectionsOptions<EventType, Driver>,
 ): PostgreSQLEventStoreConsumer<EventType, Driver> => {
