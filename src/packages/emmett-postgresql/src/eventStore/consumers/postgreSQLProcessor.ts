@@ -71,8 +71,8 @@ import {
 import {
   DefaultPostgreSQLProcessorLockPolicy,
   isPostgreSQLProjectionWithSchema,
-  postgreSQLProjectionWithDatabaseSchemaName,
   postgreSQLProcessorLock,
+  postgreSQLProjectionWithDatabaseSchemaName,
   postgreSQLSchemaOf,
   type LockAcquisitionPolicy,
   type PostgreSQLProcessorLock,
@@ -442,7 +442,7 @@ const toProcessorLockOptions = <
     lock?.acquisitionPolicy ?? DefaultPostgreSQLProcessorLockPolicy,
 });
 
-const postgreSQLReactorBase = <
+const setupPostgreSQLReactor = <
   Driver extends AnyPostgreSQLEventStoreDriver = PgEventStoreDriver,
 >(
   options: PostgreSQLProcessorOptionsBase<Driver> & {
@@ -536,7 +536,7 @@ export const postgreSQLProjector = <
     partition = defaultProcessorPartition,
   } = options;
 
-  const reactorBase = postgreSQLReactorBase<Driver>({
+  const reactor = setupPostgreSQLReactor<Driver>({
     ...options,
     processorId,
     processorInstanceId,
@@ -586,7 +586,7 @@ export const postgreSQLProjector = <
     processorInstanceId,
     version,
     partition,
-    ...reactorBase,
+    ...reactor,
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<EventType>()
@@ -625,7 +625,7 @@ export const postgreSQLWorkflowProcessor = <
     partition = defaultProcessorPartition,
   } = options;
 
-  const reactorBase = postgreSQLReactorBase<Driver>({
+  const reactor = setupPostgreSQLReactor<Driver>({
     ...options,
     processorId,
     processorInstanceId,
@@ -644,10 +644,10 @@ export const postgreSQLWorkflowProcessor = <
     processorInstanceId,
     version,
     partition,
-    hooks: reactorBase.hooks,
-    lock: reactorBase.lock,
+    hooks: reactor.hooks,
+    lock: reactor.lock,
     processingScope:
-      reactorBase.processingScope as unknown as MessageProcessingScope<HandlerContext>,
+      reactor.processingScope as unknown as MessageProcessingScope<HandlerContext>,
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<Input | Output, MetaDataType, HandlerContext>()
@@ -679,7 +679,7 @@ export const postgreSQLReactor = <
     processorInstanceId,
     version,
     partition,
-    ...postgreSQLReactorBase<Driver>({
+    ...setupPostgreSQLReactor<Driver>({
       ...options,
       processorId,
       processorInstanceId,

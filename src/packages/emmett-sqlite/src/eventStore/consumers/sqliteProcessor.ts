@@ -18,8 +18,8 @@ import type {
   Message,
   MessageHandlerContext,
   MessageProcessingScope,
-  PartialHandlerContext,
   MessageProcessor,
+  PartialHandlerContext,
   ProcessorHooks,
   ProjectorOptions,
   ReactorOptions,
@@ -44,7 +44,6 @@ import {
   type Event,
   type ReadEvent,
 } from '@event-driven-io/emmett';
-import { eventStoreDriverOf } from '../eventStoreDriver';
 import type {
   AnySQLiteEventStoreDriver,
   InferDumboConnectionFromEventStoreDriver,
@@ -53,6 +52,7 @@ import type {
   InferPoolFromEventStoreDriver,
   InferTransactionFromEventStoreDriver,
 } from '../eventStoreDriver';
+import { eventStoreDriverOf } from '../eventStoreDriver';
 import {
   isSQLiteProjectionWithSchema,
   sqliteProjectionWithDatabaseSchemaName,
@@ -301,7 +301,7 @@ const getProcessorPool = <
   };
 };
 
-const sqliteReactorBase = <
+const setupSqliteReactor = <
   Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 >(
   options: SQLiteProcessorOptionsBase<Driver> & {
@@ -382,7 +382,7 @@ export const sqliteWorkflowProcessor = <
     partition = defaultProcessorPartition,
   } = options;
 
-  const reactorBase = sqliteReactorBase({
+  const reactor = setupSqliteReactor({
     ...options,
     processorId,
     partition,
@@ -398,9 +398,9 @@ export const sqliteWorkflowProcessor = <
     processorInstanceId,
     version,
     partition,
-    hooks: reactorBase.hooks,
+    hooks: reactor.hooks,
     processingScope:
-      reactorBase.processingScope as unknown as MessageProcessingScope<HandlerContext>,
+      reactor.processingScope as unknown as MessageProcessingScope<HandlerContext>,
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<Input | Output, MetaDataType, HandlerContext>()
@@ -432,7 +432,7 @@ export const sqliteReactor = <
     processorInstanceId,
     version,
     partition,
-    ...sqliteReactorBase<Driver>({
+    ...setupSqliteReactor<Driver>({
       ...options,
       processorId,
       partition,
@@ -462,7 +462,7 @@ export const sqliteProjector = <
     partition = defaultProcessorPartition,
   } = options;
 
-  const reactorBase = sqliteReactorBase<Driver>({
+  const reactor = setupSqliteReactor<Driver>({
     ...options,
     processorId,
     partition,
@@ -504,7 +504,7 @@ export const sqliteProjector = <
     processorInstanceId,
     version,
     partition,
-    ...reactorBase,
+    ...reactor,
     checkpoints:
       options.checkpoints === 'DISABLED'
         ? inMemoryCheckpointer<EventType>()
