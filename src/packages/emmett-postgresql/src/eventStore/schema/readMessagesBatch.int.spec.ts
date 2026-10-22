@@ -561,4 +561,50 @@ void describe('reading messages in batches', () => {
       await connection2.close();
     }
   });
+
+  void it('reads the schema version from message metadata', async () => {
+    const streamId = uuid();
+
+    await appentToStreamRaw(pool.execute, streamId, 'shopping_cart', [
+      {
+        type: 'TestEvent',
+        kind: 'Event',
+        data: { meta: 'evt1' },
+        metadata: {
+          messageId: uuid(),
+          streamName: streamId,
+          streamPosition: '1' as unknown as bigint,
+          schemaVersion: '2',
+        } satisfies AnyRecordedMessageMetadata,
+      },
+    ]);
+
+    const poll = await readMessagesBatch<TestEvent>(pool.execute, {
+      after: PostgreSQLEventStoreCheckpoint.default,
+      batchSize: 10,
+    });
+
+    assertDeepEqual(
+      poll.messages.map((m) => m.metadata.schemaVersion),
+      ['2'],
+    );
+  });
+
+  void it('reads schema version 1 when message metadata has no schema version', async () => {
+    const streamId = uuid();
+
+    await appentToStreamRaw(pool.execute, streamId, 'shopping_cart', [
+      createTestEvent(streamId, 'evt1', 1n),
+    ]);
+
+    const poll = await readMessagesBatch<TestEvent>(pool.execute, {
+      after: PostgreSQLEventStoreCheckpoint.default,
+      batchSize: 10,
+    });
+
+    assertDeepEqual(
+      poll.messages.map((m) => m.metadata.schemaVersion),
+      ['1'],
+    );
+  });
 });

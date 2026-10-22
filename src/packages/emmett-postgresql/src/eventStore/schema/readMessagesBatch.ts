@@ -1,6 +1,7 @@
 import { mapRows, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   bigIntProcessorCheckpoint,
+  DefaultMessageSchemaVersion,
   type CombinedMessageMetadata,
   type Message,
   type MessageDataOf,
@@ -151,6 +152,7 @@ export const readMessagesBatch = async <
           });
 
         const metadata: RecordedMessageMetadataWithGlobalPosition = {
+          schemaVersion: DefaultMessageSchemaVersion,
           ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
           messageId: row.message_id,
           streamName: row.stream_id,

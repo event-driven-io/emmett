@@ -2,6 +2,7 @@ import { mapRows, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import type { JSONSerializer } from '@event-driven-io/emmett';
 import {
   bigIntProcessorCheckpoint,
+  DefaultMessageSchemaVersion,
   type CombinedMessageMetadata,
   type Message,
   type RecordedMessage,
@@ -100,6 +101,7 @@ export const readMessagesBatch = async <
         );
 
         const metadata: RecordedMessageMetadataWithGlobalPosition = {
+          schemaVersion: DefaultMessageSchemaVersion,
           ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
           messageId: row.message_id,
           streamName: row.stream_id,

@@ -7,6 +7,7 @@ import {
 } from '@event-driven-io/dumbo';
 import type { PgConnection, PgTransaction } from '@event-driven-io/dumbo/pg';
 import {
+  DefaultMessageSchemaVersion,
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
@@ -339,7 +340,9 @@ export const appentToStreamRaw = (
           const { messageId: _messageId, ...rawMetadata } = e.metadata;
           return rawMetadata;
         }),
-        schemaVersions: messages.map(() => `'1'`),
+        schemaVersions: messages.map(
+          (e) => e.metadata.schemaVersion ?? DefaultMessageSchemaVersion,
+        ),
         messageTypes: messages.map((e) => e.type),
         messageKinds: messages.map((e) => (e.kind === 'Event' ? 'E' : 'C')),
         streamId,

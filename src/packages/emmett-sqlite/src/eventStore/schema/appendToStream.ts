@@ -9,6 +9,7 @@ import {
 } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
+  DefaultMessageSchemaVersion,
   downcastRecordedMessages,
   ExpectedVersionConflictError,
   isExpectedVersionConflictError,
@@ -288,7 +289,7 @@ const buildMessageInsertQuery = (
     const streamPosition =
       BigInt(message.metadata.streamPosition) + BigInt(expectedStreamVersion);
 
-    return SQL`(${streamId},${streamPosition ?? 0n},${partition ?? defaultTag},${message.kind === 'Event' ? 'E' : 'C'},${message.data},${message.metadata},${expectedStreamVersion ?? 0n},${message.type},${message.metadata.messageId},${false})`;
+    return SQL`(${streamId},${streamPosition ?? 0n},${partition ?? defaultTag},${message.kind === 'Event' ? 'E' : 'C'},${message.data},${message.metadata},${message.metadata.schemaVersion ?? DefaultMessageSchemaVersion},${message.type},${message.metadata.messageId},${false})`;
   });
 
   return SQL`

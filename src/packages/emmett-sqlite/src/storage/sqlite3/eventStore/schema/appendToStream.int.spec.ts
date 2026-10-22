@@ -7,6 +7,7 @@ import {
   type Sqlite3Pool,
 } from '@event-driven-io/dumbo/sqlite3';
 import {
+  assertDeepEqual,
   assertEqual,
   assertFalse,
   assertIsNotNull,
@@ -330,5 +331,41 @@ void describe('appendEvent', () => {
     );
 
     assertFalse(result.success);
+  });
+
+  void it('stores the schema version from event metadata', async () => {
+    const streamId = uuid();
+
+    await appendToStream(connection, streamId, 'shopping_cart', [
+      {
+        type: 'ProductItemAdded',
+        data: { productItem: { productId: '1', quantity: 2, price: 30 } },
+        metadata: { meta: 'data1', schemaVersion: '2' },
+      },
+    ]);
+
+    const { rows } = await execute.query<{ message_schema_version: string }>(
+      SQL`SELECT message_schema_version FROM emt_messages WHERE stream_id = ${streamId}`,
+    );
+
+    assertDeepEqual(
+      rows.map((row) => row.message_schema_version),
+      ['2'],
+    );
+  });
+
+  void it('stores schema version 1 when event metadata has no schema version', async () => {
+    const streamId = uuid();
+
+    await appendToStream(connection, streamId, 'shopping_cart', events);
+
+    const { rows } = await execute.query<{ message_schema_version: string }>(
+      SQL`SELECT message_schema_version FROM emt_messages WHERE stream_id = ${streamId} ORDER BY stream_position`,
+    );
+
+    assertDeepEqual(
+      rows.map((row) => row.message_schema_version),
+      ['1', '1'],
+    );
   });
 });

@@ -2,6 +2,7 @@ import { SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import type { JSONSerializer } from '@event-driven-io/emmett';
 import {
   bigIntProcessorCheckpoint,
+  DefaultMessageSchemaVersion,
   upcastRecordedMessage,
   type CombinedReadEventMetadata,
   type Event,
@@ -68,6 +69,7 @@ export const readStream = async <
       } as unknown as EventPayloadType;
 
       const metadata: ReadEventMetadataWithGlobalPosition = {
+        schemaVersion: DefaultMessageSchemaVersion,
         ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
         messageId: row.message_id,
         streamName: streamId,
