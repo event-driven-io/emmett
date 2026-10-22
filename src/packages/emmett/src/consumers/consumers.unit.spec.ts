@@ -257,6 +257,25 @@ void describe('consumer', () => {
     assertEqual(messageConsumer.processors.length, 1);
   });
 
+  void it('rejects creating a consumer with two processors with the same id', () => {
+    const { source } = testSource([]);
+
+    let error: unknown;
+    try {
+      testConsumer({
+        source,
+        processors: [
+          testProcessor('a').processor,
+          testProcessor('a').processor,
+        ],
+      });
+    } catch (e) {
+      error = e;
+    }
+
+    assertTrue(error instanceof EmmettError);
+  });
+
   void it('creates, registers and returns a processor through the reactor factory', () => {
     const { source } = testSource([]);
     const { processor } = testProcessor('a');

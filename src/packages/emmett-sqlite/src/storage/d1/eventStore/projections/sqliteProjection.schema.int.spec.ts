@@ -20,6 +20,7 @@ import {
   assertThrows,
   assertTrue,
   EmmettError,
+  inMemoryReactor,
   type Event,
 } from '@event-driven-io/emmett';
 import { Miniflare } from 'miniflare';
@@ -32,6 +33,7 @@ import {
 } from '../../../../eventStore/SQLiteEventStore';
 import { sqliteRawSQLProjection } from '../../../../eventStore/projections/sqliteProjection';
 import { pongoSingleStreamProjection } from '../../../../eventStore/projections/pongo/pongoProjections';
+import { sqliteProjector } from '../../../../eventStore/consumers/sqliteProcessor';
 
 const withDeadline = { timeout: 30000 };
 
@@ -526,6 +528,7 @@ void describe('SQLite projection schema', () => {
         ]);
 
         const consumer = store.consumer<ProductItemAdded>({
+          includeAsyncProjections: true,
           stopWhen: { noMessagesLeft: true },
         });
 
@@ -550,7 +553,7 @@ void describe('SQLite projection schema', () => {
   );
 
   void it(
-    'rejects registering a projector for a projection that the event store already runs as async',
+    'rejects registering a projector for an event store async projection that the consumer already includes',
     withDeadline,
     async () => {
       const projection = shoppingCartProjection(collectionName);
@@ -560,7 +563,9 @@ void describe('SQLite projection schema', () => {
       });
 
       try {
-        const consumer = store.consumer<ProductItemAdded>();
+        const consumer = store.consumer<ProductItemAdded>({
+          includeAsyncProjections: true,
+        });
 
         assertThrows(
           () => consumer.projector({ projection }),
@@ -569,6 +574,167 @@ void describe('SQLite projection schema', () => {
       } finally {
         await store.close();
       }
+    },
+  );
+
+  void it(
+    'rejects creating a consumer that includes the event store async projections and gets a projector for one of them',
+    withDeadline,
+    async () => {
+      const projection = shoppingCartProjection(collectionName);
+      const store = eventStore({
+        schema: { autoMigration: 'None' },
+        projections: [{ type: 'async', projection }],
+      });
+
+      try {
+        assertThrows(
+          () =>
+            store.consumer<ProductItemAdded>({
+              includeAsyncProjections: true,
+              processors: [sqliteProjector({ projection })],
+            }),
+          (error) => error instanceof EmmettError,
+        );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'projects events once when the user registers the event store async projection in the consumer',
+    withDeadline,
+    async () => {
+      const projection = shoppingCartProjection(collectionName);
+      const store = eventStore({
+        schema: { autoMigration: 'None' },
+        projections: [{ type: 'async', projection }],
+      });
+
+      try {
+        await store.schema.migrate();
+        await store.appendToStream(`shopping_cart-${uuid()}`, [
+          { type: 'ProductItemAdded', data: { quantity: 1 } },
+        ]);
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+        });
+        consumer.projector({ projection });
+
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+
+        assertEqual(1, consumer.processors.length);
+      } finally {
+        await store.close();
+      }
+
+      assertEqual(
+        1,
+        await count(
+          pool.execute.query<{ count: number }>(
+            SQL`SELECT COUNT(*) AS count FROM ${SQL.identifier(collectionName)}`,
+          ),
+        ),
+      );
+    },
+  );
+
+  void it(
+    'does not run the event store async projections when the consumer does not include them',
+    withDeadline,
+    async () => {
+      const store = eventStore({
+        schema: { autoMigration: 'None' },
+        projections: [
+          { type: 'async', projection: shoppingCartProjection(collectionName) },
+        ],
+      });
+
+      try {
+        await store.schema.migrate();
+        await store.appendToStream(`shopping_cart-${uuid()}`, [
+          { type: 'ProductItemAdded', data: { quantity: 1 } },
+        ]);
+
+        const consumer = store.consumer<ProductItemAdded>({
+          stopWhen: { noMessagesLeft: true },
+        });
+        consumer.reactor({
+          processorId: `processor:${uuid()}`,
+          eachMessage: () => {},
+        });
+
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+      } finally {
+        await store.close();
+      }
+
+      assertEqual(
+        0,
+        await count(
+          pool.execute.query<{ count: number }>(
+            SQL`SELECT COUNT(*) AS count FROM ${SQL.identifier(collectionName)}`,
+          ),
+        ),
+      );
+    },
+  );
+
+  void it(
+    'runs the event store async projections next to the processors passed to the consumer when it includes them',
+    withDeadline,
+    async () => {
+      const store = eventStore({
+        schema: { autoMigration: 'None' },
+        projections: [
+          { type: 'async', projection: shoppingCartProjection(collectionName) },
+        ],
+      });
+
+      try {
+        await store.schema.migrate();
+        await store.appendToStream(`shopping_cart-${uuid()}`, [
+          { type: 'ProductItemAdded', data: { quantity: 1 } },
+        ]);
+
+        const consumer = store.consumer<ProductItemAdded>({
+          includeAsyncProjections: true,
+          stopWhen: { noMessagesLeft: true },
+          processors: [
+            inMemoryReactor<ProductItemAdded>({
+              processorId: `processor:${uuid()}`,
+              eachMessage: () => {},
+            }),
+          ],
+        });
+
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+      } finally {
+        await store.close();
+      }
+
+      assertEqual(
+        1,
+        await count(
+          pool.execute.query<{ count: number }>(
+            SQL`SELECT COUNT(*) AS count FROM ${SQL.identifier(collectionName)}`,
+          ),
+        ),
+      );
     },
   );
 

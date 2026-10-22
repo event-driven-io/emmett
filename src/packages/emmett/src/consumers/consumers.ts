@@ -224,7 +224,7 @@ export const consumer = <
 > => {
   const { source, batchSize, batchDeadlineInMs, hooks, until } = options;
 
-  const processors = options.processors ?? [];
+  const processors: NonNullable<typeof options.processors> = [];
 
   const scope: MessageConsumerScope<HandlerContext> =
     options.scope ?? ((handler) => handler({}));
@@ -264,6 +264,8 @@ export const consumer = <
 
     return processor;
   };
+
+  for (const processor of options.processors ?? []) register(processor);
 
   const withMergedObservability = (processorOptions: unknown): unknown => {
     if (typeof processorOptions !== 'object' || processorOptions === null)

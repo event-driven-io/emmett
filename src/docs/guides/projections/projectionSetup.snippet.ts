@@ -122,7 +122,9 @@ const runtimeStore = getPostgreSQLEventStore(connectionString, {
 });
 
 // runs the async projections registered in the event store
-const runtimeConsumer = runtimeStore.consumer();
+const runtimeConsumer = runtimeStore.consumer({
+  includeAsyncProjections: true,
+});
 await runtimeConsumer.start();
 // #endregion projection-migrations-setup
 

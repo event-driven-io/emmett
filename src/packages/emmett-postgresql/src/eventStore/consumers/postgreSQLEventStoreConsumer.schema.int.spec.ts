@@ -51,6 +51,7 @@ import {
   tableReference,
 } from '../schema/typing';
 import { postgreSQLEventStoreConsumer } from './postgreSQLEventStoreConsumer';
+import { postgreSQLProjector } from './postgreSQLProcessor';
 import { pgEventStoreDriver } from '../../pg';
 
 const withDeadline = { timeout: 30000 };
@@ -487,7 +488,9 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       try {
         await store.schema.migrate();
 
-        const consumer = store.consumer<ProductItemAdded>();
+        const consumer = store.consumer<ProductItemAdded>({
+          includeAsyncProjections: true,
+        });
 
         void consumer.start();
         try {
@@ -772,6 +775,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
         await store.schema.migrate();
 
         const consumer = store.consumer<ProductItemAdded>({
+          includeAsyncProjections: true,
           schema: { autoMigration: 'EnsureMigrated' },
         });
 
@@ -796,7 +800,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
   );
 
   void it(
-    'rejects registering a projector for a projection that the event store already runs as async',
+    'rejects registering a projector for an event store async projection that the consumer already includes',
     withDeadline,
     async () => {
       const projection = shoppingCartSummaryProjection(
@@ -813,12 +817,185 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
       });
 
       try {
-        const consumer = store.consumer<ProductItemAdded>();
+        const consumer = store.consumer<ProductItemAdded>({
+          includeAsyncProjections: true,
+        });
 
         assertThrows(
           () => consumer.projector({ projection }),
           (error) => error instanceof EmmettError,
         );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'rejects creating a consumer that includes the event store async projections and gets a projector for one of them',
+    withDeadline,
+    async () => {
+      const projection = shoppingCartSummaryProjection(
+        schemaName('shopping_cart_summary'),
+      );
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: {
+          autoMigration: 'None',
+          databaseSchemaName: schemaName('events'),
+        },
+        projections: [{ type: 'async', projection }],
+      });
+
+      try {
+        assertThrows(
+          () =>
+            store.consumer<ProductItemAdded>({
+              includeAsyncProjections: true,
+              processors: [postgreSQLProjector({ projection })],
+            }),
+          (error) => error instanceof EmmettError,
+        );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'projects events once when the user registers the event store async projection in the consumer',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const projection = shoppingCartSummaryProjection(collectionName);
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+        projections: [{ type: 'async', projection }],
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>();
+        consumer.projector({ projection });
+
+        void consumer.start();
+        try {
+          await consumer.whenStarted();
+
+          await store.appendToStream(`shopping_cart-${uuid()}`, [
+            { type: 'ProductItemAdded', data: { productItem } },
+          ]);
+
+          await consumer.whenCaughtUp();
+        } finally {
+          await consumer.close();
+        }
+
+        assertEqual(1, consumer.processors.length);
+        assertEqual(1, await rowsInTable(eventSchemaName, collectionName));
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'does not run the event store async projections when the consumer does not include them',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+        projections: [
+          {
+            type: 'async',
+            projection: shoppingCartSummaryProjection(collectionName),
+          },
+        ],
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>();
+        consumer.reactor({
+          processorId: `processor:${uuid()}`,
+          eachMessage: () => {},
+        });
+
+        void consumer.start();
+        try {
+          await consumer.whenStarted();
+
+          await store.appendToStream(`shopping_cart-${uuid()}`, [
+            { type: 'ProductItemAdded', data: { productItem } },
+          ]);
+
+          await consumer.whenCaughtUp();
+        } finally {
+          await consumer.close();
+        }
+
+        assertEqual(0, await rowsInTable(eventSchemaName, collectionName));
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    'runs the event store async projections next to the processors passed to the consumer when it includes them',
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const collectionName = schemaName('shopping_cart_summary');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: { autoMigration: 'None', databaseSchemaName: eventSchemaName },
+        projections: [
+          {
+            type: 'async',
+            projection: shoppingCartSummaryProjection(collectionName),
+          },
+        ],
+      });
+
+      try {
+        await store.schema.migrate();
+
+        const consumer = store.consumer<ProductItemAdded>({
+          includeAsyncProjections: true,
+          processors: [
+            inMemoryReactor<ProductItemAdded>({
+              processorId: `processor:${uuid()}`,
+              eachMessage: () => {},
+            }),
+          ],
+        });
+
+        void consumer.start();
+        try {
+          await consumer.whenStarted();
+
+          await store.appendToStream(`shopping_cart-${uuid()}`, [
+            { type: 'ProductItemAdded', data: { productItem } },
+          ]);
+
+          await consumer.whenCaughtUp();
+        } finally {
+          await consumer.close();
+        }
+
+        assertEqual(1, await rowsInTable(eventSchemaName, collectionName));
       } finally {
         await store.close();
       }
@@ -851,6 +1028,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
         await dropTableWithMigrations(eventSchemaName, collectionName);
 
         const consumer = store.consumer<ProductItemAdded>({
+          includeAsyncProjections: true,
           stopWhen: { noMessagesLeft: true },
         });
         try {
@@ -891,6 +1069,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
 
       try {
         const consumer = store.consumer<ProductItemAdded>({
+          includeAsyncProjections: true,
           stopWhen: { noMessagesLeft: true },
         });
         try {
@@ -936,6 +1115,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
         await storeWithoutProjections.schema.migrate();
 
         const consumer = store.consumer<ProductItemAdded>({
+          includeAsyncProjections: true,
           stopWhen: { noMessagesLeft: true },
           schema: { autoMigration: 'CreateOrUpdate' },
         });
@@ -985,6 +1165,7 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
         await storeWithoutProjections.schema.migrate();
 
         const consumer = store.consumer<ProductItemAdded>({
+          includeAsyncProjections: true,
           stopWhen: { noMessagesLeft: true },
         });
 

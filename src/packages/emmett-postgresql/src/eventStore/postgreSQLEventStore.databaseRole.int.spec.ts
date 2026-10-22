@@ -146,7 +146,10 @@ void describe('PostgreSQL event store used by a database role that cannot create
         });
         try {
           await store
-            .consumer<ProductItemAdded>({ stopWhen: { noMessagesLeft: true } })
+            .consumer<ProductItemAdded>({
+              includeAsyncProjections: true,
+              stopWhen: { noMessagesLeft: true },
+            })
             .start();
         } finally {
           await store.close();
@@ -189,6 +192,7 @@ void describe('PostgreSQL event store used by a database role that cannot create
           await assertRejects(
             store
               .consumer<ProductItemAdded>({
+                includeAsyncProjections: true,
                 stopWhen: { noMessagesLeft: true },
               })
               .start(),
@@ -338,7 +342,9 @@ void describe('PostgreSQL event store used by a database role that cannot create
   const projectEvent = async (
     store: ReturnType<typeof getPostgreSQLEventStore>,
   ) => {
-    const consumer = store.consumer<ProductItemAdded>();
+    const consumer = store.consumer<ProductItemAdded>({
+      includeAsyncProjections: true,
+    });
 
     void consumer.start();
     try {
