@@ -1,0 +1,6 @@
+Value.Check valid   true
+Value.Check invalid false
+Value.Errors        ["must have required properties confirmedAt","must be string"]
+Compile().Check     true
+Static<typeof data> typed: {"shoppingCartId":"c-1","confirmedAt":"2026-10-23T10:00:00.000Z"} true
+nested in Type.Object false

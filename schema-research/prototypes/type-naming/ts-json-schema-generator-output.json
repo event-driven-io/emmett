@@ -1,0 +1,98 @@
+{
+  "$ref": "#/definitions/ShoppingCartEvent",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ShoppingCartCancelled": {
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "additionalProperties": false,
+          "properties": {
+            "cancelledAt": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "shoppingCartId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "shoppingCartId",
+            "cancelledAt"
+          ],
+          "type": "object"
+        },
+        "metadata": {
+          "$ref": "#/definitions/ShoppingCartEventMetadata"
+        },
+        "type": {
+          "const": "ShoppingCartCancelled",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ],
+      "type": "object"
+    },
+    "ShoppingCartConfirmed": {
+      "additionalProperties": false,
+      "description": "Shopper confirmed the cart",
+      "properties": {
+        "data": {
+          "additionalProperties": false,
+          "properties": {
+            "confirmedAt": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "shoppingCartId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "shoppingCartId",
+            "confirmedAt"
+          ],
+          "type": "object"
+        },
+        "metadata": {
+          "$ref": "#/definitions/ShoppingCartEventMetadata"
+        },
+        "type": {
+          "const": "ShoppingCartConfirmed",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ],
+      "type": "object"
+    },
+    "ShoppingCartEvent": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ShoppingCartConfirmed"
+        },
+        {
+          "$ref": "#/definitions/ShoppingCartCancelled"
+        }
+      ]
+    },
+    "ShoppingCartEventMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "clientId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "clientId"
+      ],
+      "type": "object"
+    }
+  }
+}
+

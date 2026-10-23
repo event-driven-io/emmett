@@ -1,0 +1,13 @@
+zod parse                                  throws   ZodError
+zod safeParse                              returns  Object {success,error}
+valibot parse                              throws   ValiError
+valibot safeParse                          returns  Object {typed,success,output,issues}
+arktype call                               returns  ArkErrors {0, arkKind,ctx,byPath}
+arktype assert                             throws   TraversalError
+effect decodeUnknownSync                   throws   SchemaError
+effect decodeUnknownResult                 returns  Object {failure}
+typebox Value.Parse                        throws   ParseError
+typebox Value.Check                        returns  Boolean {false}
+vine validate                              throws   ValidationError
+vine tryValidate                           returns  Array {0,1}
+standard schema ~standard.validate (zod)   returns  Object {issues}

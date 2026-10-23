@@ -1,0 +1,381 @@
+# Fastify Type Provider Zod
+
+[![NPM Version](https://img.shields.io/npm/v/fastify-type-provider-zod.svg)](https://npmjs.org/package/fastify-type-provider-zod)
+[![NPM Downloads](https://img.shields.io/npm/dm/fastify-type-provider-zod.svg)](https://npmjs.org/package/fastify-type-provider-zod)
+[![Build Status](https://github.com//turkerdev/fastify-type-provider-zod/workflows/CI/badge.svg)](https://github.com//turkerdev/fastify-type-provider-zod/actions)
+
+## Zod compatibility
+
+| fastify-type-provider-zod | zod |
+|---------------------------|-------|
+| <=4.x | v3 |
+| >=5.x <7.x | v4 |
+| >=7.x | v4.2+ |
+
+> **Important (v7+)**
+>
+> Starting from **v7**, this library uses Zod’s `.encode()` / `.decode()` APIs introduced in **Zod 4.2**.
+> Because of this change, **response serialization is now based on `z.output<T>` instead of `z.input<T>`**.
+>
+> This means Fastify serializers always expect the **post-transformation output type** of your Zod schemas.
+
+## How to use?
+
+```ts
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
+import { z } from 'zod/v4';
+
+const app = Fastify();
+
+// Add schema validator and serializer
+app.setValidatorCompiler(validatorCompiler);
+app.setSerializerCompiler(serializerCompiler);
+
+app.withTypeProvider<ZodTypeProvider>().route({
+  method: 'GET',
+  url: '/',
+  // Define your schema
+  schema: {
+    querystring: z.object({
+      name: z.string().min(4),
+    }),
+    response: {
+      200: z.string(),
+    },
+  },
+  handler: (req, res) => {
+    res.send(req.query.name);
+  },
+});
+
+app.listen({ port: 4949 });
+```
+
+You can also pass options to the `serializerCompiler` function:
+
+```ts
+type ZodSerializerCompilerOptions = {
+  replacer?: ReplacerFunction;
+};
+```
+
+```ts
+import Fastify from 'fastify';
+import { createSerializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
+
+const app = Fastify();
+
+const replacer = function (key, value) {
+  if (this[key] instanceof Date) {
+    return { _date: value.toISOString() };
+  }
+  return value;
+};
+
+// Create a custom serializer compiler
+const customSerializerCompiler = createSerializerCompiler({ replacer });
+
+// Add schema validator and serializer
+app.setValidatorCompiler(validatorCompiler);
+app.setSerializerCompiler(customSerializerCompiler);
+
+// ...
+
+app.listen({ port: 4949 });
+```
+
+## How to use together with @fastify/swagger
+
+```ts
+import fastify from 'fastify';
+import fastifySwagger from '@fastify/swagger';
+import fastifySwaggerUI from '@fastify/swagger-ui';
+import { z } from 'zod/v4';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import {
+  jsonSchemaTransform,
+  createJsonSchemaTransform,
+  serializerCompiler,
+  validatorCompiler,
+} from 'fastify-type-provider-zod';
+
+const app = fastify();
+app.setValidatorCompiler(validatorCompiler);
+app.setSerializerCompiler(serializerCompiler);
+
+app.register(fastifySwagger, {
+  openapi: {
+    info: {
+      title: 'SampleApi',
+      description: 'Sample backend service',
+      version: '1.0.0',
+    },
+    servers: [],
+  },
+  transform: jsonSchemaTransform,
+
+  // You can also create transform with custom skiplist of endpoints that should not be included in the specification:
+  //
+  // transform: createJsonSchemaTransform({
+  //   skipList: [ '/documentation/static/*' ]
+  // })
+});
+
+app.register(fastifySwaggerUI, {
+  routePrefix: '/documentation',
+});
+
+const LOGIN_SCHEMA = z.object({
+  username: z.string().max(32).describe('Some description for username'),
+  password: z.string().max(32),
+});
+
+app.after(() => {
+  app.withTypeProvider<ZodTypeProvider>().route({
+    method: 'POST',
+    url: '/login',
+    schema: { body: LOGIN_SCHEMA },
+    handler: (req, res) => {
+      res.send('ok');
+    },
+  });
+});
+
+async function run() {
+  await app.ready();
+
+  await app.listen({
+    port: 4949,
+  });
+
+  console.log(`Documentation running at http://localhost:4949/documentation`);
+}
+
+run();
+```
+
+## Customizing error responses
+
+You can add custom handling of request and response validation errors to your fastify error handler like this:
+
+```ts
+import { hasZodFastifySchemaValidationErrors } from 'fastify-type-provider-zod';
+
+fastifyApp.setErrorHandler((err, req, reply) => {
+  if (hasZodFastifySchemaValidationErrors(err)) {
+    return reply.code(400).send({
+      error: 'Response Validation Error',
+      message: "Request doesn't match the schema",
+      statusCode: 400,
+      details: {
+        issues: err.validation,
+        method: req.method,
+        url: req.url,
+      },
+    });
+  }
+
+  if (isResponseSerializationError(err)) {
+    return reply.code(500).send({
+      error: 'Internal Server Error',
+      message: "Response doesn't match the schema",
+      statusCode: 500,
+      details: {
+        issues: err.cause.issues,
+        method: err.method,
+        url: err.url,
+      },
+    });
+  }
+
+  // the rest of the error handler
+});
+```
+
+## How to create refs to the schemas?
+
+When provided, this package will automatically create refs using the `jsonSchemaTransformObject` function. You register the schemas with the global Zod registry and assign them an `id`. `fastifySwagger` will then create an OpenAPI document that references the schemas.
+
+The following example creates a ref to the `User` schema and will include the `User` schema in the OpenAPI document.
+
+```ts
+import fastifySwagger from '@fastify/swagger';
+import fastifySwaggerUI from '@fastify/swagger-ui';
+import fastify from 'fastify';
+import { z } from 'zod/v4';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import {
+  jsonSchemaTransformObject,
+  jsonSchemaTransform,
+  serializerCompiler,
+  validatorCompiler,
+} from 'fastify-type-provider-zod';
+
+const USER_SCHEMA = z.object({
+  id: z.number().int().positive(),
+  name: z.string().describe('The name of the user'),
+});
+
+z.globalRegistry.add(USER_SCHEMA, { id: 'User' });
+
+const app = fastify();
+app.setValidatorCompiler(validatorCompiler);
+app.setSerializerCompiler(serializerCompiler);
+
+app.register(fastifySwagger, {
+  openapi: {
+    info: {
+      title: 'SampleApi',
+      description: 'Sample backend service',
+      version: '1.0.0',
+    },
+    servers: [],
+  },
+  transform: jsonSchemaTransform,
+  transformObject: jsonSchemaTransformObject,
+});
+
+app.register(fastifySwaggerUI, {
+  routePrefix: '/documentation',
+});
+
+app.after(() => {
+  app.withTypeProvider<ZodTypeProvider>().route({
+    method: 'GET',
+    url: '/users',
+    schema: {
+      response: {
+        200: USER_SCHEMA.array(),
+      },
+    },
+    handler: (req, res) => {
+      res.send([]);
+    },
+  });
+});
+
+async function run() {
+  await app.ready();
+
+  await app.listen({
+    port: 4949,
+  });
+
+  console.log(`Documentation running at http://localhost:4949/documentation`);
+}
+
+run();
+```
+
+## How to define an empty body response
+
+Use `z.undefined()` to define a response with no body. This enforces correct types on `res.send()` and generates an accurate OpenAPI schema:
+
+```ts
+import { z } from 'zod/v4';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+
+app.withTypeProvider<ZodTypeProvider>().route({
+  method: 'DELETE',
+  url: '/resource',
+  schema: {
+    response: {
+      204: z.undefined().describe('Resource deleted'),
+    },
+  },
+  handler: (_req, res) => {
+    res.status(204).send();
+  },
+});
+```
+
+## How to define multiple response content types
+
+You can define per-content-type response schemas following the OpenAPI 3.x response object format. The `jsonSchemaTransform` will include them correctly in the generated spec, and `res.send()` will be typed as the union of all defined schemas.
+
+```ts
+import { z } from 'zod/v4';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+
+app.withTypeProvider<ZodTypeProvider>().route({
+  method: 'GET',
+  url: '/items',
+  schema: {
+    response: {
+      200: {
+        description: 'Successful response',
+        content: {
+          'application/json': { schema: z.object({ id: z.number(), name: z.string() }) },
+          'application/vnd.v1+json': { schema: z.array(z.object({ id: z.number(), name: z.string() })) },
+        },
+      },
+      default: {
+        content: {
+          '*/*': { schema: z.object({ message: z.string() }) },
+        },
+      },
+    },
+  },
+  handler: (req, res) => {
+    res.send({ id: 1, name: 'item' });
+  },
+});
+```
+
+Fastify dispatches serialization per content type — set the response `Content-Type` header in the handler to select which schema validates the response body:
+
+```ts
+handler: (req, res) => {
+  res.header('Content-Type', 'application/vnd.v1+json');
+  res.send([{ id: 1, name: 'item' }]);
+},
+```
+
+## How to create a plugin?
+
+```ts
+import { z } from 'zod/v4';
+import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+
+const plugin: FastifyPluginAsyncZod = async function (fastify, _opts) {
+  fastify.route({
+    method: 'GET',
+    url: '/',
+    // Define your schema
+    schema: {
+      querystring: z.object({
+        name: z.string().min(4),
+      }),
+      response: {
+        200: z.string(),
+      },
+    },
+    handler: (req, res) => {
+      res.send(req.query.name);
+    },
+  });
+};
+```
+
+## How to specify different OpenAPI targets
+
+You can specify different JSON Schema targets for OpenAPI compatibility using the `createJsonSchemaTransform` function with the `zodToJsonConfig.target` option.
+
+By default target "openapi-3.0" is used for documents with "openapi" field set to "3.0.x", and target "draft-2020-12" is used for documents with "openapi" field set to "3.1.x".
+
+### Usage
+
+```typescript
+import { createJsonSchemaTransform } from "fastify-type-provider-zod";
+
+// For OpenAPI 3.0.x compatibility
+const transform = createJsonSchemaTransform({
+  zodToJsonConfig: { target: "openapi-3.0" },
+});
+
+// For OpenAPI 3.1+
+const transform = createJsonSchemaTransform({
+  zodToJsonConfig: { target: "draft-2020-12" },
+});
+```
