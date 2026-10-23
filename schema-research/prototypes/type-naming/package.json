@@ -1,0 +1,14 @@
+{
+  "name": "schema-research-type-naming",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "json-schema-to-typescript": "^16.0.0",
+    "ts-json-schema-generator": "^2.9.0",
+    "tsx": "^4.23.15",
+    "ttsc": "^0.33.1",
+    "typescript": "^7.0.2",
+    "typia": "^15.1.0"
+  }
+}

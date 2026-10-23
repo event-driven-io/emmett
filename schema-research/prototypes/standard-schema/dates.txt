@@ -1,0 +1,20 @@
+zod z.date()                                     ISO string -> issues: Invalid input: expected date, received string
+zod z.date()                                     Date       -> value: Date 2026-10-23T10:00:00.000Z
+zod z.coerce.date()                              ISO string -> value: Date 2026-10-23T10:00:00.000Z
+zod z.coerce.date()                              Date       -> value: Date 2026-10-23T10:00:00.000Z
+zod codec z.iso.datetime() -> z.date()           ISO string -> value: Date 2026-10-23T10:00:00.000Z
+zod codec z.iso.datetime() -> z.date()           Date       -> issues: Invalid input: expected string, received Date
+valibot v.date()                                 ISO string -> issues: Invalid type: Expected Date but received "2026-10-23T10:00:00.000Z"
+valibot v.date()                                 Date       -> value: Date 2026-10-23T10:00:00.000Z
+valibot pipe(string, isoTimestamp, transform)    ISO string -> value: Date 2026-10-23T10:00:00.000Z
+valibot pipe(string, isoTimestamp, transform)    Date       -> issues: Invalid type: Expected string but received Date
+arktype Date                                     ISO string -> issues: must be a Date (was string)
+arktype Date                                     Date       -> value: Date 2026-10-23T10:00:00.000Z
+arktype string.date.iso.parse                    ISO string -> value: Date 2026-10-23T10:00:00.000Z
+arktype string.date.iso.parse                    Date       -> issues: must be a string (was an object)
+effect Schema.Date                               ISO string -> issues: Expected a valid Date
+effect Schema.Date                               Date       -> value: Date 2026-10-23T10:00:00.000Z
+effect Schema.DateFromString                     ISO string -> value: Date 2026-10-23T10:00:00.000Z
+effect Schema.DateFromString                     Date       -> issues: Expected string
+typebox Codec(String date-time) Value.Decode     ISO string -> value: Date
+typebox Codec(String date-time) Value.Decode     Date       -> throws Decode

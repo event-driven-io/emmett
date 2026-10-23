@@ -1,0 +1,1 @@
+{ "compilerOptions": { "strict": true, "module": "NodeNext", "moduleResolution": "NodeNext", "skipLibCheck": true }, "files": ["src/types.ts"] }

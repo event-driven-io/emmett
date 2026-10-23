@@ -1,0 +1,27 @@
+=== type ShoppingCartConfirmed
+type ShoppingCartConfirmed = Readonly<{
+    type: "ShoppingCartConfirmed";
+    data: {
+        shoppingCartId: string;
+        confirmedAt: Date;
+    };
+    metadata: {
+        clientId: string;
+    };
+}> & {
+    readonly kind?: "Event";
+}
+=== type ShoppingCartEvent
+type ShoppingCartEvent = defineEvent<"ShoppingCartConfirmed", {
+    shoppingCartId: string;
+    confirmedAt: Date;
+}, {
+    clientId: string;
+}> | EmmettEvent<"ShoppingCartCancelled", {
+    shoppingCartId: string;
+    cancelledAt: Date;
+}, ShoppingCartEventMetadata>
+=== interface ShoppingCartOpened
+interface ShoppingCartOpened
+=== type ShoppingCartEventWithOpened
+type ShoppingCartEventWithOpened = ShoppingCartOpened | ShoppingCartEvent

@@ -1,0 +1,7 @@
+zod z.encode                   -> {"confirmedAt":"2026-10-23T10:00:00.000Z"}
+zod encode of invalid          -> throws [
+effect encodeSync              -> {"confirmedAt":"2026-10-23T10:00:00.000Z"}
+effect fromJsonString encode   -> "{\"confirmedAt\":\"2026-10-23T10:00:00.000Z\"}"
+typebox Value.Encode           -> {"confirmedAt":"2026-10-23T10:00:00.000Z"}
+valibot encode exists          -> false
+arktype encode exists          -> false

@@ -1,0 +1,9 @@
+express-validator "downloads":889103
+express-zod-safe "downloads":9154
+zod-express-middleware "downloads":18717
+@hono/zod-validator "downloads":3190506
+@hono/standard-validator "downloads":1103335
+fastify-type-provider-zod "downloads":805561
+@fastify/type-provider-typebox "downloads":346531
+nestjs-zod "downloads":808163
+celebrate "downloads":35193
