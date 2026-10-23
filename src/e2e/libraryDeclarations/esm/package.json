@@ -3,7 +3,8 @@
   "name": "emmett-library-declarations-esm",
   "type": "module",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "tsc"
   },
   "dependencies": {
     "@event-driven-io/dumbo": "0.13.0-beta.56",

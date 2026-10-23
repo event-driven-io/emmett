@@ -7,7 +7,7 @@
   "main": "index.js",
   "scripts": {
     "serve": "http-server . -p 8080",
-    "test": "node test.mjs"
+    "test": "playwright install chromium && vitest run"
   },
   "keywords": [],
   "author": "",

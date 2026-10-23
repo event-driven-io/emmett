@@ -6,7 +6,8 @@
     "dev": "HOST=0.0.0.0 nuxt dev",
     "generate": "nuxt generate --fail-on-error",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "test": "node generate.ts"
   },
   "dependencies": {
     "@event-driven-io/emmett": "0.20.1",
