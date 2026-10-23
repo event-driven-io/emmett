@@ -2,7 +2,7 @@ import express from 'express';
 import assert from 'node:assert';
 import path from 'path';
 import { chromium } from 'playwright';
-import { beforeAll, describe, it } from 'vitest';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 
 describe('Browser environment tests', () => {
   let server;
