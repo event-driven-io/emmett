@@ -41,6 +41,7 @@ import { migrations_0_38_7 } from '../0_38_7';
 import { migrations_0_42_0 } from '../0_42_0';
 import { migrations_0_43_0 } from '../0_43_0';
 import { pgEventStoreDriver } from '../../../../pg';
+import { migration_0_43_0_enforceStreamExistenceFor } from '../0_43_0/0_43_0.migration';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -142,7 +143,10 @@ void describe('Schema migrations tests', () => {
     const { applied, skipped } = await eventStore.schema.migrate();
 
     // Then
-    assertDeepEqual(applied, [schemaMigrationFor(schemaOptions)]);
+    assertDeepEqual(applied, [
+      migration_0_43_0_enforceStreamExistenceFor(schemaOptions),
+      schemaMigrationFor(schemaOptions),
+    ]);
     assertThatArray(skipped).isEmpty();
     assertTrue(await schemaExists(pool.execute, 'events'));
     assertTrue(await schemaExists(pool.execute, 'infrastructure'));

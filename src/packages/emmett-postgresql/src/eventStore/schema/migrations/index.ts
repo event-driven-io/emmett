@@ -7,6 +7,7 @@ import { eventStoreSchemaSQL, schemaSQL } from '../eventStoreSchemaSQL';
 import { migrations_0_38_7 } from './0_38_7';
 import { migrations_0_42_0 } from './0_42_0';
 import { migrations_0_43_0 } from './0_43_0';
+import { migration_0_43_0_enforceStreamExistenceFor } from './0_43_0/0_43_0.migration';
 
 export { eventStoreSchemaSQL, schemaSQL };
 
@@ -41,5 +42,8 @@ export const eventStoreSchemaMigrationsFor = (
 
   return databaseSchemaName === undefined
     ? eventStoreSchemaMigrations
-    : [schemaMigrationFor(options)];
+    : [
+        migration_0_43_0_enforceStreamExistenceFor(options),
+        schemaMigrationFor(options),
+      ];
 };

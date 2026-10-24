@@ -3,6 +3,7 @@ import { describe } from 'vitest';
 import {
   testAggregateStream,
   testAppendToStream,
+  testCommandHandling,
   testStreamExists,
 } from '../features';
 
@@ -14,6 +15,8 @@ describe('InMemoryEventStore', () => {
   testAggregateStream(() => Promise.resolve(getInMemoryEventStore()));
 
   testAppendToStream(() => Promise.resolve(getInMemoryEventStore()));
+
+  testCommandHandling(() => Promise.resolve(getInMemoryEventStore()));
 
   testStreamExists(() => Promise.resolve(getInMemoryEventStore()));
 

@@ -320,7 +320,9 @@ export const getEventStoreDBEventStore = (
           } catch (error) {
             if (error instanceof WrongExpectedVersionError) {
               throw new ExpectedVersionConflictError(
-                BigInt(error.actualVersion),
+                error.actualVersion === NO_STREAM
+                  ? EventStoreDBEventStoreDefaultStreamVersion
+                  : error.actualVersion,
                 toExpectedVersion(error.expectedVersion),
               );
             }
@@ -411,7 +413,11 @@ const toExpectedRevision = (
 
   if (expected === NO_CONCURRENCY_CHECK) return ANY;
 
-  if (expected == STREAM_DOES_NOT_EXIST) return NO_STREAM;
+  if (
+    expected === STREAM_DOES_NOT_EXIST ||
+    expected === EventStoreDBEventStoreDefaultStreamVersion
+  )
+    return NO_STREAM;
 
   if (expected == STREAM_EXISTS) return ESDB_STREAM_EXISTS;
 

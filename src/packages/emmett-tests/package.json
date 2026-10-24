@@ -50,6 +50,7 @@
   "devDependencies": {
     "@event-driven-io/emmett": "0.43.0-beta.54",
     "@event-driven-io/emmett-esdb": "0.43.0-beta.54",
+    "@event-driven-io/emmett-mongodb": "0.43.0-beta.54",
     "@event-driven-io/emmett-sqlite": "0.43.0-beta.54",
     "@event-driven-io/emmett-postgresql": "0.43.0-beta.54",
     "@event-driven-io/emmett-testcontainers": "0.43.0-beta.54",

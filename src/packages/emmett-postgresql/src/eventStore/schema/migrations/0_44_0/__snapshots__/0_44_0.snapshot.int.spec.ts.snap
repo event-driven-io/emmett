@@ -410,7 +410,6 @@ IF NOT EXISTS (
   AS $emt_append_to_stream$
   DECLARE
       v_next_stream_position bigint;
-      v_position bigint;
       v_updated_rows int;
       v_transaction_id xid8;
       v_global_positions bigint[];
@@ -433,7 +432,21 @@ IF NOT EXISTS (
 
       v_next_stream_position := v_expected_stream_position + array_upper(v_messages_data, 1);
 
-      IF v_expected_stream_position = 0 THEN
+      IF v_expected_stream_position = -1 THEN
+          UPDATE ",
+        "__P__",
+        " as s
+          SET stream_position = s.stream_position + array_upper(v_messages_data, 1)
+          WHERE stream_id = v_stream_id AND partition = v_partition AND is_archived = FALSE
+          RETURNING s.stream_position INTO v_next_stream_position;
+
+          IF NOT FOUND THEN
+              RETURN QUERY SELECT FALSE, NULL::bigint, NULL::bigint[], NULL::xid8;
+              RETURN;
+          END IF;
+
+          v_expected_stream_position := v_next_stream_position - array_upper(v_messages_data, 1);
+      ELSIF v_expected_stream_position = 0 THEN
           INSERT INTO ",
         "__P__",
         "
@@ -495,6 +508,12 @@ END $$;
 ",
       ],
       "sqlTokens": [
+        {
+          "SQL_TABLE_REFERENCE": true,
+          "databaseSchemaName": "dmb_default_schema",
+          "sqlTokenType": "SQL_TABLE_REFERENCE",
+          "tableName": "emt_streams",
+        },
         {
           "SQL_TABLE_REFERENCE": true,
           "databaseSchemaName": "dmb_default_schema",

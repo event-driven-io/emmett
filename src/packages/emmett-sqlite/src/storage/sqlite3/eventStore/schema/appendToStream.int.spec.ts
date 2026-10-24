@@ -13,6 +13,8 @@ import {
   assertIsNotNull,
   assertThrowsAsync,
   assertTrue,
+  STREAM_DOES_NOT_EXIST,
+  STREAM_EXISTS,
   type Event,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
@@ -82,6 +84,91 @@ void describe('appendEvent', () => {
       metadata: { meta: 'data2' },
     },
   ];
+
+  for (const { name, expectedStreamVersion, streamExists, succeeds } of [
+    {
+      name: 'creates a stream when a new stream is required',
+      expectedStreamVersion: STREAM_DOES_NOT_EXIST,
+      streamExists: false,
+      succeeds: true,
+    },
+    {
+      name: 'rejects appending to an existing stream when a new stream is required',
+      expectedStreamVersion: STREAM_DOES_NOT_EXIST,
+      streamExists: true,
+      succeeds: false,
+    },
+    {
+      name: 'rejects creating a stream when an existing stream is required',
+      expectedStreamVersion: STREAM_EXISTS,
+      streamExists: false,
+      succeeds: false,
+    },
+    {
+      name: 'appends to the stream when an existing stream is required',
+      expectedStreamVersion: STREAM_EXISTS,
+      streamExists: true,
+      succeeds: true,
+    },
+  ]) {
+    void it(name, async () => {
+      const streamId = uuid();
+
+      if (streamExists) {
+        const creationResult = await appendToStream(
+          connection,
+          streamId,
+          'shopping_cart',
+          events,
+        );
+        assertTrue(creationResult.success);
+      }
+
+      let hookCalled = false;
+      const result = await appendToStream(
+        connection,
+        streamId,
+        'shopping_cart',
+        events,
+        {
+          expectedStreamVersion,
+          onBeforeCommit: () => {
+            hookCalled = true;
+          },
+        },
+      );
+
+      assertEqual(succeeds, result.success);
+      assertEqual(succeeds, hookCalled);
+
+      const expectedCount =
+        (Number(streamExists) + Number(succeeds)) * events.length;
+      const { rows } = await execute.query<{ stream_position: string }>(
+        SQL`SELECT CAST(stream_position AS VARCHAR) AS stream_position FROM emt_messages WHERE stream_id = ${streamId} ORDER BY stream_position`,
+      );
+
+      assertDeepEqual(
+        rows.map((row) => row.stream_position),
+        Array.from({ length: expectedCount }, (_, index) => String(index + 1)),
+      );
+
+      const { rows: streams } = await execute.query<{
+        stream_position: string;
+      }>(
+        SQL`SELECT CAST(stream_position AS VARCHAR) AS stream_position FROM emt_streams WHERE stream_id = ${streamId}`,
+      );
+
+      assertDeepEqual(
+        streams,
+        expectedCount > 0 ? [{ stream_position: String(expectedCount) }] : [],
+      );
+
+      if (succeeds) {
+        assertTrue(result.success);
+        assertEqual(BigInt(expectedCount), result.nextStreamPosition);
+      }
+    });
+  }
 
   void it('should append events correctly', async () => {
     const result = await appendToStream(

@@ -9,6 +9,7 @@ export default defineConfig({
     include: ['**/*.int.spec.ts', '**/*.e2e.spec.ts'],
     globalSetup: [
       '../emmett-postgresql/src/testing/sharedPostgreSQLGlobalSetup.ts',
+      '../emmett-mongodb/src/testing/sharedMongoDBGlobalSetup.ts',
     ],
   },
 });

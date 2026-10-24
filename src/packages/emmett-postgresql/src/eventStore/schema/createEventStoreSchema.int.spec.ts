@@ -29,6 +29,7 @@ import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
 import { createEventStoreSchema } from '../schema';
 import type { EventStoreDatabaseSchemaOptions } from './eventStoreDatabaseSchema';
 import { schemaMigrationFor } from './migrations';
+import { migration_0_43_0_enforceStreamExistenceFor } from './migrations/0_43_0/0_43_0.migration';
 import { pgEventStoreDriver } from '../../pg';
 
 type ProductItemAdded = Event<
@@ -317,6 +318,7 @@ void describe('createEventStoreSchema with configured database schemas', () => {
         const dryRunResult = await store.schema.migrate({ dryRun });
 
         assertDeepEqual(dryRunResult.applied, [
+          migration_0_43_0_enforceStreamExistenceFor(schemaOptions),
           schemaMigrationFor(schemaOptions),
         ]);
         assertFalse(
@@ -332,6 +334,7 @@ void describe('createEventStoreSchema with configured database schemas', () => {
         const actualMigration = await store.schema.migrate();
 
         assertDeepEqual(actualMigration.applied, [
+          migration_0_43_0_enforceStreamExistenceFor(schemaOptions),
           schemaMigrationFor(schemaOptions),
         ]);
         assertTrue(

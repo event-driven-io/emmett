@@ -52,7 +52,6 @@ export const appendToStreamSQLFor = (databaseSchemaName?: string) =>
   AS $emt_append_to_stream$
   DECLARE
       v_next_stream_position bigint;
-      v_position bigint;
       v_updated_rows int;
       v_transaction_id xid8;
       v_global_positions bigint[];
@@ -73,7 +72,19 @@ export const appendToStreamSQLFor = (databaseSchemaName?: string) =>
 
       v_next_stream_position := v_expected_stream_position + array_upper(v_messages_data, 1);
 
-      IF v_expected_stream_position = 0 THEN
+      IF v_expected_stream_position = -1 THEN
+          UPDATE ${tableReference(databaseSchemaName, streamsTable.name)} as s
+          SET stream_position = s.stream_position + array_upper(v_messages_data, 1)
+          WHERE stream_id = v_stream_id AND partition = v_partition AND is_archived = FALSE
+          RETURNING s.stream_position INTO v_next_stream_position;
+
+          IF NOT FOUND THEN
+              RETURN QUERY SELECT FALSE, NULL::bigint, NULL::bigint[], NULL::xid8;
+              RETURN;
+          END IF;
+
+          v_expected_stream_position := v_next_stream_position - array_upper(v_messages_data, 1);
+      ELSIF v_expected_stream_position = 0 THEN
           INSERT INTO ${tableReference(databaseSchemaName, streamsTable.name)}
               (stream_id, stream_position, partition, stream_type, stream_metadata, is_archived)
           VALUES
@@ -298,11 +309,9 @@ const toExpectedVersion = (
 
   if (expected === NO_CONCURRENCY_CHECK) return null;
 
-  // TODO: this needs to be fixed
-  if (expected == STREAM_DOES_NOT_EXIST) return null;
+  if (expected === STREAM_DOES_NOT_EXIST) return 0n;
 
-  // TODO: this needs to be fixed
-  if (expected == STREAM_EXISTS) return null;
+  if (expected === STREAM_EXISTS) return -1n;
 
   return expected as bigint;
 };

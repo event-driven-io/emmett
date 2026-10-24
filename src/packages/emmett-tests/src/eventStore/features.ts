@@ -8,7 +8,11 @@ import {
   CommandHandler,
   ExpectedVersionConflictError,
   isExpectedVersionConflictError,
+  NO_CONCURRENCY_CHECK,
+  STREAM_DOES_NOT_EXIST,
+  STREAM_EXISTS,
   type EventStore,
+  type ExpectedStreamVersion,
 } from '@event-driven-io/emmett';
 import { randomUUID } from 'crypto';
 import { v4 as uuid } from 'uuid';
@@ -153,6 +157,28 @@ export function testCommandHandling(
       if (teardownHook) await teardownHook();
     });
 
+    it('Rejects a command when another writer creates the stream after its state was read', async () => {
+      const streamName = randomUUID();
+      const event: ShoppingCartEvent = {
+        type: 'ProductItemAdded',
+        data: {
+          productItem: { productId: '123', quantity: 1, price: 3 },
+        },
+      };
+
+      await assertThrowsAsync(
+        () =>
+          handleCommand(eventStore, streamName, async () => {
+            await eventStore.appendToStream(streamName, [event]);
+            return [event];
+          }),
+        isExpectedVersionConflictError,
+      );
+
+      const result = await eventStore.readStream(streamName);
+      assertEqual(1, result.events.length);
+    });
+
     it('Correctly handles no retries on version conflict when retry is disabled', async () => {
       const productItem: PricedProductItem = {
         productId: '123',
@@ -213,6 +239,133 @@ export function testAppendToStream(
       quantity: 10,
       price: 3,
     };
+
+    const expectations: {
+      whenMissing: string;
+      whenExisting: string;
+      version: (current: bigint) => ExpectedStreamVersion | undefined;
+      acceptsMissing: boolean;
+      acceptsExisting: boolean;
+    }[] = [
+      {
+        whenMissing: 'Creates a stream when STREAM_DOES_NOT_EXIST is specified',
+        whenExisting:
+          'Rejects appending to an existing stream when STREAM_DOES_NOT_EXIST is specified',
+        version: () => STREAM_DOES_NOT_EXIST,
+        acceptsMissing: true,
+        acceptsExisting: false,
+      },
+      {
+        whenMissing:
+          'Rejects creating a stream when STREAM_EXISTS is specified',
+        whenExisting:
+          'Appends to an existing stream when STREAM_EXISTS is specified',
+        version: () => STREAM_EXISTS,
+        acceptsMissing: false,
+        acceptsExisting: true,
+      },
+      {
+        whenMissing: 'Creates a stream when concurrency checks are disabled',
+        whenExisting:
+          'Appends to an existing stream when concurrency checks are disabled',
+        version: () => NO_CONCURRENCY_CHECK,
+        acceptsMissing: true,
+        acceptsExisting: true,
+      },
+      {
+        whenMissing: 'Creates a stream when no expected version is provided',
+        whenExisting:
+          'Appends to an existing stream when no expected version is provided',
+        version: () => undefined,
+        acceptsMissing: true,
+        acceptsExisting: true,
+      },
+      {
+        whenMissing:
+          'Creates a stream when the expected version matches an empty stream',
+        whenExisting:
+          'Appends events when the expected version matches the current stream version',
+        version: (current) => current,
+        acceptsMissing: true,
+        acceptsExisting: true,
+      },
+      {
+        whenMissing:
+          'Rejects creating a stream when the expected version does not match an empty stream',
+        whenExisting:
+          'Rejects appending events when the expected version differs from the current stream version',
+        version: (current) => current + 1n,
+        acceptsMissing: false,
+        acceptsExisting: false,
+      },
+    ];
+
+    describe.each([
+      { streamState: 'missing', exists: false },
+      { streamState: 'existing', exists: true },
+    ])('$streamState stream', ({ exists }) => {
+      for (const expectation of expectations) {
+        it(
+          exists ? expectation.whenExisting : expectation.whenMissing,
+          async () => {
+            const streamName = randomUUID();
+            const event: ShoppingCartEvent = {
+              type: 'ProductItemAdded',
+              data: { productItem },
+            };
+
+            if (exists) await eventStore.appendToStream(streamName, [event]);
+
+            const before = await eventStore.readStream(streamName);
+            const append = () =>
+              eventStore.appendToStream(streamName, [event, event], {
+                expectedStreamVersion: expectation.version(
+                  before.currentStreamVersion,
+                ),
+              });
+            const accepts = exists
+              ? expectation.acceptsExisting
+              : expectation.acceptsMissing;
+
+            if (!accepts) {
+              await assertThrowsAsync(append, isExpectedVersionConflictError);
+
+              const after = await eventStore.readStream(streamName);
+              assertEqual(before.streamExists, after.streamExists);
+              assertEqual(
+                before.currentStreamVersion,
+                after.currentStreamVersion,
+              );
+              assertDeepEqual(after.events, before.events);
+              return;
+            }
+
+            const result = await append();
+            const after = await eventStore.readStream(streamName);
+
+            assertEqual(!exists, result.createdNewStream);
+            assertEqual(
+              before.currentStreamVersion + 2n,
+              result.nextExpectedStreamVersion,
+            );
+            assertEqual(
+              result.nextExpectedStreamVersion,
+              after.currentStreamVersion,
+            );
+            assertEqual(before.events.length + 2, after.events.length);
+            assertDeepEqual(
+              after.events
+                .slice(-2)
+                .map((message) => message.metadata.streamPosition),
+              [
+                before.currentStreamVersion + 1n,
+                before.currentStreamVersion + 2n,
+              ],
+            );
+          },
+        );
+      }
+    });
 
     it('Returns createdNewStream true when the append creates the stream', async () => {
       const shoppingCartId = randomUUID();
