@@ -1,11 +1,14 @@
 import { SQL, sqlMigration, type SQLMigration } from '@event-driven-io/dumbo';
 import { bigInt } from '@event-driven-io/emmett';
+import type { EventStoreDatabaseSchemaOptions } from '../../eventStoreDatabaseSchema';
+import { postgreSQLFunctionName } from '../../postgreSQLFunctionName';
 import {
   defaultTag,
   messagesTable,
   processorsTable,
   projectionsTable,
   streamsTable,
+  tableReference,
   unknownTag,
 } from '../../typing';
 
@@ -399,3 +402,130 @@ export const migration_0_43_0_addMessagesPollIndex: SQLMigration = sqlMigration(
   [migration_0_43_0_addMessagesPollIndexSQL],
   { ignoreHashMismatch: true },
 );
+
+const migration_0_43_0_enforceStreamExistenceSQLFor = (
+  databaseSchemaName?: string,
+) => SQL`
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = ${databaseSchemaName === undefined ? SQL`current_schema()` : SQL.literal(databaseSchemaName)}
+      AND p.proname = 'emt_append_to_stream'
+  ) THEN
+  CREATE OR REPLACE FUNCTION ${postgreSQLFunctionName(databaseSchemaName, 'emt_append_to_stream')}(
+      v_message_ids text[],
+      v_messages_data jsonb[],
+      v_messages_metadata jsonb[],
+      v_message_schema_versions text[],
+      v_message_types text[],
+      v_message_kinds text[],
+      v_stream_id text,
+      v_stream_type text,
+      v_expected_stream_position bigint DEFAULT NULL,
+      v_partition text DEFAULT ${postgreSQLFunctionName(databaseSchemaName, 'emt_sanitize_name')}('default_partition')
+  ) RETURNS TABLE (
+      success boolean,
+      next_stream_position bigint,
+      global_positions bigint[],
+      transaction_id xid8
+  ) LANGUAGE plpgsql
+  AS $emt_append_to_stream$
+  DECLARE
+      v_next_stream_position bigint;
+      v_updated_rows int;
+      v_transaction_id xid8;
+      v_global_positions bigint[];
+  BEGIN
+      v_transaction_id := pg_current_xact_id();
+
+      IF v_expected_stream_position IS NULL THEN
+          SELECT COALESCE(
+            (SELECT stream_position
+            FROM ${tableReference(databaseSchemaName, 'emt_streams')}
+            WHERE stream_id = v_stream_id
+              AND partition = v_partition
+              AND is_archived = FALSE
+            LIMIT 1),
+            0
+        ) INTO v_expected_stream_position;
+      END IF;
+
+      v_next_stream_position := v_expected_stream_position + array_upper(v_messages_data, 1);
+
+      IF v_expected_stream_position = -1 THEN
+          UPDATE ${tableReference(databaseSchemaName, 'emt_streams')} as s
+          SET stream_position = s.stream_position + array_upper(v_messages_data, 1)
+          WHERE stream_id = v_stream_id AND partition = v_partition AND is_archived = FALSE
+          RETURNING s.stream_position INTO v_next_stream_position;
+
+          IF NOT FOUND THEN
+              RETURN QUERY SELECT FALSE, NULL::bigint, NULL::bigint[], NULL::xid8;
+              RETURN;
+          END IF;
+
+          v_expected_stream_position := v_next_stream_position - array_upper(v_messages_data, 1);
+      ELSIF v_expected_stream_position = 0 THEN
+          INSERT INTO ${tableReference(databaseSchemaName, 'emt_streams')}
+              (stream_id, stream_position, partition, stream_type, stream_metadata, is_archived)
+          VALUES
+              (v_stream_id, v_next_stream_position, v_partition, v_stream_type, '{}', FALSE);
+      ELSE
+          UPDATE ${tableReference(databaseSchemaName, 'emt_streams')} as s
+          SET stream_position = v_next_stream_position
+          WHERE stream_id = v_stream_id AND stream_position = v_expected_stream_position AND partition = v_partition AND is_archived = FALSE;
+
+          get diagnostics v_updated_rows = row_count;
+
+          IF v_updated_rows = 0 THEN
+              RETURN QUERY SELECT FALSE, NULL::bigint, NULL::bigint[], NULL::xid8;
+              RETURN;
+          END IF;
+      END IF;
+
+      WITH ev AS (
+          SELECT row_number() OVER () + v_expected_stream_position AS stream_position,
+                message_data,
+                message_metadata,
+                schema_version,
+                message_id,
+                message_type,
+                message_kind
+          FROM (
+              SELECT *
+              FROM
+                unnest(v_message_ids, v_messages_data, v_messages_metadata, v_message_schema_versions, v_message_types, v_message_kinds)
+              AS message(message_id, message_data, message_metadata, schema_version, message_type, message_kind)
+          ) AS message
+      ),
+      all_messages_insert AS (
+          INSERT INTO ${tableReference(databaseSchemaName, 'emt_messages')}
+              (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_kind, message_id, transaction_id)
+          SELECT
+              v_stream_id, ev.stream_position, v_partition, ev.message_data, ev.message_metadata, ev.schema_version, ev.message_type, ev.message_kind, ev.message_id, v_transaction_id
+          FROM ev
+          RETURNING global_position
+      )
+      SELECT
+          array_agg(global_position ORDER BY global_position) INTO v_global_positions
+      FROM
+          all_messages_insert;
+
+      RETURN QUERY SELECT TRUE, v_next_stream_position, v_global_positions, v_transaction_id;
+  END;
+  $emt_append_to_stream$;
+  END IF;
+END $$;
+`;
+
+export const migration_0_43_0_enforceStreamExistenceFor = (
+  options?: EventStoreDatabaseSchemaOptions,
+): SQLMigration =>
+  sqlMigration('emt:postgresql:eventstore:0.43.0:enforce-stream-existence', [
+    migration_0_43_0_enforceStreamExistenceSQLFor(options?.databaseSchemaName),
+  ]);
+
+export const migration_0_43_0_enforceStreamExistence =
+  migration_0_43_0_enforceStreamExistenceFor();

@@ -8,11 +8,13 @@ import {
   assertOk,
   assertThatArray,
   assertTrue,
+  STREAM_DOES_NOT_EXIST,
+  STREAM_EXISTS,
   type Event,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createEventStoreSchema } from '.';
 import {
   sharedPostgreSQLDatabase,
@@ -87,6 +89,103 @@ void describe('appendEvent', () => {
       metadata: { meta: 'data2' },
     },
   ];
+
+  for (const { criterion, exists, expectedStreamVersion } of [
+    {
+      criterion:
+        'rejects creating a stream when an existing stream is required',
+      exists: false,
+      expectedStreamVersion: STREAM_EXISTS,
+    },
+    {
+      criterion:
+        'rejects appending to an existing stream when a new stream is required',
+      exists: true,
+      expectedStreamVersion: STREAM_DOES_NOT_EXIST,
+    },
+  ]) {
+    void it(criterion, async () => {
+      const streamId = uuid();
+      if (exists) {
+        await pool.withConnection((connection) =>
+          appendToStream(connection, streamId, 'shopping_cart', events),
+        );
+      }
+      const before = await pool.execute.query(
+        SQL`SELECT last_value, is_called FROM emt_global_message_position`,
+      );
+      let hookCalled = false;
+
+      const result = await pool.withConnection((connection) =>
+        appendToStream(connection, streamId, 'shopping_cart', events, {
+          expectedStreamVersion,
+          beforeCommitHook: () => {
+            hookCalled = true;
+            return Promise.resolve();
+          },
+        }),
+      );
+
+      assertFalse(result.success);
+      assertFalse(hookCalled);
+      const after = await pool.execute.query(
+        SQL`SELECT last_value, is_called FROM emt_global_message_position`,
+      );
+      assertDeepEqual(after.rows, before.rows);
+    });
+  }
+
+  void it('allows concurrent appends when only stream existence is required', async () => {
+    const streamId = uuid();
+    await pool.withConnection((connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events),
+    );
+
+    const results = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        pool.withConnection((connection) =>
+          appendToStream(connection, streamId, 'shopping_cart', events, {
+            expectedStreamVersion: STREAM_EXISTS,
+          }),
+        ),
+      ),
+    );
+
+    results.forEach((result) => assertTrue(result.success));
+    const stored = await pool.execute.query<{ stream_position: string }>(
+      SQL`SELECT stream_position FROM emt_messages WHERE stream_id = ${streamId} ORDER BY stream_position`,
+    );
+    assertDeepEqual(
+      stored.rows.map((row) => BigInt(row.stream_position)),
+      Array.from({ length: 18 }, (_, index) => BigInt(index + 1)),
+    );
+  });
+
+  void it('keeps the stream unchanged when a before-commit hook fails', async () => {
+    const streamId = uuid();
+    await pool.withConnection((connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events),
+    );
+    const failure = new Error('Projection failed');
+
+    await expect(
+      pool.withConnection((connection) =>
+        appendToStream(connection, streamId, 'shopping_cart', events, {
+          expectedStreamVersion: STREAM_EXISTS,
+          beforeCommitHook: () => Promise.reject(failure),
+        }),
+      ),
+    ).rejects.toBe(failure);
+
+    const stream = await pool.execute.query<{ stream_position: string }>(
+      SQL`SELECT stream_position FROM emt_streams WHERE stream_id = ${streamId}`,
+    );
+    const stored = await pool.execute.query(
+      SQL`SELECT * FROM emt_messages WHERE stream_id = ${streamId}`,
+    );
+    assertEqual(2n, BigInt(stream.rows[0]!.stream_position));
+    assertEqual(2, stored.rows.length);
+  });
 
   void it('should append events correctly using appendEvent function', async () => {
     const result = await pool.withConnection(async (connection) =>

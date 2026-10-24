@@ -8,7 +8,11 @@ import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
 import { describe } from 'vitest';
 import { deleteSQLiteDatabaseFiles } from '../../testing/sqliteTestDatabase';
-import { testAppendToStream, type EventStoreFactory } from '../features';
+import {
+  testAppendToStream,
+  testCommandHandling,
+  type EventStoreFactory,
+} from '../features';
 
 const testDatabasePath = path.dirname(fileURLToPath(import.meta.url));
 
@@ -30,4 +34,9 @@ describe('SQLiteEventStore', () => {
   };
 
   testAppendToStream(eventStoreFactory, { teardownHook });
+
+  testCommandHandling(eventStoreFactory, {
+    getInitialIndex: () => 1n,
+    teardownHook,
+  });
 });

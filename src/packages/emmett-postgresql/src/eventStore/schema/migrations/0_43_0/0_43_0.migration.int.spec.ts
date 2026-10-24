@@ -2,18 +2,24 @@ import type { InvalidOperationError } from '@event-driven-io/dumbo';
 import {
   dumbo,
   runSQLMigrations,
+  single,
   SQL,
+  sqlMigration,
   type Dumbo,
 } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
+  assertEqual,
   assertFalse,
+  assertIsNotNull,
   assertMatches,
   assertThatArray,
   assertThrowsAsync,
   assertTrue,
   bigIntProcessorCheckpoint,
+  STREAM_DOES_NOT_EXIST,
+  STREAM_EXISTS,
   type Event,
   type ProcessorCheckpoint,
 } from '@event-driven-io/emmett';
@@ -33,6 +39,12 @@ import {
 } from '../../../postgreSQLEventStore';
 import { tryAcquireProcessorLock } from '../../../projections/locks/tryAcquireProcessorLock';
 import { PostgreSQLEventStoreCheckpoint } from '../../readMessagesBatch';
+import {
+  appendToStream as appendToStreamToCurrentSchema,
+  callAppendToStream,
+} from '../../appendToStream';
+import { readStream } from '../../readStream';
+import { eventStoreSchemaMigrationsFor, schemaMigrationFor } from '..';
 import { readProcessorCheckpoint } from '../../readProcessorCheckpoint';
 import { storeProcessorCheckpoint } from '../../storeProcessorCheckpoint';
 import { defaultTag } from '../../typing';
@@ -40,6 +52,7 @@ import { migrations_0_36_0 } from '../0_36_0';
 import { migrations_0_38_7 } from '../0_38_7';
 import { storeSubscriptionCheckpoint } from '../0_38_7/legacyApi';
 import { migrations_0_42_0 } from '../0_42_0';
+import { schema_0_42_0 } from '../0_42_0/0_42_0.snapshot';
 import {
   appendToStream,
   readEvents,
@@ -105,6 +118,151 @@ void describe('Schema migrations tests', () => {
       console.log(error);
     }
   });
+
+  for (const { name, databaseSchemaName } of [
+    { name: 'default schema', databaseSchemaName: undefined },
+    { name: 'configured schema', databaseSchemaName: 'events' },
+  ]) {
+    void it(`Preserves existing events and enforces stream existence requirements when upgrading an initialized store in the ${name}`, async () => {
+      const schemaName = databaseSchemaName ?? 'public';
+      const event: Event = {
+        type: 'Opened',
+        data: { accountId: 'account-123' },
+      };
+      const streamName = 'account-existing';
+
+      await pool.withTransaction(async ({ execute }) => {
+        await execute.command(
+          SQL`CREATE SCHEMA IF NOT EXISTS ${SQL.identifier(schemaName)}`,
+        );
+        await execute.command(
+          SQL`SET LOCAL search_path TO ${SQL.identifier(schemaName)}`,
+        );
+        await runSQLMigrations(
+          pool,
+          [
+            sqlMigration(
+              schemaMigrationFor({ databaseSchemaName }).name,
+              [schema_0_42_0],
+              { ignoreHashMismatch: true },
+            ),
+          ],
+          { execute, migrationTable: { schemaName: 'infrastructure' } },
+        );
+
+        const result = await single(
+          execute.command<{ success: boolean }>(
+            callAppendToStream({
+              databaseSchemaName,
+              messageIds: [crypto.randomUUID()],
+              messagesData: [event.data],
+              messagesMetadata: [{}],
+              schemaVersions: ['1'],
+              messageTypes: [event.type],
+              messageKinds: ['E'],
+              streamId: streamName,
+              streamType: 'account',
+              expectedStreamPosition: null,
+              partition: defaultTag,
+            }),
+          ),
+        );
+        assertTrue(result.success);
+      });
+
+      const migrations = eventStoreSchemaMigrationsFor({ databaseSchemaName });
+      const migrationOptions = {
+        migrationTable: { schemaName: 'infrastructure' },
+      };
+      const migration = await runSQLMigrations(
+        pool,
+        migrations,
+        migrationOptions,
+      );
+      assertTrue(migration.applied.length > 0);
+      assertTrue(
+        migration.skipped.some(
+          ({ name }) =>
+            name === schemaMigrationFor({ databaseSchemaName }).name,
+        ),
+      );
+
+      const existing = await single(
+        pool.execute.command<{
+          success: boolean;
+          next_stream_position: string | bigint | null;
+        }>(
+          callAppendToStream({
+            databaseSchemaName,
+            messageIds: [crypto.randomUUID()],
+            messagesData: [event.data],
+            messagesMetadata: [{}],
+            schemaVersions: ['1'],
+            messageTypes: [event.type],
+            messageKinds: ['E'],
+            streamId: streamName,
+            streamType: 'account',
+            expectedStreamPosition: -1n,
+            partition: defaultTag,
+          }),
+        ),
+      );
+      assertTrue(existing.success);
+      assertIsNotNull(existing.next_stream_position);
+      assertEqual(2n, BigInt(existing.next_stream_position));
+
+      const duplicate = await pool.withConnection((connection) =>
+        appendToStreamToCurrentSchema(
+          connection,
+          streamName,
+          'account',
+          [event],
+          {
+            expectedStreamVersion: STREAM_DOES_NOT_EXIST,
+            databaseSchemaName,
+          },
+        ),
+      );
+      assertFalse(duplicate.success);
+      const missing = await pool.withConnection((connection) =>
+        appendToStreamToCurrentSchema(
+          connection,
+          'account-missing',
+          'account',
+          [event],
+          {
+            expectedStreamVersion: STREAM_EXISTS,
+            databaseSchemaName,
+          },
+        ),
+      );
+      assertFalse(missing.success);
+
+      const stored = await readStream(pool.execute, streamName, {
+        databaseSchemaName,
+      });
+      assertEqual(2, stored.events.length);
+      assertDeepEqual(
+        stored.events.map(({ type, data }) => ({ type, data })),
+        [event, event],
+      );
+      assertDeepEqual(
+        stored.events.map(({ metadata }) => metadata.streamPosition),
+        [1n, 2n],
+      );
+      const missingStream = await readStream(pool.execute, 'account-missing', {
+        databaseSchemaName,
+      });
+      assertFalse(missingStream.streamExists);
+
+      const repeated = await runSQLMigrations(
+        pool,
+        migrations,
+        migrationOptions,
+      );
+      assertEqual(0, repeated.applied.length);
+    });
+  }
 
   void it('migrates from 0.42.0 schema and drops old subscriptions API', async () => {
     // Given

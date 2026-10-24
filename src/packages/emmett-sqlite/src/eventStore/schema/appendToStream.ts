@@ -157,11 +157,9 @@ const toExpectedVersion = (
 
   if (expected === NO_CONCURRENCY_CHECK) return null;
 
-  // TODO: this needs to be fixed
-  if (expected == STREAM_DOES_NOT_EXIST) return null;
+  if (expected === STREAM_DOES_NOT_EXIST) return 0n;
 
-  // TODO: this needs to be fixed
-  if (expected == STREAM_EXISTS) return null;
+  if (expected === STREAM_EXISTS) return -1n;
 
   return expected as bigint;
 };
@@ -187,6 +185,9 @@ const appendToStreamRaw = async (
     expectedStreamVersion,
     options?.databaseSchemaName,
   );
+
+  if (expectedStreamVersion === -1n && currentStreamVersion > 0n)
+    expectedStreamVersion = currentStreamVersion;
 
   expectedStreamVersion ??= currentStreamVersion ?? 0n;
 

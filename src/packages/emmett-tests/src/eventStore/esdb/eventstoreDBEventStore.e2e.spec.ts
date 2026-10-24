@@ -19,6 +19,7 @@ import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   testAggregateStream,
   testAppendToStream,
+  testCommandHandling,
   testStreamExists,
   type EventStoreFactory,
 } from '../features';
@@ -49,6 +50,11 @@ describe('EventStoreDBEventStore', () => {
   });
 
   testAppendToStream(eventStoreFactory, { teardownHook });
+
+  testCommandHandling(eventStoreFactory, {
+    teardownHook,
+    getInitialIndex: () => 0n,
+  });
 
   testStreamExists(eventStoreFactory, { teardownHook });
 
