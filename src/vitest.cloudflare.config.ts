@@ -1,5 +1,6 @@
 import { cloudflareTest } from '@cloudflare/vitest-plugin';
 import { defineConfig } from 'vitest/config';
+import { localMaxWorkers } from './vitest.shared.ts';
 
 export default defineConfig({
   plugins: [
@@ -17,5 +18,6 @@ export default defineConfig({
     ],
     hookTimeout: 120_000,
     testTimeout: 30_000,
+    ...localMaxWorkers,
   },
 });

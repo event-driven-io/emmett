@@ -1,22 +1,45 @@
-import { defineConfig } from 'tsdown';
+import { defineConfig, type UserConfig } from 'tsdown';
 
-export default defineConfig({
-  dts: true,
-  format: ['esm', 'cjs'],
+const entries = ['src/index.ts', 'src/pg.ts'];
+
+const sharedConfig = {
   fixedExtension: false,
   minify: false,
   target: 'esnext',
   outDir: 'dist',
-  entry: ['src/index.ts', 'src/pg.ts'],
-  sourcemap: true,
   deps: {
-    skipNodeModulesBundle: true,
-    neverBundle: [
-      '@types/pg',
-      'pg',
-      '@event-driven-io/emmett',
-      '@event-driven-io/pongo',
-    ],
+    neverBundle: true,
   },
   tsconfig: 'tsconfig.build.json',
+} satisfies UserConfig;
+
+const jsEntries = entries.map((entry): UserConfig => ({
+  ...sharedConfig,
+  dts: false,
+  format: ['esm', 'cjs'],
+  sourcemap: true,
+  entry,
+}));
+
+const declarationBundle = (dtsExtension?: '.d.cts'): UserConfig => ({
+  ...sharedConfig,
+  clean: false,
+  dts: {
+    emitDtsOnly: true,
+    ...(dtsExtension && { cjsDefault: true }),
+  },
+  entry: entries,
+  // rolldown-plugin-dts bundles declarations through ESM output only.
+  // emitDtsOnly removes JS output; outExtensions only changes declaration names.
+  format: ['esm'],
+  ...(dtsExtension && {
+    outExtensions: () => ({ dts: dtsExtension }),
+  }),
+  sourcemap: false,
 });
+
+export default defineConfig([
+  ...jsEntries,
+  declarationBundle(),
+  declarationBundle('.d.cts'),
+]);

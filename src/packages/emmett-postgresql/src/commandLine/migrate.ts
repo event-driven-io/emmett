@@ -1,5 +1,4 @@
-import { LogEvent } from '@event-driven-io/almanac';
-import { consoleLogger } from '@event-driven-io/almanac/console';
+import { consoleLogger, LogEvent } from '@event-driven-io/emmett';
 import { Command } from 'commander';
 
 const log = consoleLogger();

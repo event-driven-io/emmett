@@ -1,5 +1,5 @@
-import type { AnyValueMap, LogRecord } from '@opentelemetry/api-logs';
-import { logs, SeverityNumber } from '@opentelemetry/api-logs';
+import type { LogRecord } from '@opentelemetry/api';
+import { logs, SeverityNumber } from '@opentelemetry/api';
 import { severityTextFor } from '../../loggers/formatters/otelLogFormatter';
 import type { LogEvent, Logger } from '../../loggers/logger';
 import { logger, LogLevel } from '../../loggers/logger';
@@ -24,7 +24,7 @@ export const otelLogger = (options?: OtelLoggerOptions): Logger => {
 
   const log = (e: LogEvent): void => {
     const { data, metadata } = e;
-    const attributes = { ...(data.attributes ?? {}) } as AnyValueMap;
+    const attributes = { ...(data.attributes ?? {}) };
     if (metadata.correlationId !== undefined)
       attributes['correlation_id'] = metadata.correlationId;
     if (metadata.causationId !== undefined)

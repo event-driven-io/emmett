@@ -1,10 +1,10 @@
 import { context, trace } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import {
-  BasicTracerProvider,
+  TracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-base';
+} from '@opentelemetry/sdk-trace';
 import { otelAssertions, otelTracer } from '@event-driven-io/almanac/otel';
 import { MessagingAttributes } from '@event-driven-io/almanac';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -20,8 +20,8 @@ import { workflowCollector, workflowObservability } from './workflowCollector';
 describe('workflowCollector with OTel', () => {
   const M = MessagingAttributes;
   const exporter = new InMemorySpanExporter();
-  const provider = new BasicTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(exporter)],
+  const provider = new TracerProvider({
+    spanProcessors: [new SimpleSpanProcessor({ exporter: exporter })],
   });
 
   beforeAll(() => {

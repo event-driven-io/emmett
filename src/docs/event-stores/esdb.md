@@ -249,7 +249,7 @@ const client = new EventStoreDBClient(
 ## Testing with TestContainers
 
 ```typescript
-import { getEventStoreDBTestContainer } from '@event-driven-io/emmett-testcontainers';
+import { getEventStoreDBTestContainer } from '@event-driven-io/emmett-testcontainers/esdb';
 
 describe('EventStoreDB Tests', () => {
   let container: StartedEventStoreDBContainer;

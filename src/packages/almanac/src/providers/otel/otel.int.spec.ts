@@ -1,5 +1,5 @@
 import { context, trace } from '@opentelemetry/api';
-import { logs } from '@opentelemetry/api-logs';
+import { logs } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import {
   InMemoryLogRecordExporter,
@@ -7,10 +7,10 @@ import {
   SimpleLogRecordProcessor,
 } from '@opentelemetry/sdk-logs';
 import {
-  BasicTracerProvider,
+  TracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-base';
+} from '@opentelemetry/sdk-trace';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { observability } from '../../configuration';
 import { LogEvent, type AnyLogEvent } from '../../loggers';
@@ -20,8 +20,8 @@ import { otelAssertions } from './otelTesting';
 
 describe('OTel observability with an application-owned SDK', () => {
   const spanExporter = new InMemorySpanExporter();
-  const tracerProvider = new BasicTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(spanExporter)],
+  const tracerProvider = new TracerProvider({
+    spanProcessors: [new SimpleSpanProcessor({ exporter: spanExporter })],
   });
   const logExporter = new InMemoryLogRecordExporter();
   const loggerProvider = new LoggerProvider({

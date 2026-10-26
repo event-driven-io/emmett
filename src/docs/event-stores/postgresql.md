@@ -22,7 +22,6 @@ The PostgreSQL event store is the recommended choice for most production applica
 - **Async consumers** with batch processing and checkpointing
 - **Pongo integration** for document-style projections using PostgreSQL JSONB
 - **Multi-tenancy** via table partitioning
-- **CLI migrations** for schema management
 
 ## Installation
 

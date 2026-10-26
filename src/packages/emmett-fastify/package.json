@@ -50,14 +50,16 @@
   "files": [
     "dist"
   ],
-  "dependencies": {},
+  "dependencies": {
+    "@fastify/compress": "^9.2.2",
+    "@fastify/etag": "^6.2.1",
+    "@fastify/formbody": "^9.0.1",
+    "close-with-grace": "^2.5.0"
+  },
   "devDependencies": {},
   "peerDependencies": {
     "@event-driven-io/emmett": "0.43.0-beta.54",
-    "fastify": "^5.8.5",
-    "@fastify/compress": "^8.3.1",
-    "@fastify/etag": "^6.1.0",
-    "@fastify/formbody": "^8.0.2",
-    "close-with-grace": "^2.5.0"
+    "fastify": "^5.12.7",
+    "@opentelemetry/api": ">=1.10.0 <1.11.0"
   }
 }

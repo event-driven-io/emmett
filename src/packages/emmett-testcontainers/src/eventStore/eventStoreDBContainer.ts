@@ -1,6 +1,8 @@
-import { LogEvent } from '@event-driven-io/almanac';
-import { consoleLogger } from '@event-driven-io/almanac/console';
-import { InProcessLock } from '@event-driven-io/emmett';
+import {
+  consoleLogger,
+  InProcessLock,
+  LogEvent,
+} from '@event-driven-io/emmett';
 import { EventStoreDBClient } from '@eventstore/db-client';
 import {
   AbstractStartedContainer,

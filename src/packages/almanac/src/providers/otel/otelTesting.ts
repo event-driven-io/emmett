@@ -1,8 +1,8 @@
 import { JSONSerializer } from '../../serialization/json';
 import type { SpanStatusCode } from '@opentelemetry/api';
-import type { SeverityNumber } from '@opentelemetry/api-logs';
+import type { SeverityNumber } from '@opentelemetry/api';
 import type { ReadableLogRecord } from '@opentelemetry/sdk-logs';
-import type { ReadableSpan } from '@opentelemetry/sdk-trace-base';
+import type { ReadableSpan } from '@opentelemetry/sdk-trace';
 
 type OtelSpanAssertions = {
   exists(): OtelSpanAssertions;

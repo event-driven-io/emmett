@@ -1,10 +1,10 @@
 import { context, trace } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import {
-  BasicTracerProvider,
+  TracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-base';
+} from '@opentelemetry/sdk-trace';
 import {
   afterAll,
   afterEach,
@@ -26,8 +26,8 @@ import { otelTracer } from './otelTracer';
 
 describe('AlmanacInstrumentation integration', () => {
   const globalExporter = new InMemorySpanExporter();
-  const globalProvider = new BasicTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(globalExporter)],
+  const globalProvider = new TracerProvider({
+    spanProcessors: [new SimpleSpanProcessor({ exporter: globalExporter })],
   });
 
   beforeAll(() => {
@@ -72,8 +72,8 @@ describe('AlmanacInstrumentation integration', () => {
 
   it('routes spans to an injected tracer provider instead of the global one', async () => {
     const injectedExporter = new InMemorySpanExporter();
-    const injectedProvider = new BasicTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(injectedExporter)],
+    const injectedProvider = new TracerProvider({
+      spanProcessors: [new SimpleSpanProcessor({ exporter: injectedExporter })],
     });
 
     const instrumentation = new AlmanacInstrumentation();
@@ -94,8 +94,8 @@ describe('AlmanacInstrumentation integration', () => {
 
   it('restores the prior observability on disable and routes spans back through it', async () => {
     const priorExporter = new InMemorySpanExporter();
-    const priorProvider = new BasicTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(priorExporter)],
+    const priorProvider = new TracerProvider({
+      spanProcessors: [new SimpleSpanProcessor({ exporter: priorExporter })],
     });
     const prior: ScopeObservability = {
       tracer: otelTracer('prior', {

@@ -1,4 +1,3 @@
-import type { MaybePromise } from '@event-driven-io/pongo';
 import { EmmettError } from '../../errors';
 import type { MessageSourceControlMessage } from '../../eventStore/events';
 import type {
@@ -11,6 +10,7 @@ import type {
   Message,
   RecordedMessage,
 } from '../../typing';
+import type { MaybePromise } from '../../utils';
 
 export type MessageSourceReadOptions = {
   from: CurrentMessageProcessorPosition;

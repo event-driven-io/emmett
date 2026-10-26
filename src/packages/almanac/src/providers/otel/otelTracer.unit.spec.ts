@@ -1,10 +1,10 @@
 import {
-  BasicTracerProvider,
+  TracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-base';
+} from '@opentelemetry/sdk-trace';
 import { SpanStatusCode, trace } from '@opentelemetry/api';
-import { SeverityNumber, logs } from '@opentelemetry/api-logs';
+import { SeverityNumber, logs } from '@opentelemetry/api';
 import {
   InMemoryLogRecordExporter,
   LoggerProvider,
@@ -18,8 +18,8 @@ import { otelTracer } from './otelTracer';
 
 describe('otelTracer', () => {
   const exporter = new InMemorySpanExporter();
-  const provider = new BasicTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(exporter)],
+  const provider = new TracerProvider({
+    spanProcessors: [new SimpleSpanProcessor({ exporter: exporter })],
   });
 
   const logExporter = new InMemoryLogRecordExporter();
@@ -48,8 +48,8 @@ describe('otelTracer', () => {
 
   it('uses an injected tracer instead of the global provider', async () => {
     const injectedExporter = new InMemorySpanExporter();
-    const injectedProvider = new BasicTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(injectedExporter)],
+    const injectedProvider = new TracerProvider({
+      spanProcessors: [new SimpleSpanProcessor({ exporter: injectedExporter })],
     });
 
     const tracer = otelTracer('almanac', {
@@ -67,8 +67,8 @@ describe('otelTracer', () => {
 
   it('uses an injected tracerProvider instead of the global provider', async () => {
     const injectedExporter = new InMemorySpanExporter();
-    const injectedProvider = new BasicTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(injectedExporter)],
+    const injectedProvider = new TracerProvider({
+      spanProcessors: [new SimpleSpanProcessor({ exporter: injectedExporter })],
     });
 
     const tracer = otelTracer('almanac', {

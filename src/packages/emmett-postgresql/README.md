@@ -11,7 +11,6 @@ This package implements the Emmett `EventStore` interface for PostgreSQL databas
 - Inline projections that execute within the append transaction
 - Async message consumers with batch processing and checkpointing
 - Pongo integration for document-style projections using PostgreSQL JSONB
-- CLI plugin for database migrations
 
 ## Key Concepts
 
@@ -326,18 +325,6 @@ await eventStore.withSession(async ({ eventStore: sessionStore }) => {
 });
 ```
 
-### CLI Migration Commands
-
-The package provides CLI commands via the Emmett CLI plugin:
-
-```bash
-# Run migrations
-npx emmett migrate run --connectionString "postgresql://..."
-
-# Generate migration SQL
-npx emmett migrate sql --print
-```
-
 ## API Reference
 
 ### `getPostgreSQLEventStore(connectionString, options?)`
@@ -450,11 +437,10 @@ The event store supports both pooled and non-pooled connections:
 
 ### External Dependencies
 
-| Package     | Purpose                       |
-| ----------- | ----------------------------- |
-| `pg`        | PostgreSQL client for Node.js |
-| `uuid`      | UUID generation (v4 and v7)   |
-| `commander` | CLI command parsing           |
+| Package | Purpose                       |
+| ------- | ----------------------------- |
+| `pg`    | PostgreSQL client for Node.js |
+| `uuid`  | UUID generation (v4 and v7)   |
 
 ## Related Packages
 

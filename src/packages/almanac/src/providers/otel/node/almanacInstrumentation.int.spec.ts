@@ -2,7 +2,7 @@ import { NodeSDK } from '@opentelemetry/sdk-node';
 import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-base';
+} from '@opentelemetry/sdk-trace';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   currentDefaultObservability,
@@ -29,7 +29,7 @@ describe('AlmanacInstrumentation with NodeSDK', () => {
   });
 
   it('publishes a working observability and emits a real span through the SDK-registered provider', async () => {
-    const spanProcessor = new SimpleSpanProcessor(exporter);
+    const spanProcessor = new SimpleSpanProcessor({ exporter: exporter });
     sdk = new NodeSDK({
       spanProcessors: [spanProcessor],
       instrumentations: [

@@ -1,4 +1,3 @@
-import type { ObservabilityScope } from '@event-driven-io/almanac';
 import {
   dumbo,
   fromDatabaseDriverType,
@@ -45,6 +44,7 @@ import {
   type EventStoreSessionFactory,
   type JSONSerializationOptions,
   type Message,
+  type ObservabilityScope,
   type ProjectionHandlingType,
   type ProjectionRegistration,
   type BeforeEventStoreCommitHandler,

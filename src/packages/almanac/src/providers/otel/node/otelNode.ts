@@ -1,8 +1,4 @@
-import {
-  NodeSDK,
-  tracing,
-  type NodeSDKConfiguration,
-} from '@opentelemetry/sdk-node';
+import { NodeSDK, type NodeSDKConfiguration } from '@opentelemetry/sdk-node';
 import type { ObservabilityOptions } from '../../../configuration';
 import { otel as otelAdapters, type OtelSDK } from '../otel';
 
@@ -20,7 +16,16 @@ export type OtelNodeOptions = InjectedNodeSDK | AlmanacNodeSDK;
 const hasInjectedSDK = (options: OtelNodeOptions): options is InjectedNodeSDK =>
   options.sdk !== undefined;
 
-const noopSpanProcessor = new tracing.NoopSpanProcessor();
+type SpanProcessor = NonNullable<
+  NodeSDKConfiguration['spanProcessors']
+>[number];
+
+const noopSpanProcessor: SpanProcessor = {
+  onStart: () => {},
+  onEnd: () => {},
+  forceFlush: () => Promise.resolve(),
+  shutdown: () => Promise.resolve(),
+};
 
 export const otel = (options: OtelNodeOptions = {}): ObservabilityOptions => {
   if (hasInjectedSDK(options)) {
@@ -39,11 +44,8 @@ export const otel = (options: OtelNodeOptions = {}): ObservabilityOptions => {
 
   const {
     traceExporter,
-    spanProcessor,
     spanProcessors,
-    metricReader,
     metricReaders,
-    logRecordProcessor,
     logRecordProcessors,
     ...configuration
   } = nodeSDKOptions;
@@ -51,12 +53,10 @@ export const otel = (options: OtelNodeOptions = {}): ObservabilityOptions => {
   const sdk = new NodeSDK({
     ...configuration,
     ...(usesTracing
-      ? { traceExporter, spanProcessor, spanProcessors }
+      ? { traceExporter, spanProcessors }
       : { spanProcessors: [noopSpanProcessor] }),
-    ...(usesMetrics ? { metricReader, metricReaders } : { metricReaders: [] }),
-    ...(usesLogging
-      ? { logRecordProcessor, logRecordProcessors }
-      : { logRecordProcessors: [] }),
+    ...(usesMetrics ? { metricReaders } : { metricReaders: [] }),
+    ...(usesLogging ? { logRecordProcessors } : { logRecordProcessors: [] }),
   });
 
   return otelAdapters({ sdk, tracing, metrics, logging });

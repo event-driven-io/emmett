@@ -1,10 +1,8 @@
 import { defineConfig } from 'vitepress';
 
-const env = process.env.NODE_ENV;
-
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  base: env === 'production' ? '/emmett/' : '/',
+  base: './',
   lang: 'en-GB',
   title: 'Emmett',
   description: 'Event Sourcing made simple',
@@ -13,7 +11,7 @@ export default defineConfig({
     vue: {
       template: {
         compilerOptions: {
-          isCustomElement: (tag) => tag.includes('-'),
+          isCustomElement: (tag: string) => tag.includes('-'),
         },
       },
     },
@@ -133,7 +131,7 @@ export default defineConfig({
 
     editLink: {
       pattern:
-        'https://github.com/event-driven-io/emmett/edit/master/docs/:path',
+        'https://github.com/event-driven-io/emmett/edit/main/src/docs/:path',
       text: 'Suggest changes to this page',
     },
 
@@ -174,8 +172,8 @@ export default defineConfig({
       },
     ],
     ['meta', { property: 'twitter:card', content: 'summary_large_image' }],
-    ['meta', { property: 'twitter:site', content: 'marten_lib' }],
-    ['meta', { property: 'twitter:creator', content: 'marten_lib' }],
+    ['meta', { property: 'twitter:site', content: 'event-driven_io' }],
+    ['meta', { property: 'twitter:creator', content: 'event-driven_io' }],
     [
       'meta',
       {
