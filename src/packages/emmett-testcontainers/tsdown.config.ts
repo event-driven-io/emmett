@@ -11,6 +11,11 @@ const sharedConfig = {
     neverBundle: true,
   },
   tsconfig: 'tsconfig.build.json',
+  publint: true,
+  attw: {
+    profile: 'strict',
+    level: 'error',
+  },
 } satisfies UserConfig;
 
 const jsEntries = entries.map((entry): UserConfig => ({

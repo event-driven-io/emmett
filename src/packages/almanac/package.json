@@ -82,6 +82,22 @@
       }
     }
   },
+  "typesVersions": {
+    "*": {
+      "otel": [
+        "./dist/otel.d.ts"
+      ],
+      "otel-node": [
+        "./dist/otel-node.d.ts"
+      ],
+      "pino": [
+        "./dist/pino.d.ts"
+      ],
+      "console": [
+        "./dist/console.d.ts"
+      ]
+    }
+  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
