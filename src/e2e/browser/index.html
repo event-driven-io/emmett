@@ -7,8 +7,8 @@
     <script type="importmap">
       {
         "imports": {
-          "uuid": "https://cdn.jsdelivr.net/npm/uuid@10.0.0/+esm",
-          "async-retry": "https://esm.sh/async-retry",
+          "uuid": "https://cdn.jsdelivr.net/npm/uuid@14.0.3/+esm",
+          "async-retry": "https://esm.sh/async-retry@1.3.3",
           "@event-driven-io/almanac": "./node_modules/@event-driven-io/almanac/dist/index.js",
           "@event-driven-io/emmett": "./node_modules/@event-driven-io/emmett/dist/index.js"
         }
@@ -19,7 +19,14 @@
     <script type="module">
       import { getInMemoryEventStore } from '@event-driven-io/emmett';
 
-      window.eventStore = getInMemoryEventStore();
+      const eventStore = getInMemoryEventStore();
+      await eventStore.appendToStream('counter-1', [
+        { type: 'Counted', data: { by: 2 } },
+      ]);
+      const { events } = await eventStore.readStream('counter-1');
+
+      window.eventStore = eventStore;
+      window.events = events.map(({ type, data }) => ({ type, data }));
     </script>
   </body>
 </html>

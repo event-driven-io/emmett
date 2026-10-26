@@ -9,11 +9,11 @@ import {
   type Event,
 } from '@event-driven-io/emmett';
 import { getEventStoreDBEventStore } from '@event-driven-io/emmett-esdb';
-import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
+import type { StartedEventStoreDBContainer } from '@event-driven-io/emmett-testcontainers/esdb';
 import {
   getSharedEventStoreDBTestContainer,
   releaseSharedEventStoreDBTestContainer,
-} from '@event-driven-io/emmett-testcontainers';
+} from '@event-driven-io/emmett-testcontainers/esdb';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {

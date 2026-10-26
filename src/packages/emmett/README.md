@@ -577,8 +577,6 @@ src/
 | ---------------------- | ------- | ------------------------------------- |
 | `uuid`                 | ^10.0.0 | UUID generation for event/message IDs |
 | `async-retry`          | ^1.3.3  | Retry logic for command handlers      |
-| `commander`            | ^12.1.0 | CLI framework                         |
-| `ts-node`              | ^10.9.2 | TypeScript execution for CLI          |
 | `web-streams-polyfill` | ^4.0.0  | Web Streams API polyfill              |
 
 ## Related Packages

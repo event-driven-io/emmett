@@ -3,6 +3,7 @@
   "include": [
     "docs/**/*.ts",
     "vitest.config.ts",
+    "packages/*/tsdown.config.ts",
     "vitest.shared.ts",
     "packages/*/vitest.config.ts",
     "packages/*/vitest.*.config.ts"

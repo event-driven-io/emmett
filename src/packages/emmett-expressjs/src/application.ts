@@ -1,8 +1,8 @@
-import type { Observability } from '@event-driven-io/almanac';
 import {
   currentDefaultObservability,
   LogEvent,
   noopLogger,
+  type Observability,
 } from '@event-driven-io/emmett';
 import express, { Router, type Application } from 'express';
 import http from 'http';

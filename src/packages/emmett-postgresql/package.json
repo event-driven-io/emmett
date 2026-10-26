@@ -42,16 +42,6 @@
         "default": "./dist/index.cjs"
       }
     },
-    "./cli": {
-      "import": {
-        "types": "./dist/cli.d.ts",
-        "default": "./dist/cli.js"
-      },
-      "require": {
-        "types": "./dist/cli.d.cts",
-        "default": "./dist/cli.cjs"
-      }
-    },
     "./pg": {
       "import": {
         "types": "./dist/pg.d.ts",
@@ -65,9 +55,6 @@
   },
   "typesVersions": {
     "*": {
-      "cli": [
-        "./dist/cli.d.ts"
-      ],
       "pg": [
         "./dist/pg.d.ts"
       ]
@@ -81,19 +68,20 @@
   ],
   "devDependencies": {
     "@event-driven-io/emmett-testcontainers": "0.43.0-beta.54",
-    "@testcontainers/postgresql": "^11.14.0",
-    "@types/node": "^25.6.0",
-    "@types/pg": "^8.20.0",
-    "pg": "^8.20.0"
+    "@testcontainers/postgresql": "^12.2.1",
+    "@types/node": "^24.19.2",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1"
   },
   "dependencies": {
-    "@event-driven-io/dumbo": "0.13.0-beta.60",
-    "@event-driven-io/emmett": "0.43.0-beta.54",
-    "@event-driven-io/pongo": "0.17.0-beta.60"
+    "uuid": "^14.0.3"
   },
   "peerDependencies": {
-    "@types/pg": "^8.20.0",
-    "pg": "^8.20.0"
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1",
+    "@event-driven-io/dumbo": "0.13.0-rc.1",
+    "@event-driven-io/emmett": "0.43.0-beta.54",
+    "@event-driven-io/pongo": "0.17.0-rc.1"
   },
   "peerDependenciesMeta": {
     "@types/pg": {

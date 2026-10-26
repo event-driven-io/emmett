@@ -13,7 +13,6 @@ import type { Application } from 'express';
 import type { ProblemDocument } from 'http-problem-details';
 import type { Response as SuperTestResponse, Test } from 'supertest';
 import supertest from 'supertest';
-import type TestAgent from 'supertest/lib/agent';
 import {
   executeFetchRequest,
   type Fetch,
@@ -26,7 +25,7 @@ import {
 /////////// Setup
 ////////////////////////////////
 
-export type TestRequest = (request: TestAgent<supertest.Test>) => Test;
+export type TestRequest = (request: supertest.Agent) => Test;
 
 export const existingStream = <EventType extends Event = Event>(
   streamId: string,

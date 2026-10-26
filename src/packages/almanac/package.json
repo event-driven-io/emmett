@@ -89,44 +89,38 @@
     "dist"
   ],
   "peerDependencies": {
-    "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/api-logs": "^0.220.0",
-    "@opentelemetry/instrumentation": ">=0.220.0 <0.221.0",
-    "@opentelemetry/instrumentation-pino": "^0.66.0",
-    "@opentelemetry/sdk-node": ">=0.220.0 <0.221.0",
-    "pino": "^10.3.1"
+    "@opentelemetry/api": ">=1.10.0 <1.11.0",
+    "@opentelemetry/instrumentation": "^0.300.0",
+    "@opentelemetry/sdk-logs": ">=3.0.0 <3.1.0",
+    "@opentelemetry/sdk-node": "^0.300.0",
+    "@opentelemetry/sdk-trace": ">=3.0.0 <3.1.0",
+    "pino": "^10.4.0"
   },
   "peerDependenciesMeta": {
     "@opentelemetry/api": {
       "optional": true
     },
-    "@opentelemetry/api-logs": {
-      "optional": true
-    },
     "@opentelemetry/instrumentation": {
       "optional": true
     },
-    "@opentelemetry/instrumentation-pino": {
+    "@opentelemetry/sdk-logs": {
       "optional": true
     },
     "@opentelemetry/sdk-node": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-trace": {
       "optional": true
     },
     "pino": {
       "optional": true
     }
   },
-  "optionalDependencies": {
-    "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/api-logs": "^0.220.0",
-    "@opentelemetry/instrumentation": ">=0.220.0 <0.221.0",
-    "@opentelemetry/instrumentation-pino": "^0.66.0",
-    "@opentelemetry/sdk-node": ">=0.220.0 <0.221.0",
-    "pino": "^10.3.1"
-  },
   "devDependencies": {
-    "@opentelemetry/context-async-hooks": "^2.9.0",
-    "@opentelemetry/sdk-node": "^0.220.0",
+    "@opentelemetry/context-async-hooks": "^3.0.0",
+    "@opentelemetry/sdk-logs": ">=3.0.0 <3.1.0",
+    "@opentelemetry/sdk-node": "^0.300.0",
+    "@opentelemetry/sdk-trace": ">=3.0.0 <3.1.0",
     "pino-test": "^2.0.0"
   }
 }

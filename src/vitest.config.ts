@@ -1,8 +1,10 @@
 import { defineConfig } from 'vitest/config';
+import { localMaxWorkers } from './vitest.shared.ts';
 
 export default defineConfig({
   test: {
-    ...(process.env.CI ? {} : { maxWorkers: '50%' }),
+    exclude: ['**/lib/**', '**/dist/**'],
+    ...localMaxWorkers,
     projects: [
       'packages/almanac',
       'packages/emmett',

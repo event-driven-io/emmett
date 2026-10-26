@@ -24,9 +24,6 @@ vi.mock('@opentelemetry/sdk-node', () => ({
     start = nodeSDK.start;
     shutdown = nodeSDK.shutdown;
   },
-  tracing: {
-    NoopSpanProcessor: class {},
-  },
 }));
 
 describe('Node OTel observability', () => {

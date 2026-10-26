@@ -38,6 +38,23 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./esdb": {
+      "import": {
+        "types": "./dist/esdb.d.ts",
+        "default": "./dist/esdb.js"
+      },
+      "require": {
+        "types": "./dist/esdb.d.cts",
+        "default": "./dist/esdb.cjs"
+      }
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "esdb": [
+        "./dist/esdb.d.ts"
+      ]
     }
   },
   "main": "./dist/index.cjs",
@@ -47,12 +64,20 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/emmett": "0.43.0-beta.54",
-    "@testcontainers/mongodb": "^11.14.0",
-    "@testcontainers/postgresql": "^11.14.0",
-    "testcontainers": "^11.14.0"
+    "@testcontainers/mongodb": "^12.2.1",
+    "@testcontainers/postgresql": "^12.2.1",
+    "testcontainers": "^12.2.1"
   },
   "devDependencies": {
     "@eventstore/db-client": "^6.2.1"
+  },
+  "peerDependencies": {
+    "@event-driven-io/emmett": "0.43.0-beta.54",
+    "@eventstore/db-client": "^6.2.1"
+  },
+  "peerDependenciesMeta": {
+    "@eventstore/db-client": {
+      "optional": true
+    }
   }
 }

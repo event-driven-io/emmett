@@ -1,9 +1,10 @@
-import { LogEvent, type ObservabilityScope } from '@event-driven-io/almanac';
 import type { SQLExecutor } from '@event-driven-io/dumbo';
 import {
   DefaultProcessorLockPolicy,
   EmmettAttributes,
+  LogEvent,
   type LockAcquisitionPolicy,
+  type ObservabilityScope,
   type ProcessorLock,
   type ProjectionHandlingType,
 } from '@event-driven-io/emmett';

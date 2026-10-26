@@ -40,7 +40,7 @@ npm add @eventstore/db-client
 Start a container, run your tests, and stop it:
 
 ```typescript
-import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
+import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers/esdb';
 import { jsonEvent } from '@eventstore/db-client';
 
 // Start the container
@@ -71,7 +71,7 @@ For test suites with multiple test files, use the shared container to avoid star
 import {
   getSharedEventStoreDBTestContainer,
   releaseSharedEventStoreDBTestContainer,
-} from '@event-driven-io/emmett-testcontainers';
+} from '@event-driven-io/emmett-testcontainers/esdb';
 import { describe, it, after } from 'node:test';
 
 describe('My Event Store Tests', () => {
@@ -106,7 +106,7 @@ Customize the container behavior using `EventStoreDBContainerOptions`:
 import {
   EventStoreDBContainer,
   EVENTSTOREDB_DEFAULT_IMAGE,
-} from '@event-driven-io/emmett-testcontainers';
+} from '@event-driven-io/emmett-testcontainers/esdb';
 
 const container = new EventStoreDBContainer(EVENTSTOREDB_DEFAULT_IMAGE, {
   disableProjections: false, // Enable EventStoreDB projections (default: false)
@@ -123,7 +123,7 @@ const started = await container.start();
 Specify a different EventStoreDB image:
 
 ```typescript
-import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers';
+import { EventStoreDBContainer } from '@event-driven-io/emmett-testcontainers/esdb';
 
 const container = new EventStoreDBContainer(
   'eventstore/eventstore:23.10.0-bookworm-slim',
@@ -152,7 +152,7 @@ const client = EventStoreDBClient.connectionString(connectionString);
 For simple test setups with optional Testcontainers support:
 
 ```typescript
-import { getEventStoreDBTestClient } from '@event-driven-io/emmett-testcontainers';
+import { getEventStoreDBTestClient } from '@event-driven-io/emmett-testcontainers/esdb';
 
 // Use Testcontainers
 const client = await getEventStoreDBTestClient(true);

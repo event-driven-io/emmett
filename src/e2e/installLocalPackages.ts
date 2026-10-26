@@ -1,38 +1,52 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readdirSync, rmSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const [packageManager, projectDir, ...packageNames] = process.argv.slice(2);
-const packagesDir = resolve(projectDir, 'packages');
 
-const run = (command: string, args: string[], cwd = '.') => {
+if (!['npm', 'bun'].includes(packageManager ?? '') || !projectDir || packageNames.length === 0) {
+  throw new Error('Usage: node e2e/installLocalPackages.ts <npm|bun> <fixture> <package names...>');
+}
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const temporaryDirectory = mkdtempSync(join(tmpdir(), 'emmett-compat-'));
+const consumerDirectory = join(temporaryDirectory, 'consumer');
+const packagesDirectory = join(temporaryDirectory, 'packages');
+
+const run = (command: string, args: string[], cwd: string) => {
   const result = spawnSync(command, args, { cwd, stdio: 'inherit' });
-
-  if (result.error) {
-    throw result.error;
-  }
-
+  if (result.error) throw result.error;
   if (result.status !== 0) {
     throw new Error(`${command} ${args.join(' ')} failed in ${cwd}`);
   }
 };
 
-rmSync(packagesDir, { recursive: true, force: true });
-mkdirSync(packagesDir, { recursive: true });
-
-run('npm', [
-  'pack',
-  '--pack-destination',
-  packagesDir,
-  ...packageNames.flatMap((name) => ['-w', `@event-driven-io/${name}`]),
-]);
-
-const tarballs = readdirSync(packagesDir).map((file) => `./packages/${file}`);
-
-if (packageManager === 'bun') {
-  run('bun', ['install'], projectDir);
-  run('bun', ['add', '--no-save', ...tarballs], projectDir);
-} else {
-  run('npm', ['ci'], projectDir);
-  run('npm', ['install', '--no-save', ...tarballs], projectDir);
+try {
+  mkdirSync(packagesDirectory);
+  cpSync(resolve(root, projectDir), consumerDirectory, {
+    recursive: true,
+    filter: (source) => !['node_modules', 'packages', 'dist', '.vite', '.nuxt', '.output'].includes(basename(source)),
+  });
+  run('npm', [
+    'pack', '--quiet', '--pack-destination', packagesDirectory,
+    ...packageNames.flatMap((name) => ['-w', `@event-driven-io/${name}`]),
+  ], root);
+  const tarballs = readdirSync(packagesDirectory).map((file) => join(packagesDirectory, file));
+  if (tarballs.length !== packageNames.length) {
+    throw new Error('Not all requested workspace packages were packed');
+  }
+  if (packageManager === 'bun') {
+    run('bun', ['install'], consumerDirectory);
+    run('bun', ['add', '--no-save', ...tarballs], consumerDirectory);
+    run('bun', ['run', 'index.ts'], consumerDirectory);
+  } else {
+    run('npm', ['ci'], consumerDirectory);
+    run('npm', ['uninstall', ...packageNames.map((name) => `@event-driven-io/${name}`)], consumerDirectory);
+    run('npm', ['install', '--no-save', ...tarballs], consumerDirectory);
+    run('npm', ['test'], consumerDirectory);
+  }
+} finally {
+  rmSync(temporaryDirectory, { recursive: true, force: true });
 }

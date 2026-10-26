@@ -1,9 +1,7 @@
+import type { ObservabilityScope } from '@event-driven-io/almanac';
 import type { DefaultRecord } from '.';
 import type { EmmettError } from '../errors';
-import type {
-  ObservabilityScope,
-  WithObservabilityScope,
-} from '../observability';
+import type { WithObservabilityScope } from '../observability';
 import type {
   AnyMessage,
   AnyRecordedMessage,

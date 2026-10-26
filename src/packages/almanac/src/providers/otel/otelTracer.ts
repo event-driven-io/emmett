@@ -86,10 +86,7 @@ export const otelTracer = (
             setAttributes: (attrs) => {
               for (const [key, value] of Object.entries(attrs)) {
                 if (value !== undefined) {
-                  otelSpan.setAttribute(
-                    key,
-                    value as string | number | boolean,
-                  );
+                  otelSpan.setAttribute(key, value);
                 }
               }
             },

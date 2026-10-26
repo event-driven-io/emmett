@@ -1,7 +1,7 @@
 import {
   EventStoreDBContainer,
   type StartedEventStoreDBContainer,
-} from '@event-driven-io/emmett-testcontainers';
+} from '@event-driven-io/emmett-testcontainers/esdb';
 import type { TestProject } from 'vitest/node';
 
 let container: StartedEventStoreDBContainer | undefined;

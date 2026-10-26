@@ -16,7 +16,7 @@ export default [
       'vitest.cloudflare.config.ts',
       '**/dist/',
       '**/lib/',
-      '**/cache/',
+      '**/.vitepress/cache/',
       'node_modules/*',
       '**/node_modules',
       'dist/*coverage/*',

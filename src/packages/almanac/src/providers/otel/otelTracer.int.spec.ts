@@ -1,5 +1,5 @@
 import { SpanStatusCode, context, trace } from '@opentelemetry/api';
-import { SeverityNumber, logs } from '@opentelemetry/api-logs';
+import { SeverityNumber, logs } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import {
   InMemoryLogRecordExporter,
@@ -7,10 +7,10 @@ import {
   SimpleLogRecordProcessor,
 } from '@opentelemetry/sdk-logs';
 import {
-  BasicTracerProvider,
+  TracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-base';
+} from '@opentelemetry/sdk-trace';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { LogEvent, logger } from '../../loggers/logger';
 import { ObservabilityScope } from '../../scopes/scope';
@@ -20,8 +20,8 @@ import { otelTracer } from './otelTracer';
 
 describe('otelTracer integration', () => {
   const exporter = new InMemorySpanExporter();
-  const provider = new BasicTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(exporter)],
+  const provider = new TracerProvider({
+    spanProcessors: [new SimpleSpanProcessor({ exporter: exporter })],
   });
 
   const logExporter = new InMemoryLogRecordExporter();

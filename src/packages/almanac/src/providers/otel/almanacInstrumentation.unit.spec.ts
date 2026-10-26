@@ -1,9 +1,9 @@
 import { trace } from '@opentelemetry/api';
 import {
-  BasicTracerProvider,
+  TracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-base';
+} from '@opentelemetry/sdk-trace';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   currentDefaultObservability,
@@ -17,8 +17,8 @@ type TestObservability = Partial<Observability<string>>;
 
 describe('AlmanacInstrumentation', () => {
   const globalExporter = new InMemorySpanExporter();
-  const globalProvider = new BasicTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(globalExporter)],
+  const globalProvider = new TracerProvider({
+    spanProcessors: [new SimpleSpanProcessor({ exporter: globalExporter })],
   });
 
   beforeAll(() => {
@@ -77,8 +77,8 @@ describe('AlmanacInstrumentation', () => {
 
   it('rebinds the registered tracer to an injected provider', async () => {
     const injectedExporter = new InMemorySpanExporter();
-    const injectedProvider = new BasicTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(injectedExporter)],
+    const injectedProvider = new TracerProvider({
+      spanProcessors: [new SimpleSpanProcessor({ exporter: injectedExporter })],
     });
 
     const instrumentation = new AlmanacInstrumentation();
@@ -99,7 +99,7 @@ describe('AlmanacInstrumentation', () => {
     const sentinel = { tracer: {} } as TestObservability;
     setupObservability(sentinel);
 
-    const injectedProvider = new BasicTracerProvider();
+    const injectedProvider = new TracerProvider();
     const instrumentation = new AlmanacInstrumentation();
     instrumentation.setTracerProvider(injectedProvider);
 

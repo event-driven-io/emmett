@@ -41,16 +41,6 @@
         "default": "./dist/index.cjs"
       }
     },
-    "./cli": {
-      "import": {
-        "types": "./dist/cli.d.ts",
-        "default": "./dist/cli.js"
-      },
-      "require": {
-        "types": "./dist/cli.d.cts",
-        "default": "./dist/cli.cjs"
-      }
-    },
     "./sqlite3": {
       "import": {
         "types": "./dist/sqlite3.d.ts",
@@ -74,9 +64,6 @@
   },
   "typesVersions": {
     "*": {
-      "cli": [
-        "./dist/cli.d.ts"
-      ],
       "sqlite3": [
         "./dist/sqlite3.d.ts"
       ],
@@ -92,13 +79,14 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/dumbo": "0.13.0-beta.60",
-    "@event-driven-io/emmett": "0.43.0-beta.54",
-    "@event-driven-io/pongo": "0.17.0-beta.60"
+    "uuid": "^14.0.3"
   },
   "peerDependencies": {
-    "@cloudflare/workers-types": "^5.20260831.1",
-    "sqlite3": "^6.0.1"
+    "@cloudflare/workers-types": "^5.20261025.1",
+    "sqlite3": "^6.0.1",
+    "@event-driven-io/dumbo": "0.13.0-rc.1",
+    "@event-driven-io/emmett": "0.43.0-beta.54",
+    "@event-driven-io/pongo": "0.17.0-rc.1"
   },
   "peerDependenciesMeta": {
     "sqlite3": {
@@ -109,9 +97,9 @@
     }
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260831.1",
-    "miniflare": "^4.20260420.0",
-    "@types/node": "^25.6.0",
+    "@cloudflare/workers-types": "^5.20261025.1",
+    "@types/node": "^24.19.2",
+    "miniflare": "^4.20260730.0",
     "sqlite3": "^6.0.1"
   }
 }

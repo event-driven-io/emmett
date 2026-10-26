@@ -10,11 +10,13 @@
   "[typescript]": {
     "editor.formatOnSave": false
   },
+  "js/ts.experimental.useTsgo": true,
   "editor.tabSize": 2,
   "files.exclude": {
     "node_modules/": true,
     "**/node_modules/": true,
     "**/dist/": true,
+    "**/lib/": true,
     "**/*.tsbuildinfo": true
   },
   "files.eol": "\n",

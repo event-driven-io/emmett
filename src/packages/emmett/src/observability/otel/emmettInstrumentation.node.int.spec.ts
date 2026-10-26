@@ -12,7 +12,7 @@ import { NodeSDK } from '@opentelemetry/sdk-node';
 import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-base';
+} from '@opentelemetry/sdk-trace';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('EmmettInstrumentation with NodeSDK', () => {
@@ -31,7 +31,7 @@ describe('EmmettInstrumentation with NodeSDK', () => {
   });
 
   it('emits a real span when registered in a NodeSDK instrumentations array', async () => {
-    const spanProcessor = new SimpleSpanProcessor(exporter);
+    const spanProcessor = new SimpleSpanProcessor({ exporter: exporter });
     sdk = new NodeSDK({
       spanProcessors: [spanProcessor],
       instrumentations: [new EmmettInstrumentation()],
