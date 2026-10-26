@@ -1,5 +1,5 @@
 {
-  "extends": "./tsconfig.shared.json",
+  "extends": "./tsconfig.json",
   "include": [
     "./packages/**/*.ts",
     "./docs/**/*.ts",
@@ -9,6 +9,8 @@
   "exclude": [
     "node_modules",
     "tmp",
+    "**/dist",
+    "**/lib",
     "./packages/emmett-sqlite/worker-configuration.d.ts",
     "./packages/emmett-sqlite/src/storage/durableObject/**/*.int.spec.ts",
     "./packages/emmett-sqlite/src/storage/durableObject/**/*.e2e.spec.ts",

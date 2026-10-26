@@ -11,9 +11,16 @@
       "@event-driven-io/emmett": ["../emmett/src"],
       "@event-driven-io/emmett-esdb": ["../emmett-esdb/src"],
       "@event-driven-io/emmett-postgresql": ["../emmett-postgresql/src"],
+      "@event-driven-io/emmett-postgresql/*": ["../emmett-postgresql/src/*"],
       "@event-driven-io/emmett-sqlite": ["../emmett-sqlite/src"],
+      "@event-driven-io/emmett-sqlite/*": ["../emmett-sqlite/src/*"],
       "@event-driven-io/emmett-mongodb": ["../emmett-mongodb/src"],
-      "@event-driven-io/emmett-testcontainers": ["../emmett-testcontainers/src"]
+      "@event-driven-io/emmett-testcontainers": [
+        "../emmett-testcontainers/src"
+      ],
+      "@event-driven-io/emmett-testcontainers/*": [
+        "../emmett-testcontainers/src/*"
+      ]
     }
   },
   "references": [
