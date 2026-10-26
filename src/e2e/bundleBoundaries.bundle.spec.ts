@@ -4,9 +4,12 @@ import { builtinModules } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { build } from 'esbuild';
+import { rolldown } from 'rolldown';
 import { describe, expect, it } from 'vitest';
 
 type ModuleFormat = 'cjs' | 'js';
+type Bundler = 'esbuild' | 'rolldown';
 type PackageName = 'almanac' | 'emmett' | 'emmett-testcontainers';
 type PackageJson = {
   name: string;
@@ -170,6 +173,26 @@ describe('runtime-agnostic entries', () => {
 
       // Then
       expect(result.status, result.stderr).toBe(0);
+    },
+  );
+});
+
+describe('emmett consumer bundle', () => {
+  it.each<Bundler>(['esbuild', 'rolldown'])(
+    'keeps only imported code when bundled with %s',
+    async (bundler) => {
+      // Given
+      const library = path.resolve('packages/emmett/dist/index.js');
+      const consumer = `import { assertEqual } from ${JSON.stringify(library)};\nassertEqual(1, 1);\n`;
+
+      // When
+      const bundled = await bundleConsumer(bundler, consumer);
+
+      // Then
+      expect(
+        bundled.length,
+        `importing assertEqual keeps most of emmett when bundled with ${bundler}`,
+      ).toBeLessThan(fs.statSync(library).size / 10);
     },
   );
 });
@@ -407,6 +430,44 @@ function runNodeConsumer(format: ModuleFormat, source: string) {
   try {
     fs.writeFileSync(consumerFile, source);
     return spawnSync(process.execPath, [consumerFile], { encoding: 'utf8' });
+  } finally {
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  }
+}
+
+async function bundleConsumer(
+  bundler: Bundler,
+  source: string,
+): Promise<string> {
+  const tempDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'emmett-consumer-'),
+  );
+  const consumerFile = path.join(tempDirectory, 'consumer.js');
+
+  try {
+    fs.writeFileSync(consumerFile, source);
+
+    if (bundler === 'esbuild') {
+      const result = await build({
+        entryPoints: [consumerFile],
+        bundle: true,
+        write: false,
+        format: 'esm',
+        platform: 'neutral',
+        packages: 'external',
+        tsconfigRaw: '{}',
+        logLevel: 'silent',
+      });
+      return result.outputFiles[0]!.text;
+    }
+
+    const bundle = await rolldown({
+      input: consumerFile,
+      external: /^[^./]/,
+      logLevel: 'silent',
+    });
+    const { output } = await bundle.generate({ format: 'esm' });
+    return output[0].code;
   } finally {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   }

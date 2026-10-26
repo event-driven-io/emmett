@@ -12,6 +12,7 @@
     "tsBuildInfoFile": "./lib/tsconfig.tsbuildinfo",
     "rootDir": "./src",
     "paths": {
+      "@event-driven-io/almanac": ["../almanac/src"],
       "@event-driven-io/emmett": ["../emmett/src"],
       "@event-driven-io/emmett-testcontainers": ["../emmett-testcontainers/src"]
     }

@@ -15,15 +15,24 @@
     "allowImportingTsExtensions": true,
     "paths": {
       "@event-driven-io/almanac": ["./packages/almanac/src"],
+      "@event-driven-io/almanac/*": ["./packages/almanac/src/*"],
       "@event-driven-io/emmett": ["./packages/emmett/src"],
+      "@event-driven-io/emmett/*": ["./packages/emmett/src/*"],
       "@event-driven-io/emmett-testcontainers": [
         "./packages/emmett-testcontainers/src"
+      ],
+      "@event-driven-io/emmett-testcontainers/*": [
+        "./packages/emmett-testcontainers/src/*"
       ],
       "@event-driven-io/emmett-expressjs": ["./packages/emmett-expressjs/src"],
       "@event-driven-io/emmett-postgresql": [
         "./packages/emmett-postgresql/src"
       ],
+      "@event-driven-io/emmett-postgresql/*": [
+        "./packages/emmett-postgresql/src/*"
+      ],
       "@event-driven-io/emmett-sqlite": ["./packages/emmett-sqlite/src"],
+      "@event-driven-io/emmett-sqlite/*": ["./packages/emmett-sqlite/src/*"],
       "@event-driven-io/emmett-mongodb": ["./packages/emmett-mongodb/src"],
       "@event-driven-io/emmett-esdb": ["./packages/emmett-esdb/src"],
       "@event-driven-io/emmett-honojs": ["./packages/emmett-honojs/src"],
