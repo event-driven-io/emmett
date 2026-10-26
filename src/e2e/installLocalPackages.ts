@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,8 +38,18 @@ try {
     throw new Error('Not all requested workspace packages were packed');
   }
   if (packageManager === 'bun') {
+    const tarballFor = (name: string) => {
+      const tarball = tarballs.find((file) => basename(file).replace(/-\d.*$/, '') === `event-driven-io-${name}`);
+      if (!tarball) throw new Error(`Tarball for ${name} was not packed`);
+      return tarball;
+    };
+    const packageJsonPath = join(consumerDirectory, 'package.json');
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as Record<string, unknown>;
+    packageJson.overrides = Object.fromEntries(
+      packageNames.map((name) => [`@event-driven-io/${name}`, `file:${tarballFor(name)}`]),
+    );
+    writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
     run('bun', ['install'], consumerDirectory);
-    run('bun', ['add', '--no-save', ...tarballs], consumerDirectory);
     run('bun', ['run', 'index.ts'], consumerDirectory);
   } else {
     run('npm', ['ci'], consumerDirectory);
