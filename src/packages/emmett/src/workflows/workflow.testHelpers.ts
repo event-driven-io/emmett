@@ -119,6 +119,7 @@ export type GroupCheckoutTimedOut = Event<
 ////////// State
 ///////////////////////////////////////////
 
+// #region workflow-state
 export type GroupCheckout =
   | { status: 'NotExisting' }
   | {
@@ -138,6 +139,7 @@ export enum GuestStayStatus {
   Completed = 'Completed',
   Failed = 'Failed',
 }
+// #endregion workflow-state
 
 export const parseGuestStayAccountId = (guestStayAccountId: string) => {
   const [guestId, roomId, date] = guestStayAccountId
@@ -156,6 +158,7 @@ export const parseGuestStayAccountId = (guestStayAccountId: string) => {
 ////////// Workflow Inputs & Outputs
 ///////////////////////////////////////////
 
+// #region workflow-messages
 export type GroupCheckoutInput =
   | InitiateGroupCheckout
   | GuestCheckedOut
@@ -169,11 +172,13 @@ export type GroupCheckoutOutput =
   | GroupCheckoutCompleted
   | GroupCheckoutFailed
   | GroupCheckoutTimedOut;
+// #endregion workflow-messages
 
 ////////////////////////////////////////////
 ////////// Evolve
 ///////////////////////////////////////////
 
+// #region workflow-evolve
 export const evolve = (
   state: GroupCheckout,
   {
@@ -224,11 +229,13 @@ export const evolve = (
     }
   }
 };
+// #endregion workflow-evolve
 
 ////////////////////////////////////////////
 ////////// Decide
 ///////////////////////////////////////////
 
+// #region workflow-decide
 export const decide = (
   input: GroupCheckoutInput,
   state: GroupCheckout,
@@ -248,11 +255,13 @@ export const decide = (
     }
   }
 };
+// #endregion workflow-decide
 
 ////////////////////////////////////////////
 ////////// Workflow Definition
 ////////////////////////////////////////////
 
+// #region workflow-definition
 export const GroupCheckoutWorkflow: Workflow<
   GroupCheckoutInput,
   GroupCheckout,
@@ -264,7 +273,9 @@ export const GroupCheckoutWorkflow: Workflow<
   evolve,
   initialState,
 };
+// #endregion workflow-definition
 
+// #region workflow-options
 export const workflowOptions: WorkflowOptions<
   GroupCheckoutInput,
   GroupCheckout,
@@ -286,6 +297,7 @@ export const workflowOptions: WorkflowOptions<
     ],
   },
 };
+// #endregion workflow-options
 
 ////////////////////////////////////////////
 /////////// PmsApi
@@ -312,6 +324,7 @@ const pmsApi: PmsApi = {
   },
 };
 
+// #region workflow-side-effect
 const checkoutFromPms = async (
   checkOut: CheckOut,
 ): Promise<GuestCheckedOut | GuestCheckoutFailed> => {
@@ -339,11 +352,13 @@ const checkoutFromPms = async (
     };
   }
 };
+// #endregion workflow-side-effect
 
 ////////////////////////////////////////////
 ////////// Workflow Processor
 ////////////////////////////////////////////
 
+// #region workflow-output-handler
 export const groupCheckoutOutputHandler = workflowOutputHandler<
   GroupCheckoutInput,
   GroupCheckoutOutput,
@@ -352,16 +367,20 @@ export const groupCheckoutOutputHandler = workflowOutputHandler<
   canHandle: ['CheckOut'],
   eachMessage: checkoutFromPms,
 });
+// #endregion workflow-output-handler
 
+// #region workflow-processor
 export const groupCheckoutWorkflowProcessor = workflowProcessor({
   ...workflowOptions,
   outputHandler: groupCheckoutOutputHandler,
 });
+// #endregion workflow-processor
 
 ////////////////////////////////////////////
 ////////// Logic
 ///////////////////////////////////////////
 
+// #region workflow-initiate
 const initiateGroupCheckout = (
   { data }: InitiateGroupCheckout,
   state: GroupCheckout,
@@ -402,7 +421,9 @@ const initiateGroupCheckout = (
     ...checkoutGuestStays,
   ];
 };
+// #endregion workflow-initiate
 
+// #region workflow-complete
 const completeGroupCheckout = (
   { type, data }: GuestCheckedOut | GuestCheckoutFailed,
   state: GroupCheckout,
@@ -433,7 +454,9 @@ const completeGroupCheckout = (
     ? []
     : finished(groupCheckoutId, state.guestStayAccountIds, now);
 };
+// #endregion workflow-complete
 
+// #region workflow-timeout
 const timedOut = (
   command: TimeoutGroupCheckout,
   state: GroupCheckout,
@@ -460,6 +483,7 @@ const timedOut = (
     },
   };
 };
+// #endregion workflow-timeout
 
 const finished = (
   groupCheckoutId: string,
@@ -471,7 +495,10 @@ const finished = (
         type: 'GroupCheckoutCompleted',
         data: {
           groupCheckoutId,
-          completedCheckouts: Array.from(guestStayAccounts.values()),
+          completedCheckouts: checkoutsWith(
+            guestStayAccounts,
+            GuestStayStatus.Completed,
+          ),
           completedAt: now,
         },
       }
@@ -500,7 +527,7 @@ const areAnyOngoingCheckouts = (
 ) => [...guestStayAccounts.values()].some((status) => !isAlreadyClosed(status));
 
 const areAllCompleted = (guestStayAccounts: Map<string, GuestStayStatus>) =>
-  [...guestStayAccounts.values()].some(
+  [...guestStayAccounts.values()].every(
     (status) => status === GuestStayStatus.Completed,
   );
 
