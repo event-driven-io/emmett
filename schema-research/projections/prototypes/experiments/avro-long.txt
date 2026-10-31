@@ -1,0 +1,3 @@
+OK   "long" true
+OK   {"type":"record","name":"R","fields":[{"name":"n","type":"long"}]} {"n":"1152921504606846976n"}
+FAIL {"type":"long","logicalType":"timestamp-millis"} Do not know how to serialize a BigInt

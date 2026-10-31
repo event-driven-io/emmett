@@ -1,0 +1,24 @@
+--- a-builtin, clientId string
+OK    append events, inline projection runs: "2"
+OK    BSON types stored in projections.summary: {"clientId":"string","confirmedAt":"date"}
+OK    state schema validates the stored state: "valid"
+OK    state schema to JSON Schema: {"type":"object","properties":{"clientId":{"type":"string"},"totalAmount":{"type":"number"},"confirmedAt":{"type":"string","format":"date-time"}},"required":["clientId","totalAmount"],"additionalProperties":false}
+FAIL  that JSON Schema as MongoDB validator at projections.summary (collMod): Parsing of collection validator failed :: caused by :: $jsonSchema keyword 'format' is not currently supported
+OK    findOne by clientId as string: true
+OK    findOne by clientId as ObjectId: false
+--- b-zod, clientId string
+OK    append events, inline projection runs: "2"
+OK    BSON types stored in projections.summary: {"clientId":"string","confirmedAt":"date"}
+FAIL  state schema validates the stored state: ["confirmedAt"] Invalid input: expected string, received Date
+OK    state schema to JSON Schema: {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"clientId":{"type":"string"},"totalAmount":{"type":"number"},"confirmedAt":{"type":"string","format":"date-time","pattern":"^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"}},"required":["clientId","totalAmount"]}
+FAIL  that JSON Schema as MongoDB validator at projections.summary (collMod): Parsing of collection validator failed :: caused by :: $jsonSchema keyword '$schema' is not currently supported
+OK    findOne by clientId as string: true
+OK    findOne by clientId as ObjectId: false
+--- b-zod, clientId ObjectId
+OK    append events, inline projection runs: "2"
+OK    BSON types stored in projections.summary: {"clientId":"objectId","confirmedAt":"date"}
+OK    state schema validates the stored state: "valid"
+FAIL  state schema to JSON Schema: Custom types cannot be represented in JSON Schema
+FAIL  that JSON Schema as MongoDB validator at projections.summary (collMod): Parsing of collection validator failed :: caused by :: Nested schema for $jsonSchema property 'summary' must be an object
+OK    findOne by clientId as string: false
+OK    findOne by clientId as ObjectId: false

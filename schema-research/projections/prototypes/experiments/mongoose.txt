@@ -1,0 +1,9 @@
+mongoose 9.11.4
+castObject ownerId is ObjectId: true
+castObject total: number 42
+castObject confirmedAt is Date: true
+castObject invalid ownerId throws: ValidationError
+toJSONSchema(): {"type":"object","required":["ownerId","_id"],"properties":{"ownerId":{"type":"string","pattern":"^[A-Fa-f0-9]{24}$"},"total":{"type":["number","null"]},"confirmedAt":{"type":["string","null"]},"status":{"type":["string","null"],"enum":["open","confirmed",null]},"_id":{"type":"string","pattern":"^[A-Fa-f0-9]{24}$"},"__v":{"type":["number","null"]}}}
+toJSONSchema({ useBsonType: true }): {"required":["ownerId","_id"],"properties":{"ownerId":{"bsonType":"objectId"},"total":{"bsonType":["number","null"]},"confirmedAt":{"bsonType":["date","null"]},"status":{"bsonType":["string","null"],"enum":["open","confirmed",null]},"_id":{"bsonType":"objectId"},"__v":{"bsonType":["number","null"]}}}
+MongoDB accepts toJSONSchema({ useBsonType: true }) as a validator: true
+MongoDB accepts plain toJSONSchema() as a validator: true

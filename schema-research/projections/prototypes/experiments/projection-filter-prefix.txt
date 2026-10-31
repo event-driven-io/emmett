@@ -1,0 +1,8 @@
+keys of the prefixed value: [
+  'projections.summary.i0',
+  'projections.summary.i1',
+  'projections.summary.i2',
+  'projections.summary.i3'
+]
+still an ObjectId: true
+toHexString: 000000000000000000000000

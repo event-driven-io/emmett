@@ -1,0 +1,28 @@
+{
+  "name": "schema-research-projections",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit -p .",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@event-driven-io/dumbo": "file:../../../src/node_modules/@event-driven-io/dumbo",
+    "@event-driven-io/emmett": "file:../../../src/packages/emmett",
+    "@event-driven-io/emmett-mongodb": "file:../../../src/packages/emmett-mongodb",
+    "@event-driven-io/emmett-sqlite": "file:../../../src/packages/emmett-sqlite",
+    "@event-driven-io/pongo": "file:../../../src/node_modules/@event-driven-io/pongo",
+    "@standard-schema/spec": "1.1.0",
+    "@types/node": "24.19.1",
+    "ajv": "8.17.1",
+    "ajv-formats": "3.0.1",
+    "arktype": "2.2.7",
+    "avsc": "5.7.9",
+    "mongodb": "7.7.0",
+    "mongoose": "9.11.4",
+    "sqlite3": "file:../../../src/node_modules/sqlite3",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "zod": "4.6.5"
+  }
+}

@@ -1,0 +1,8 @@
+MongoDB write, walked  : 2158 ns per document
+MongoDB write, compiled: 367 ns per document
+MongoDB read,  walked  : 2770 ns per document
+MongoDB read,  compiled: 921 ns per document
+Pongo write, walked  : 9833 ns per document
+Pongo write, compiled: 7376 ns per document
+Pongo read,  walked  : 5612 ns per document
+Pongo read,  compiled: 3650 ns per document

@@ -1,0 +1,7 @@
+OK    z.toJSONSchema keeps custom meta key: {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"ownerId":{"type":"string","x-emmett-type":"objectId"}},"required":["ownerId"],"additionalProperties":false}
+OK    ~standard.jsonSchema.input keeps custom meta key: {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"ownerId":{"type":"string","x-emmett-type":"objectId"}},"required":["ownerId"]}
+FAIL  z.instanceof(ObjectId) to JSON Schema: Custom types cannot be represented in JSON Schema
+OK    codec decode gives ObjectId: true
+OK    codec encode gives string: {"ownerId":"64f000000000000000000001"}
+OK    codec to JSON Schema (input side): {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"ownerId":{"type":"string","pattern":"^[0-9a-f]{24}$"}},"required":["ownerId"]}
+FAIL  non-Zod Standard Schema inside z.object, parse: Invalid element at key "ownerId": expected a Zod schema

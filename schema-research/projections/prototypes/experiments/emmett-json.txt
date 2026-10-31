@@ -1,0 +1,4 @@
+serialized: {"confirmedAt":"2026-10-31T10:00:00.000Z","note":"2026-10-31T10:00:00.000Z","small":"5"}
+confirmedAt: Date Sat Oct 31 2026 11:00:00 GMT+0100 (Central European Standard Time)
+note: Date Sat Oct 31 2026 11:00:00 GMT+0100 (Central European Standard Time)
+small: string 5

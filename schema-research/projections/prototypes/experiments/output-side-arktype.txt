@@ -1,0 +1,7 @@
+OK    has ~standard.jsonSchema: "object"
+OK    input: {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"asDate":{"type":"string","pattern":"<long>"},"asString":{"type":"string","pattern":"<long>"}},"required":["asDate","asString"]}
+FAIL  output: {
+OK    toJsonSchema() with fallback: {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"asDate":{"type":"string","pattern":"<long>"},"asString":{"type":"string","pattern":"<long>"}},"required":["asDate","asString"]}
+output error: "{\n    code: \"date\",\n    base: {}\n}"
+OK    output, with ArkType fallback via libraryOptions: {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"asDate":{},"asString":{"type":"string","pattern":"<long>"}},"required":["asDate","asString"]}
+OK    configure({ format }) on input: {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"asDate":{"type":"string","format":"date-time","pattern":"<long>"}},"required":["asDate"]}

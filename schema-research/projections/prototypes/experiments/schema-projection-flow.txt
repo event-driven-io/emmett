@@ -1,0 +1,24 @@
+--- s builder
+OK    paths found by format: ["clientId","confirmedAt"]
+OK    set derived validator on the stream collection: {"anyOf":[{"bsonType":"null"},{"type":"object","properties":{"clientId":{"bsonType":"objectId"},"totalAmount":{"type":"number"},"confirmedAt":{"bsonType":"date"}},"required":["clientId","totalAmount"]}]}
+OK    append ProductItemAdded (evolve gets null): "1"
+OK    append ShoppingCartConfirmed (evolve gets the stored state, read through the codec): "2"
+OK    BSON types stored: {"clientId":"objectId","confirmedAt":"date"}
+OK    read: what the code sees: {"clientId":"string","totalAmount":100,"confirmedAt":"Date"}
+OK    query: filter as the code writes it, through codec.filter: {"clientId":"64f000000000000000000001"}
+OK    query through eventStore.projections.inline.findOne: false
+OK    query through the collection with the prefix written by hand: 1
+FAIL  write: codec rejects a wrong value before MongoDB: ["totalAmount"] Expected number
+FAIL  write: MongoDB validator rejects a string clientId written past the codec: Plan executor error during update :: caused by :: Document failed validation
+--- zod
+OK    paths found by format: ["clientId","confirmedAt"]
+OK    set derived validator on the stream collection: {"anyOf":[{"bsonType":"null"},{"type":"object","properties":{"clientId":{"bsonType":"objectId"},"totalAmount":{"type":"number"},"confirmedAt":{"bsonType":"date"}},"required":["clientId","totalAmount"]}]}
+OK    append ProductItemAdded (evolve gets null): "1"
+OK    append ShoppingCartConfirmed (evolve gets the stored state, read through the codec): "2"
+OK    BSON types stored: {"clientId":"objectId","confirmedAt":"date"}
+OK    read: what the code sees: {"clientId":"string","totalAmount":100,"confirmedAt":"Date"}
+OK    query: filter as the code writes it, through codec.filter: {"clientId":"64f000000000000000000001"}
+OK    query through eventStore.projections.inline.findOne: false
+OK    query through the collection with the prefix written by hand: 1
+FAIL  write: codec rejects a wrong value before MongoDB: ["totalAmount"] Invalid input: expected number, received string
+FAIL  write: MongoDB validator rejects a string clientId written past the codec: Plan executor error during update :: caused by :: Document failed validation

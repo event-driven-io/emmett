@@ -1,0 +1,6 @@
+OK    zod input: {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"asString":{"type":"string","format":"date-time","pattern":"<long>"},"asDate":{"type":"string","format":"date-time","pattern":"<long>"},"total":{"type":"string","format":"int64","pattern":"^-?\\d+$"}},"required":["asString","asDate","total"]}
+FAIL  zod output: Date cannot be represented in JSON Schema
+OK    zod output, unrepresentable: any: {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"asString":{"type":"string","format":"date-time","pattern":"<long>"},"asDate":{},"total":{}},"required":["asString","asDate","total"],"additionalProperties":false}
+OK    s input: {"type":"object","properties":{"asDate":{"type":"string","format":"date-time"}},"required":["asDate"],"additionalProperties":false}
+OK    s output: {"type":"object","properties":{"asDate":{"type":"string","format":"date-time"}},"required":["asDate"],"additionalProperties":false}
+OK    s output, unrepresentable: any: {"type":"object","properties":{"asDate":{"type":"string","format":"date-time"}},"required":["asDate"],"additionalProperties":false}

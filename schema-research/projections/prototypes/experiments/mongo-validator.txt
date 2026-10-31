@@ -1,0 +1,14 @@
+MongoDB 8.3.13
+OK    insert ownerId as ObjectId 
+FAIL  insert ownerId as string: Document failed validation
+OK    stored types after inserts ["ObjectId"]
+OK    find with string filter (count) 0
+OK    find with ObjectId filter (count) 1
+FAIL  validator using format: date-time: $jsonSchema keyword 'format' is not currently supported
+FAIL  validator using type: integer: $jsonSchema type 'integer' is not currently supported.
+FAIL  validator using $schema keyword: $jsonSchema keyword '$schema' is not currently supported
+FAIL  validator using numeric exclusiveMinimum (draft 2020-12 style): $jsonSchema keyword 'minimum' must be a present if exclusiveMinimum is present
+FAIL  validationLevel: constraint: Validation level 'constraint' is not supported with current FCV
+OK    stream doc without projections 
+OK    stream doc, $set projection with ObjectId 1
+FAIL  stream doc, $set projection with string: Plan executor error during update :: caused by :: Document failed validation

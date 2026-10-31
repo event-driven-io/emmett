@@ -1,0 +1,46 @@
+--- 1. What Standard Schema gives Emmett
+OK    zodPlain jsonSchema.input: {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"ownerId":{"type":"string"},"total":{"type":"number"}},"required":["ownerId","total"]}
+OK    zodPlain validate(evolved) value type of ownerId: "string"
+FAIL  zodPlain validate(read back from Mongo, ownerId is ObjectId): Invalid input: expected string, received ObjectId
+OK    zodPlain typed paths found: []
+OK    zodFormat jsonSchema.input: {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"ownerId":{"type":"string","format":"objectid","pattern":"^[0-9a-f]{24}$"},"total":{"type":"number"}},"required":["ownerId","total"]}
+OK    zodFormat validate(evolved) value type of ownerId: "string"
+FAIL  zodFormat validate(read back from Mongo, ownerId is ObjectId): Invalid input: expected string, received ObjectId
+OK    zodFormat typed paths found: ["ownerId"]
+OK    zodCodec jsonSchema.input: {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"ownerId":{"type":"string","pattern":"^[0-9a-f]{24}$"},"total":{"type":"number"}},"required":["ownerId","total"]}
+OK    zodCodec validate(evolved) value type of ownerId: "ObjectId"
+FAIL  zodCodec validate(read back from Mongo, ownerId is ObjectId): Invalid input: expected string, received ObjectId
+OK    zodCodec typed paths found: []
+OK    sBuilder jsonSchema.input: {"type":"object","properties":{"ownerId":{"type":"string","format":"objectid"},"total":{"type":"number"}},"required":["ownerId","total"],"additionalProperties":false}
+OK    sBuilder validate(evolved) value type of ownerId: "string"
+FAIL  sBuilder validate(read back from Mongo, ownerId is ObjectId): Expected string
+OK    sBuilder typed paths found: ["ownerId"]
+--- 2. Against MongoDB 8, inline projection at projections.summary in the stream document
+OK    zodPlain create collection with derived validator: {"bsonType":"object","properties":{"ownerId":{"type":"string"},"total":{"type":"number"}},"required":["ownerId","total"]}
+OK    zodPlain $set evolved state as is: 1
+OK    zodPlain $set validate() output: 0
+OK    zodPlain $set encoded by typed paths: 0
+OK    zodPlain find with string filter as is: 1
+OK    zodPlain find with filter encoded by typed paths: 1
+OK    zodPlain read back, decode by typed paths, validate: {"ownerId":"64f000000000000000000001","total":100}
+OK    zodFormat create collection with derived validator: {"bsonType":"object","properties":{"ownerId":{"bsonType":"objectId"},"total":{"type":"number"}},"required":["ownerId","total"]}
+FAIL  zodFormat $set evolved state as is: Plan executor error during update :: caused by :: Document failed validation
+FAIL  zodFormat $set validate() output: Plan executor error during update :: caused by :: Document failed validation
+OK    zodFormat $set encoded by typed paths: 1
+OK    zodFormat find with string filter as is: 0
+OK    zodFormat find with filter encoded by typed paths: 1
+OK    zodFormat read back, decode by typed paths, validate: {"ownerId":"64f000000000000000000001","total":100}
+OK    zodCodec create collection with derived validator: {"bsonType":"object","properties":{"ownerId":{"type":"string","pattern":"^[0-9a-f]{24}$"},"total":{"type":"number"}},"required":["ownerId","total"]}
+OK    zodCodec $set evolved state as is: 1
+FAIL  zodCodec $set validate() output: Plan executor error during update :: caused by :: Document failed validation
+OK    zodCodec $set encoded by typed paths: 0
+OK    zodCodec find with string filter as is: 1
+OK    zodCodec find with filter encoded by typed paths: 1
+OK    zodCodec read back, decode by typed paths, validate: {"ownerId":"64f000000000000000000001","total":100}
+OK    sBuilder create collection with derived validator: {"bsonType":"object","properties":{"ownerId":{"bsonType":"objectId"},"total":{"type":"number"}},"required":["ownerId","total"],"additionalProperties":false}
+FAIL  sBuilder $set evolved state as is: Plan executor error during update :: caused by :: Document failed validation
+FAIL  sBuilder $set validate() output: Plan executor error during update :: caused by :: Document failed validation
+OK    sBuilder $set encoded by typed paths: 1
+OK    sBuilder find with string filter as is: 0
+OK    sBuilder find with filter encoded by typed paths: 1
+OK    sBuilder read back, decode by typed paths, validate: {"ownerId":"64f000000000000000000001","total":100}
