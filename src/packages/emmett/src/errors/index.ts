@@ -1,4 +1,7 @@
+import { emmettTypeId, hasTypeId } from '../typing/typeId';
 import { isNumber, isString } from '../validation';
+
+export const EmmettErrorTypeId = emmettTypeId('EmmettError');
 
 export type ErrorConstructor<ErrorType extends Error> = new (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,6 +21,14 @@ export const isErrorConstructor = <ErrorType extends Error>(
   );
 };
 
+export type EmmettErrorOptions = {
+  status: number;
+  message?: string;
+  code?: string;
+  cause?: unknown;
+  details?: Record<string, unknown>;
+};
+
 export class EmmettError extends Error {
   public static readonly Codes = {
     ValidationError: 400,
@@ -27,14 +38,27 @@ export class EmmettError extends Error {
     InternalServerError: 500,
   };
 
+  public status: number;
+  public code?: string;
+  public details?: Record<string, unknown>;
+
+  /**
+   * @deprecated Use `status` instead.
+   */
   public errorCode: number;
 
   constructor(
-    options?: { errorCode: number; message?: string } | string | number,
+    options?:
+      | EmmettErrorOptions
+      | { errorCode: number; message?: string }
+      | string
+      | number,
   ) {
-    const errorCode =
-      options && typeof options === 'object' && 'errorCode' in options
-        ? options.errorCode
+    const status =
+      options && typeof options === 'object'
+        ? 'status' in options
+          ? options.status
+          : options.errorCode
         : isNumber(options)
           ? options
           : EmmettError.Codes.InternalServerError;
@@ -43,55 +67,85 @@ export class EmmettError extends Error {
         ? options.message
         : isString(options)
           ? options
-          : `Error with status code '${errorCode}' ocurred during Emmett processing`;
+          : `Error with status code '${status}' ocurred during Emmett processing`;
+    const { code, cause, details }: Partial<EmmettErrorOptions> =
+      options && typeof options === 'object' && 'status' in options
+        ? options
+        : {};
 
-    super(message);
-    this.errorCode = errorCode;
+    super(message, { cause });
+    this.status = status;
+    this.errorCode = status;
+    this.code = code;
+    this.details = details;
+    Object.defineProperty(this, EmmettErrorTypeId, { value: true });
 
     // 👇️ because we are extending a built-in class
     Object.setPrototypeOf(this, EmmettError.prototype);
   }
 
   public static mapFrom(
-    error: Error | { message?: string; errorCode?: number },
+    error: Error | (Partial<EmmettErrorOptions> & { errorCode?: number }),
   ): EmmettError {
-    if (EmmettError.isInstanceOf(error)) {
-      return error;
+    if (hasTypeId(error, EmmettErrorTypeId)) {
+      return error as EmmettError;
     }
 
-    return new EmmettError({
-      errorCode:
-        'errorCode' in error &&
-        error.errorCode !== undefined &&
-        error.errorCode !== null
-          ? error.errorCode
-          : EmmettError.Codes.InternalServerError,
+    const mapped = new EmmettError({
+      status: statusOf(error) ?? EmmettError.Codes.InternalServerError,
       message: error.message ?? 'An unknown error occurred',
+      code: 'code' in error && isString(error.code) ? error.code : undefined,
+      cause: 'cause' in error ? error.cause : undefined,
+      details:
+        'details' in error &&
+        typeof error.details === 'object' &&
+        error.details !== null
+          ? error.details
+          : undefined,
     });
+
+    if ('stack' in error && isString(error.stack)) {
+      mapped.stack = error.stack;
+    }
+
+    return mapped;
   }
 
   public static isInstanceOf<ErrorType extends EmmettError = EmmettError>(
     error: unknown,
-    errorCode?: (typeof EmmettError.Codes)[keyof typeof EmmettError.Codes],
+    status?: (typeof EmmettError.Codes)[keyof typeof EmmettError.Codes],
   ): error is ErrorType {
+    const errorStatus = statusOf(error);
+
     return (
-      typeof error === 'object' &&
-      error !== null &&
-      'errorCode' in error &&
-      isNumber(error.errorCode) &&
-      (errorCode === undefined || error.errorCode === errorCode)
+      errorStatus !== undefined &&
+      (status === undefined || errorStatus === status)
     );
   }
 }
+
+const statusOf = (error: unknown): number | undefined => {
+  if (typeof error !== 'object' || error === null) return undefined;
+
+  if ('status' in error && isNumber(error.status)) return error.status;
+
+  if ('errorCode' in error && isNumber(error.errorCode)) return error.errorCode;
+
+  return undefined;
+};
 
 export class ConcurrencyError extends EmmettError {
   constructor(
     public current: string | undefined,
     public expected: string,
-    message?: string,
+    options?: string | Omit<EmmettErrorOptions, 'status'>,
   ) {
+    const { message, ...rest } = isString(options)
+      ? { message: options }
+      : (options ?? {});
     super({
-      errorCode: EmmettError.Codes.ConcurrencyError,
+      ...rest,
+      status: EmmettError.Codes.ConcurrencyError,
       message:
         message ??
         `Expected version ${expected.toString()} does not match current ${current?.toString()}`,
@@ -107,7 +161,7 @@ export class ConcurrencyError extends EmmettError {
 export class ConcurrencyInMemoryDatabaseError extends EmmettError {
   constructor(message?: string) {
     super({
-      errorCode: EmmettError.Codes.ConcurrencyError,
+      status: EmmettError.Codes.ConcurrencyError,
       message: message ?? `Expected document state does not match current one!`,
     });
 
@@ -117,9 +171,13 @@ export class ConcurrencyInMemoryDatabaseError extends EmmettError {
 }
 
 export class ValidationError extends EmmettError {
-  constructor(message?: string) {
+  constructor(options?: string | Omit<EmmettErrorOptions, 'status'>) {
+    const { message, ...rest } = isString(options)
+      ? { message: options }
+      : (options ?? {});
     super({
-      errorCode: EmmettError.Codes.ValidationError,
+      ...rest,
+      status: EmmettError.Codes.ValidationError,
       message: message ?? `Validation Error ocurred during Emmett processing`,
     });
 
@@ -129,9 +187,13 @@ export class ValidationError extends EmmettError {
 }
 
 export class IllegalStateError extends EmmettError {
-  constructor(message?: string) {
+  constructor(options?: string | Omit<EmmettErrorOptions, 'status'>) {
+    const { message, ...rest } = isString(options)
+      ? { message: options }
+      : (options ?? {});
     super({
-      errorCode: EmmettError.Codes.IllegalStateError,
+      ...rest,
+      status: EmmettError.Codes.IllegalStateError,
       message: message ?? `Illegal State ocurred during Emmett processing`,
     });
 
@@ -141,9 +203,17 @@ export class IllegalStateError extends EmmettError {
 }
 
 export class NotFoundError extends EmmettError {
-  constructor(options?: { id: string; type: string; message?: string }) {
+  constructor(
+    options?: {
+      id: string;
+      type: string;
+    } & Omit<EmmettErrorOptions, 'status'>,
+  ) {
     super({
-      errorCode: EmmettError.Codes.NotFoundError,
+      code: options?.code,
+      cause: options?.cause,
+      details: options?.details,
+      status: EmmettError.Codes.NotFoundError,
       message:
         options?.message ??
         (options?.id

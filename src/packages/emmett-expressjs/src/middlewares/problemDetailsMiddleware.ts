@@ -27,15 +27,17 @@ export const defaultErrorToProblemDetailsMapping = (
   let statusCode = 500;
   let detail = 'Internal Server Error';
 
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'errorCode' in error &&
-    isNumber(error.errorCode) &&
-    error.errorCode >= 100 &&
-    error.errorCode < 600
-  ) {
-    statusCode = error.errorCode;
+  const status =
+    typeof error === 'object' && error !== null
+      ? 'status' in error && isNumber(error.status)
+        ? error.status
+        : 'errorCode' in error && isNumber(error.errorCode)
+          ? error.errorCode
+          : undefined
+      : undefined;
+
+  if (status !== undefined && status >= 100 && status < 600) {
+    statusCode = status;
   }
 
   if (error instanceof Error) detail = error.message;

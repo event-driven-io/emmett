@@ -30,7 +30,7 @@ export const getWeakETagValue = (etag: ETag): string => {
   const result = WeakETagRegex.exec(etag);
   if (result === null || result.length === 0) {
     throw new EmmettError({
-      errorCode: EmmettError.Codes.ConcurrencyError,
+      status: EmmettError.Codes.ConcurrencyError,
       message: ETagErrors.WRONG_WEAK_ETAG_FORMAT,
     });
   }
@@ -46,7 +46,7 @@ export const getETagFromIfMatch = (request: Request): ETag => {
 
   if (etag === undefined) {
     throw new EmmettError({
-      errorCode: EmmettError.Codes.ConcurrencyError,
+      status: EmmettError.Codes.ConcurrencyError,
       message: ETagErrors.MISSING_IF_MATCH_HEADER,
     });
   }
@@ -59,7 +59,7 @@ export const getETagFromIfNotMatch = (request: Request): ETag => {
 
   if (etag === undefined) {
     throw new EmmettError({
-      errorCode: EmmettError.Codes.ConcurrencyError,
+      status: EmmettError.Codes.ConcurrencyError,
       message: ETagErrors.MISSING_IF_NOT_MATCH_HEADER,
     });
   }

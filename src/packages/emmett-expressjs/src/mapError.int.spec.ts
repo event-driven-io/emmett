@@ -1,4 +1,8 @@
-import { assertEqual, EmmettError } from '@event-driven-io/emmett';
+import {
+  assertDeepEqual,
+  assertEqual,
+  EmmettError,
+} from '@event-driven-io/emmett';
 import type { Router } from 'express';
 import { ProblemDocument } from 'http-problem-details';
 import request from 'supertest';
@@ -10,7 +14,7 @@ import { getApplication, on } from '.';
 class InsufficientFundsError extends EmmettError {
   constructor(required: number, available: number) {
     super({
-      errorCode: 402,
+      status: 402,
       message: `Insufficient funds: need ${required}, have ${available}`,
     });
   }
@@ -24,26 +28,26 @@ const walletApi = (router: Router) =>
     }),
   );
 
-// no mapError needed: the default mapping reads the errorCode
+// no mapError needed: the default mapping reads the status
 const application = getApplication({ apis: [walletApi] });
 // #endregion derive-emmett-error
 
 void describe('custom error aligned with Emmett', () => {
-  void it('maps an EmmettError subclass by its errorCode', async () => {
+  void it('maps an EmmettError subclass by its status', async () => {
     const response = await request(application).post('/withdrawals').send();
 
-    assertEqual(response.statusCode, 402);
+    assertEqual(402, response.statusCode);
     assertEqual(
-      (response.body as ProblemDocument).detail,
       'Insufficient funds: need 100, have 40',
+      (response.body as ProblemDocument).detail,
     );
   });
 });
 
 // #region error-with-code
-// or skip the base class: the default mapping reads any numeric errorCode
+// or skip the base class: the default mapping reads any numeric status
 class OutOfStockError extends Error {
-  public readonly errorCode = 409;
+  public readonly status = 409;
 
   constructor(productId: string) {
     super(`Out of stock: ${productId}`);
@@ -61,16 +65,16 @@ const inventoryApi = (router: Router) =>
 const inventoryApplication = getApplication({ apis: [inventoryApi] });
 // #endregion error-with-code
 
-void describe('custom error carrying an errorCode', () => {
-  void it('maps a plain error by its errorCode', async () => {
+void describe('custom error carrying a status', () => {
+  void it('maps a plain error by its status', async () => {
     const response = await request(inventoryApplication)
       .post('/reservations')
       .send();
 
-    assertEqual(response.statusCode, 409);
+    assertEqual(409, response.statusCode);
     assertEqual(
-      (response.body as ProblemDocument).detail,
       'Out of stock: shoes',
+      (response.body as ProblemDocument).detail,
     );
   });
 });
@@ -107,12 +111,115 @@ const checkoutApplication = getApplication({
 });
 // #endregion custom-error-mapping
 
+void describe('custom error carrying a deprecated errorCode', () => {
+  void it('maps a plain error by its errorCode', async () => {
+    class LegacyOutOfStockError extends Error {
+      public readonly errorCode = 409;
+
+      constructor(productId: string) {
+        super(`Out of stock: ${productId}`);
+      }
+    }
+
+    const legacyApplication = getApplication({
+      apis: [
+        (router) =>
+          router.post(
+            '/reservations',
+            on(() => {
+              throw new LegacyOutOfStockError('shoes');
+            }),
+          ),
+      ],
+    });
+
+    const response = await request(legacyApplication)
+      .post('/reservations')
+      .send();
+
+    assertEqual(409, response.statusCode);
+    assertEqual(
+      'Out of stock: shoes',
+      (response.body as ProblemDocument).detail,
+    );
+  });
+});
+
+void describe('custom error with code and details', () => {
+  // #region error-with-code-and-details
+  class RoomAlreadyBookedError extends EmmettError {
+    constructor(roomId: string, cause?: unknown) {
+      super({
+        status: 409,
+        message: `Room ${roomId} is already booked`,
+        code: 'ROOM_ALREADY_BOOKED',
+        details: { roomId },
+        cause,
+      });
+    }
+  }
+  // #endregion error-with-code-and-details
+
+  const bookingApi = (router: Router) =>
+    router.post(
+      '/bookings',
+      on(() => {
+        throw new RoomAlreadyBookedError(
+          'room-1',
+          new Error('Unique constraint violated'),
+        );
+      }),
+    );
+
+  void it('default response has no code, details or cause', async () => {
+    const bookingApplication = getApplication({ apis: [bookingApi] });
+
+    const response = await request(bookingApplication).post('/bookings').send();
+
+    assertEqual(409, response.statusCode);
+    assertDeepEqual(response.body, {
+      detail: 'Room room-1 is already booked',
+      status: 409,
+      title: 'Conflict',
+      type: 'about:blank',
+    });
+  });
+
+  void it('mapError adds code and details to the response', async () => {
+    // #region map-error-code-and-details
+    const bookingApplication = getApplication({
+      apis: [bookingApi],
+      // expose only what the client needs; never send cause
+      mapError: (error) =>
+        error instanceof EmmettError && error.code
+          ? new ProblemDocument(
+              { status: error.status, detail: error.message },
+              { code: error.code, details: error.details ?? {} },
+            )
+          : undefined,
+    });
+    // #endregion map-error-code-and-details
+
+    const response = await request(bookingApplication).post('/bookings').send();
+
+    assertEqual(409, response.statusCode);
+    assertDeepEqual(response.body, {
+      detail: 'Room room-1 is already booked',
+      status: 409,
+      title: 'Conflict',
+      type: 'about:blank',
+      code: 'ROOM_ALREADY_BOOKED',
+      details: { roomId: 'room-1' },
+    });
+  });
+});
+
 void describe('mapping a foreign error', () => {
   void it('maps a third-party error with mapError', async () => {
     const response = await request(checkoutApplication).post('/charges').send();
 
-    assertEqual(response.statusCode, 402);
-    assertEqual((response.body as ProblemDocument).title, 'Card Declined');
+    assertEqual(402, response.statusCode);
+    assertEqual('Card Declined', (response.body as ProblemDocument).title);
   });
 });
 
@@ -133,7 +240,7 @@ void describe('default error mapping', () => {
       .get('/string-error')
       .send();
 
-    assertEqual(response.statusCode, 500);
-    assertEqual((response.body as ProblemDocument).detail, 'Async rejection');
+    assertEqual(500, response.statusCode);
+    assertEqual('Async rejection', (response.body as ProblemDocument).detail);
   });
 });
