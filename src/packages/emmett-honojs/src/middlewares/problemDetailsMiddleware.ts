@@ -6,13 +6,15 @@ export const defaultErrorToProblemDetailsMapping = (
 ): ProblemDocument => {
   let statusCode = 500;
 
-  if (
-    'errorCode' in error &&
-    isNumber(error.errorCode) &&
-    error.errorCode >= 100 &&
-    error.errorCode < 600
-  ) {
-    statusCode = error.errorCode;
+  const status =
+    'status' in error && isNumber(error.status)
+      ? error.status
+      : 'errorCode' in error && isNumber(error.errorCode)
+        ? error.errorCode
+        : undefined;
+
+  if (status !== undefined && status >= 100 && status < 600) {
+    statusCode = status;
   }
 
   return new ProblemDocument({

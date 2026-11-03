@@ -2,7 +2,14 @@ import { defineConfig } from 'vitest/config';
 
 export const localMaxWorkers = process.env.CI ? {} : { maxWorkers: '50%' };
 
+const sourceResolve = {
+  resolve: {
+    tsconfigPaths: true,
+  },
+};
+
 export default defineConfig({
+  ...sourceResolve,
   test: {
     environment: 'node',
     include: ['**/*.spec.ts'],
@@ -22,6 +29,7 @@ export default defineConfig({
 
 /** Shared limits for projects whose hooks start Testcontainers. */
 export const containersShared = defineConfig({
+  ...sourceResolve,
   test: {
     environment: 'node',
     include: ['**/*.spec.ts'],
