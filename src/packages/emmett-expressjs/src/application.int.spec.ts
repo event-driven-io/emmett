@@ -7,6 +7,7 @@ import {
   logger,
   setupEmmettObservability,
   type LogEvent,
+  type ProblemDocument,
 } from '@event-driven-io/emmett';
 import { trace, type Span } from '@opentelemetry/api';
 import express, {
@@ -15,7 +16,6 @@ import express, {
   type RequestHandler,
   type Router,
 } from 'express';
-import type { ProblemDocument } from 'http-problem-details';
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import request from 'supertest';

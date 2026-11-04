@@ -195,7 +195,7 @@ Problem responses accept either `problem: ProblemDocument` or `problemDetails: s
 
 That is useful when more than one route can fail. Without shared error handling, every command and query route needs to catch errors, choose an HTTP status, and maintain its own error-body shape. Problem Details keeps the public error contract consistent across routes.
 
-The default mapping uses a numeric `errorCode` from 100 through 599 as the HTTP status. Plain `Error` objects without a valid `errorCode` become 500 responses with the error message as `detail`.
+The default mapping reads the status from `status`, then `statusCode`, then the deprecated `errorCode`. A status outside 100 through 599 becomes 500. The default mapping never puts `code`, `details` or `cause` in the response. Plain `Error` objects without a valid status become 500 responses with the error message as `detail`.
 
 Use `mapError` for errors from libraries or application code that should be translated into a public Problem Details document. Set `disableProblemDetailsMiddleware: true` when the application already has an error contract.
 

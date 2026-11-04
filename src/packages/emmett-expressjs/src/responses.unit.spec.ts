@@ -3,9 +3,9 @@ import {
   assertEqual,
   assertMatches,
   assertOk,
+  ProblemDocument,
 } from '@event-driven-io/emmett';
 import type { Response } from 'express';
-import { ProblemDocument } from 'http-problem-details';
 import { beforeEach, describe, it, vi } from 'vitest';
 import { toWeakETag } from './etag';
 import { Conflict, NoContent, on } from './handler';

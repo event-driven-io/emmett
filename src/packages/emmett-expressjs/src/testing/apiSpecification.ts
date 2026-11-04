@@ -7,10 +7,10 @@ import {
   type Event,
   type EventStore,
   type InMemoryEventStore,
+  type ProblemDocument,
   type TestEventStream,
 } from '@event-driven-io/emmett';
 import type { Application } from 'express';
-import type { ProblemDocument } from 'http-problem-details';
 import type { Response as SuperTestResponse, Test } from 'supertest';
 import supertest from 'supertest';
 import {
@@ -80,13 +80,10 @@ export const expectResponse =
   };
 
 export const expectError = (
-  errorCode: number,
+  status: number,
   problemDetails?: Partial<ProblemDocument>,
 ) =>
-  expectResponse(
-    errorCode,
-    problemDetails ? { body: problemDetails } : undefined,
-  );
+  expectResponse(status, problemDetails ? { body: problemDetails } : undefined);
 
 ////////////////////////////////
 /////////// Api Specification

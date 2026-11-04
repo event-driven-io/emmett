@@ -6,10 +6,10 @@ import {
   type Event,
   type EventStore,
   type InMemoryEventStore,
+  type ProblemDocument,
   type TestEventStream,
   WrapEventStore,
 } from '@event-driven-io/emmett';
-import type { ProblemDocument } from 'http-problem-details';
 
 type FetchApplication = {
   fetch(request: Request): Response | Promise<Response>;
@@ -196,13 +196,10 @@ export const expectResponse =
   };
 
 export const expectError = (
-  errorCode: number,
+  status: number,
   problemDetails?: Partial<ProblemDocument>,
 ) =>
-  expectResponse(
-    errorCode,
-    problemDetails ? { body: problemDetails } : undefined,
-  );
+  expectResponse(status, problemDetails ? { body: problemDetails } : undefined);
 
 ////////////////////////////////
 /////////// Api Specification

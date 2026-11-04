@@ -50,8 +50,7 @@
     "dist"
   ],
   "dependencies": {
-    "@hono/node-server": "^2.1.5",
-    "http-problem-details": "^0.1.7"
+    "@hono/node-server": "^2.1.5"
   },
   "devDependencies": {},
   "peerDependencies": {

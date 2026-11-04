@@ -48,4 +48,23 @@ describe('OtelLogFormatter', () => {
       },
     });
   });
+
+  it('uses the error class name as exception.type for a subclass that does not set name', () => {
+    class OrderNotFound extends Error {}
+    const event = LogEvent.error(new OrderNotFound('boom'), 'order failed');
+
+    expect(OtelLogFormatter.toOtelLog(event).attributes).toMatchObject({
+      'exception.type': 'OrderNotFound',
+    });
+  });
+
+  it('uses the error name as exception.type when the error is not an Error instance', () => {
+    const event = LogEvent.message('error', 'order failed', {
+      error: { name: 'OrderNotFound', message: 'boom' },
+    });
+
+    expect(OtelLogFormatter.toOtelLog(event).attributes).toMatchObject({
+      'exception.type': 'OrderNotFound',
+    });
+  });
 });

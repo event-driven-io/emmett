@@ -16,6 +16,9 @@ export const severityNumberFor = (level: LogLevel): number =>
 
 export const severityTextFor = (level: LogLevel): string => level.toUpperCase();
 
+export const exceptionTypeFor = (error: Error): string =>
+  (error instanceof Error && error.constructor.name) || error.name;
+
 export const OtelLogFormatter = {
   format: (event: LogEvent, options?: JSONSerializeOptions): string =>
     JSONSerializer.serialize(OtelLogFormatter.toOtelLog(event), options),
@@ -31,7 +34,7 @@ export const OtelLogFormatter = {
     if (metadata.causationId !== undefined)
       attributes['causation_id'] = metadata.causationId;
     if (data.error) {
-      attributes['exception.type'] = data.error.name;
+      attributes['exception.type'] = exceptionTypeFor(data.error);
       attributes['exception.message'] = data.error.message;
       if (data.error.stack)
         attributes['exception.stacktrace'] = data.error.stack;

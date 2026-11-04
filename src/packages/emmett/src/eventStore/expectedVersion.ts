@@ -1,4 +1,9 @@
-import { ConcurrencyError, EmmettError } from '../errors';
+import {
+  ConcurrencyError,
+  EmmettError,
+  type EmmettErrorOptions,
+} from '../errors';
+import { isString } from '../validation';
 import type { Flavour, StreamPosition } from '../typing';
 
 export type ExpectedStreamVersion =
@@ -46,8 +51,19 @@ export const assertExpectedVersionMatchesCurrent = (
 };
 
 export class ExpectedVersionConflictError extends ConcurrencyError {
-  constructor(current: StreamPosition, expected: ExpectedStreamVersion) {
-    super(current?.toString(), expected?.toString());
+  constructor(
+    current: StreamPosition,
+    expected: ExpectedStreamVersion,
+    options?: string | Omit<EmmettErrorOptions, 'status'>,
+  ) {
+    const { message, ...rest } = isString(options)
+      ? { message: options }
+      : (options ?? {});
+    super(current?.toString(), expected?.toString(), {
+      ...rest,
+      code: rest.code ?? 'EMT_ERR_EXPECTED_VERSION_CONFLICT',
+      message,
+    });
 
     // 👇️ because we are extending a built-in class
     Object.setPrototypeOf(this, ExpectedVersionConflictError.prototype);

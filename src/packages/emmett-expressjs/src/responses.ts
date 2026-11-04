@@ -1,5 +1,5 @@
+import { ProblemDocument } from '@event-driven-io/emmett';
 import type { Request, Response } from 'express';
-import { ProblemDocument } from 'http-problem-details';
 import { setETag, type ETag } from './etag';
 
 export type ErrorToProblemDetailsMapping = (

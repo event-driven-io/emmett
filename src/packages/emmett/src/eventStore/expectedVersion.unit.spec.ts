@@ -1,9 +1,12 @@
-import { describe, it } from 'vitest';
-import { assertEqual, assertOk } from '../testing';
+import { describe, expectTypeOf, it } from 'vitest';
+import { ConcurrencyError, EmmettError } from '../errors';
+import { assertDeepEqual, assertEqual, assertOk, assertTrue } from '../testing';
 import {
+  ExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
+  isExpectedVersionConflictError,
   matchesExpectedVersion,
 } from './expectedVersion';
 
@@ -97,5 +100,55 @@ void describe('matchesExpectedVersion', () => {
         false,
       );
     }
+  });
+});
+
+void describe('ExpectedVersionConflictError', () => {
+  void it('keeps its current arguments', () => {
+    const error = new ExpectedVersionConflictError(1n, 2n);
+
+    assertEqual(error.status, EmmettError.Codes.ConcurrencyError);
+    assertEqual(error.current, '1');
+    assertEqual(error.expected, '2');
+    assertEqual(error.message, 'Expected version 2 does not match current 1');
+    assertTrue(error instanceof ConcurrencyError);
+    assertTrue(isExpectedVersionConflictError(error));
+  });
+
+  void it('has a default code', () => {
+    const error = new ExpectedVersionConflictError(1n, 2n);
+
+    assertEqual(error.code, 'EMT_ERR_EXPECTED_VERSION_CONFLICT');
+  });
+
+  void it('has a default code when options are passed without code', () => {
+    const error = new ExpectedVersionConflictError(1n, 2n, 'Booking changed');
+
+    assertEqual(error.message, 'Booking changed');
+    assertEqual(error.code, 'EMT_ERR_EXPECTED_VERSION_CONFLICT');
+  });
+
+  void it('carries code, cause and details', () => {
+    const cause = new Error('Original failure');
+    const details = { propertyId: 'property-1' };
+
+    const error = new ExpectedVersionConflictError(1n, 2n, {
+      message: 'Booking changed',
+      code: 'BOOKING_CHANGED',
+      cause,
+      details,
+    });
+
+    assertEqual(error.status, EmmettError.Codes.ConcurrencyError);
+    assertEqual(error.message, 'Booking changed');
+    assertEqual(error.code, 'BOOKING_CHANGED');
+    assertEqual(error.cause, cause);
+    assertDeepEqual(error.details, details);
+  });
+
+  void it('accepts the same options as ConcurrencyError', () => {
+    expectTypeOf<
+      ConstructorParameters<typeof ExpectedVersionConflictError>[2]
+    >().toEqualTypeOf<ConstructorParameters<typeof ConcurrencyError>[2]>();
   });
 });

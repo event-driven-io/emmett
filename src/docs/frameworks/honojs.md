@@ -82,7 +82,7 @@ The application can opt into the remaining pieces independently:
 | Export                                | What it adds                                                                 |
 | ------------------------------------- | ---------------------------------------------------------------------------- |
 | `registerWebApi`                      | One router containing the supplied feature APIs.                             |
-| `defaultErrorToProblemDetailsMapping` | Default translation from an error with `errorCode` to Problem Details.       |
+| `defaultErrorToProblemDetailsMapping` | Default translation from an error to Problem Details.                        |
 | Response helpers                      | Route helpers that return a Fetch `Response` with status, body, and headers. |
 | ETag helpers                          | Explicit `If-Match` parsing and response ETags for optimistic concurrency.   |
 
@@ -165,11 +165,11 @@ Successful routes choose their response explicitly. Thrown errors need a separat
 }
 ```
 
-The default mapping uses a numeric `errorCode` from 100 through 599 as the HTTP status. Errors without a valid `errorCode` become 500 responses with the error message as `detail`. Emmett's built-in validation, illegal-state, not-found, and concurrency errors carry status codes 400, 403, 404, and 412 respectively.
+The default mapping reads the status from `status`, then `statusCode`, then the deprecated `errorCode`. A status outside 100 through 599 becomes 500. Emmett's built-in validation, illegal-state, not-found, and concurrency errors carry the statuses 400, 403, 404, and 412. The default mapping never puts `code`, `details` or `cause` in the response. To add them, see [Add Code, Cause and Details](/guides/error-handling#code-cause-details).
 
 Pass `mapError(error)` to translate an application-specific error into a `ProblemDocument`. Returning `undefined` delegates to the default mapping:
 
-<<< @./../packages/emmett-honojs/src/application.int.spec.ts#custom-error-mapping
+<<< @./../packages/emmett-honojs/src/mapError.int.spec.ts#custom-error-mapping
 
 When the application already has an error contract, set `disableProblemDetailsMiddleware: true` and register the replacement with `application.onError`.
 

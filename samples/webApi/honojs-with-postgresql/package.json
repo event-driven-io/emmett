@@ -63,7 +63,6 @@
     "@opentelemetry/sdk-trace-node": "^2.9.0",
     "@opentelemetry/semantic-conventions": "^1.43.0",
     "hono": "^4.11.7",
-    "http-problem-details": "^0.1.7",
     "pino": "^10.3.1",
     "pino-opentelemetry-transport": "^3.0.0"
   },

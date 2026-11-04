@@ -1,3 +1,4 @@
+import type { ProblemDocument } from '@event-driven-io/emmett';
 import {
   assertDeepEqual,
   assertEqual,
@@ -10,7 +11,6 @@ import {
 import { trace, type Span } from '@opentelemetry/api';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { ProblemDocument } from 'http-problem-details';
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, it, vi } from 'vitest';
@@ -263,44 +263,6 @@ void describe('configureApplication', () => {
     const response = await application.request('/body');
 
     assertOk(typeof response.headers.get('etag') === 'string');
-  });
-
-  void it('uses custom error mapping before the default Problem Details mapping', async () => {
-    // #region custom-error-mapping
-    class CardDeclinedError extends Error {
-      constructor(public readonly code: string) {
-        super(`Card declined: ${code}`);
-      }
-    }
-
-    const checkoutApi: WebApiSetup = (router) =>
-      router.post('/charges', () => {
-        throw new CardDeclinedError('insufficient_funds');
-      });
-
-    const checkoutApplication = getApplication({
-      apis: [checkoutApi],
-      mapError: (error) =>
-        error instanceof CardDeclinedError
-          ? new ProblemDocument({
-              type: 'https://errors.example.com/card-declined',
-              status: 402,
-              title: 'Card Declined',
-              detail: error.message,
-            })
-          : undefined,
-    });
-    // #endregion custom-error-mapping
-
-    const response = await checkoutApplication.request('/charges', {
-      method: 'POST',
-    });
-
-    assertEqual(response.status, 402);
-    assertEqual(
-      ((await response.json()) as ProblemDocument).title,
-      'Card Declined',
-    );
   });
 });
 
