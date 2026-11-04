@@ -47,7 +47,7 @@ Use `stopOn` when commands earlier in the batch made independent changes that sh
 
 Returning an event fits an outcome the business expects. A broken rule is different: a command that should never have been issued, such as an illegal state transition or invalid input. Throw before building any event, so a bad command never records one.
 
-Throw whatever error type you like: your own class, a plain `Error`, one from a library. Emmett does not require its own. Yet, it ships is a set of error types for the common cases, each carrying a HTTP-based error code, so that an error thrown deep in a decision maps to the right response by convention rather than by wiring:
+Throw whatever error type you like: your own class, a plain `Error`, one from a library. Emmett does not require its own. Yet, it ships a set of error types for the common cases, each carrying an HTTP status in `status`, so that an error thrown deep in a decision maps to the right response by convention rather than by wiring:
 
 | Error type          | Status | Raise it when                                              |
 | ------------------- | ------ | ---------------------------------------------------------- |
@@ -125,7 +125,7 @@ When the error unwinds to an HTTP endpoint, it still needs a shape the caller ca
 }
 ```
 
-The status comes from the error's code, the title from that HTTP status, and the detail from the error message. Emmett's built-in errors carry their status code, so they map without any configuration: `ValidationError` to 400, `IllegalStateError` to 403, `NotFoundError` to 404, `ConcurrencyError` to 412. Anything else becomes a 500.
+The status comes from the error's `status`, the title from that HTTP status, and the detail from the error message. Emmett's built-in errors carry their status, so they map without any configuration: `ValidationError` to 400, `IllegalStateError` to 403, `NotFoundError` to 404, `ConcurrencyError` to 412. Anything else becomes a 500.
 
 ### Map Returned Events to Error Responses {#map-returned-events}
 
@@ -139,19 +139,70 @@ The `failure` callback is checked for each produced event, from newest to oldest
 
 ### Map Your Own Errors {#custom-mapping}
 
-The default mapping reads a numeric `errorCode` off the error it caught, so the shortest route to your own status is to carry one. Derive from `EmmettError` and hand the code to its constructor:
+The default mapping reads a numeric `status` off the error it caught, so the shortest route to your own status is to carry one. Derive from `EmmettError` and hand the status to its constructor:
 
 <<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#derive-emmett-error{5}
 
-The base class is a convenience rather than a requirement. Any error with a numeric `errorCode` maps the same way, which keeps your own hierarchy free of Emmett:
+The base class is a convenience rather than a requirement. Any error with a numeric `status` maps the same way, which keeps your own hierarchy free of Emmett:
 
 <<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#error-with-code{3}
+
+If the error has no `status`, the default mapping reads `statusCode`, then the deprecated `errorCode`. A status outside 100 through 599 becomes 500.
+
+::: warning Deprecated `errorCode`
+`EmmettError` still accepts `errorCode` in its constructor and still has an `errorCode` property with the same value as `status`. Both are deprecated. Use `status` instead.
+:::
 
 For an error you cannot change, one thrown by a library you do not own, pass `mapError` to `getApplication`. Return a `ProblemDocument` to shape the response, or `undefined` to fall back to the default mapping:
 
 <<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#custom-error-mapping{20,22}
 
-Give the document an explicit `type` URI whenever you set your own `title`. Under the default `about:blank` type, Problem Details replaces the title with the standard reason phrase for the status, and your wording is lost.
+Give the document an explicit `type` URI whenever you set your own `title`. RFC 9457 says that with the default `about:blank` type, the title should be the standard phrase for the status.
+
+### Add Code, Cause and Details {#code-cause-details}
+
+`status` tells the client what kind of failure happened. Three more options describe the failure:
+
+| Option    | Type                      | Use it for                                                                           |
+| --------- | ------------------------- | ------------------------------------------------------------------------------------ |
+| `code`    | `string`                  | A stable identifier that code can match on, for example `'ROOM_ALREADY_BOOKED'`.     |
+| `cause`   | `unknown`                 | The error that caused this one. Emmett passes it to the native ES2022 `Error` cause. |
+| `details` | `Record<string, unknown>` | Non-sensitive data about the failure, for example `{ roomId }`.                      |
+
+`EmmettError` and its subclasses `ValidationError`, `IllegalStateError`, `NotFoundError`, `ConcurrencyError`, `ExpectedVersionConflictError` and `ConcurrencyInMemoryDatabaseError` accept all three:
+
+<<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#error-with-code-and-details{6-8}
+
+Emmett's built-in errors have a default `code`:
+
+| Error                              | Default `code`                           |
+| ---------------------------------- | ---------------------------------------- |
+| `ValidationError`                  | `EMT_ERR_VALIDATION`                     |
+| `IllegalStateError`                | `EMT_ERR_ILLEGAL_STATE`                  |
+| `NotFoundError`                    | `EMT_ERR_NOT_FOUND`                      |
+| `ConcurrencyError`                 | `EMT_ERR_CONCURRENCY`                    |
+| `ExpectedVersionConflictError`     | `EMT_ERR_EXPECTED_VERSION_CONFLICT`      |
+| `ConcurrencyInMemoryDatabaseError` | `EMT_ERR_IN_MEMORY_DATABASE_CONCURRENCY` |
+
+A `code` that you pass always wins over the default. A plain `EmmettError` without a `code`, and an error from `EmmettError.mapFrom`, get the code from the status: 400 gives `EMT_ERR_VALIDATION`, 403 gives `EMT_ERR_ILLEGAL_STATE`, 404 gives `EMT_ERR_NOT_FOUND`, 412 gives `EMT_ERR_CONCURRENCY`, and any other status gives `EMT_ERR_INTERNAL`.
+
+The three concurrency errors have different codes, but all of them have status 412. To match any concurrency error, check the status with `EmmettError.isInstanceOf`:
+
+<<< @./../packages/emmett/src/errors/errors.unit.spec.ts#match-concurrency-errors
+
+Put only non-sensitive identifiers in `details`. Emmett's own errors never put connection data in `message`, `details` or `cause`.
+
+The default mapping never puts `code`, `details` or `cause` in the response. The client gets only `type`, `title`, `status` and `detail`. To send `code` or `details`, return a `ProblemDocument` from `mapError` and pass them as extension members:
+
+<<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#map-error-code-and-details{8}
+
+Do not send the whole `cause`. Its message and stack can come from a third party and can contain implementation details. If the cause is an `EmmettError` with a `code`, you can send only that `code`:
+
+<<< @./../packages/emmett-expressjs/src/mapError.int.spec.ts#map-error-cause{10-12}
+
+::: warning Do not expose implementation details
+[RFC 9457 Section 5](https://www.rfc-editor.org/rfc/rfc9457#section-5) warns that problem details can leak information that helps to attack the system or breaks the privacy of its users. Check every member that you add to the response. Do not send stack traces, SQL, connection strings or other implementation details. Send only a safe and stable part of `cause`, such as its `code`, and keep the full cause in your logs.
+:::
 
 For returning Problem responses directly from a route with helpers such as `NotFound` and `BadRequest`, see the [Express.js Integration](/frameworks/expressjs#response-helpers) and [Hono Integration](/frameworks/honojs#response-helpers) references.
 
@@ -177,7 +228,7 @@ If a read model stops updating and later events go unhandled, an asynchronous ha
 
 ### A Custom Error Returns 500 {#custom-error-500}
 
-If your own error type comes back as a 500 rather than the status you intended, the default mapping found no status on it. A plain `Error` carries none, so it falls through to 500. Give the error a numeric `errorCode`, either through `EmmettError` or as a field of its own, or return a `ProblemDocument` for it from `mapError`, as [Map Your Own Errors](#custom-mapping) shows.
+If your own error type comes back as a 500 rather than the status you intended, the default mapping found no status on it. A plain `Error` carries none, so it falls through to 500. Give the error a numeric `status`, either through `EmmettError` or as a field of its own, or return a `ProblemDocument` for it from `mapError`, as [Map Your Own Errors](#custom-mapping) shows.
 
 ## Further Readings {#readings}
 
@@ -186,6 +237,7 @@ If your own error type comes back as a 500 rather than the status you intended, 
 - [Testing](/guides/testing) - asserting errors and Problem Details responses
 - [Express.js Integration](/frameworks/expressjs) - response helpers and Problem Details
 - [Hono Integration](/frameworks/honojs) - response helpers and Problem Details
+- [Fastify Integration](/frameworks/fastify) - Problem Details with `mapError`
 - [API Reference: Event Store](/api-reference/eventstore) - concurrency errors
 - [Against Railway-Oriented Programming](https://fsharpforfunandprofit.com/posts/against-railway-oriented-programming/)
 - [Problem Details for HTTP APIs (RFC 9457)](https://www.rfc-editor.org/rfc/rfc9457.html)

@@ -178,17 +178,15 @@ Successful routes choose their response explicitly. Thrown errors need a separat
 
 The middleware handles exceptions. A business failure returned as an event is still a normal command result, so the route maps it explicitly with `ResponseFromEvents` or its own response selection.
 
-The default mapping is:
+The default mapping reads the status from `status`, then `statusCode`, then the deprecated `errorCode`. A status outside 100 through 599 becomes 500. Emmett's built-in validation, illegal-state, not-found, and concurrency errors carry the statuses 400, 403, 404, and 412. The default mapping never puts `code`, `details` or `cause` in the response. To add them, see [Add Code, Cause and Details](/guides/error-handling#code-cause-details).
 
-| Error value                                                      | Status      | Detail                  |
-| ---------------------------------------------------------------- | ----------- | ----------------------- |
-| `Error` with `errorCode` from 100 through 599                    | `errorCode` | `error.message`         |
-| `Error` without a valid `errorCode`                              | 500         | `error.message`         |
-| `string`                                                         | 500         | The string value        |
-| Object other than `Error`, with `errorCode` from 100 through 599 | `errorCode` | `Internal Server Error` |
-| Any other value                                                  | 500         | `Internal Server Error` |
-
-Emmett's built-in validation, illegal-state, not-found, and concurrency errors carry status codes 400, 403, 404, and 412 respectively.
+| Error value                                                   | Status      | Detail                  |
+| ------------------------------------------------------------- | ----------- | ----------------------- |
+| `Error` with a status from 100 through 599                    | That status | `error.message`         |
+| `Error` without a valid status                                | 500         | `error.message`         |
+| `string`                                                      | 500         | The string value        |
+| Object other than `Error`, with a status from 100 through 599 | That status | `Internal Server Error` |
+| Any other value                                               | 500         | `Internal Server Error` |
 
 Pass `mapError(error, request)` to translate an application-specific error into a `ProblemDocument`. This keeps library errors and application-specific error classes behind the same public HTTP contract. Returning `undefined` delegates to the default mapping:
 

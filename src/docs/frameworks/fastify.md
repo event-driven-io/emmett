@@ -375,39 +375,21 @@ fastify.post<{
 );
 ```
 
-## Error Handling
+## Return Consistent Errors
 
-```typescript
-fastify.setErrorHandler((error, request, reply) => {
-  if (error instanceof ValidationError) {
-    return reply.status(400).send({
-      type: 'about:blank',
-      title: 'Bad Request',
-      status: 400,
-      detail: error.message,
-    });
-  }
+Without `mapError`, Fastify keeps its own error format. An `EmmettError` thrown in a route returns its `status`, and the Fastify response body contains its `code`.
 
-  if (error instanceof IllegalStateError) {
-    return reply.status(403).send({
-      type: 'about:blank',
-      title: 'Forbidden',
-      status: 403,
-      detail: error.message,
-    });
-  }
+Pass `mapError(error, request)` to `getApplication` to return `application/problem+json` using the [Problem Details standard (RFC 9457)](https://www.rfc-editor.org/rfc/rfc9457.html) instead. `getApplication` then registers `problemDetailsErrorHandler(mapError)` as the Fastify error handler. `mapError` translates an application-specific error into a `ProblemDocument`. Returning `undefined` delegates to the default mapping:
 
-  // Log unexpected errors
-  request.log.error(error);
+<<< @./../packages/emmett-fastify/src/mapError.int.spec.ts#fastify-custom-error-mapping
 
-  return reply.status(500).send({
-    type: 'about:blank',
-    title: 'Internal Server Error',
-    status: 500,
-    detail: 'An unexpected error occurred',
-  });
-});
-```
+The default mapping reads the status from `status`, then `statusCode`, then the deprecated `errorCode`. A status outside 100 through 599 becomes 500. Emmett's built-in validation, illegal-state, not-found, and concurrency errors carry the statuses 400, 403, 404, and 412. The default mapping never puts `code`, `details` or `cause` in the response. To add them, see [Add Code, Cause and Details](/guides/error-handling#code-cause-details). A Fastify validation error carries `statusCode` 400, so it becomes a 400 response.
+
+`problemDetailsErrorHandler(mapError?)` is also exported. Pass it to `app.setErrorHandler` when you create the Fastify application yourself:
+
+<<< @./../packages/emmett-fastify/src/mapError.int.spec.ts#fastify-problem-details-error-handler
+
+For deciding whether business logic should throw or return a failure event, see [Error Handling](/guides/error-handling).
 
 ## Full Package Documentation
 

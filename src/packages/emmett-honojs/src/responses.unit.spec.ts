@@ -3,10 +3,10 @@ import {
   assertEqual,
   assertMatches,
   assertOk,
+  ProblemDocument,
 } from '@event-driven-io/emmett';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { ProblemDocument } from 'http-problem-details';
 import { describe, it } from 'vitest';
 import { toWeakETag } from './etag';
 import { Conflict, NoContent } from './handler';

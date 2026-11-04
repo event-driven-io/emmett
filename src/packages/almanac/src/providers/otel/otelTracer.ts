@@ -18,6 +18,14 @@ import type {
 } from '../../tracers';
 import { logEventForSpan } from '../../tracers/spanLogEvent';
 
+const errorType = (err: unknown): string =>
+  (err instanceof Error && err.constructor.name) || '_OTHER';
+
+const errorCode = (err: unknown): string | undefined => {
+  const code: unknown = (err as { code?: unknown } | undefined)?.code;
+  return typeof code === 'string' && code !== '' ? code : undefined;
+};
+
 export const otelTracer = (
   tracerName = 'almanac',
   tracerOptions?: {
@@ -103,12 +111,10 @@ export const otelTracer = (
             return result;
           } catch (err) {
             const error = err instanceof Error ? err : new Error(String(err));
-            otelSpan.setAttribute(
-              'error.type',
-              err instanceof Error && err.constructor.name
-                ? err.constructor.name
-                : '_OTHER',
-            );
+            otelSpan.setAttribute('error.type', errorType(err));
+            const code = errorCode(err);
+            if (code !== undefined)
+              otelSpan.setAttribute('emmett.error.code', code);
             otelSpan.setStatus({
               code: SpanStatusCode.ERROR,
               message: error.message,

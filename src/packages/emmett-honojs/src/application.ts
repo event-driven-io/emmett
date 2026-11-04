@@ -3,12 +3,12 @@ import {
   LogEvent,
   noopLogger,
   type Observability,
+  type ProblemDocument,
 } from '@event-driven-io/emmett';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { etag } from 'hono/etag';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import type { ProblemDocument } from 'http-problem-details';
 import { defaultErrorToProblemDetailsMapping } from './middlewares/problemDetailsMiddleware';
 import { traceIdMiddleware } from './middlewares/traceIdMiddleware';
 

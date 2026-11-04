@@ -29,6 +29,13 @@ export type EmmettErrorOptions = {
   details?: Record<string, unknown>;
 };
 
+const defaultCodes: Record<number, string> = {
+  400: 'EMT_ERR_VALIDATION',
+  403: 'EMT_ERR_ILLEGAL_STATE',
+  404: 'EMT_ERR_NOT_FOUND',
+  412: 'EMT_ERR_CONCURRENCY',
+};
+
 export class EmmettError extends Error {
   public static readonly Codes = {
     ValidationError: 400,
@@ -76,7 +83,7 @@ export class EmmettError extends Error {
     super(message, { cause });
     this.status = status;
     this.errorCode = status;
-    this.code = code;
+    this.code = code ?? defaultCodes[status] ?? 'EMT_ERR_INTERNAL';
     this.details = details;
     Object.defineProperty(this, EmmettErrorTypeId, { value: true });
 
@@ -159,8 +166,13 @@ export class ConcurrencyError extends EmmettError {
 // TODO: Make it derive from ConcurrencyError to avoid code duplication
 // Or add additional type to distinguinsh both errors
 export class ConcurrencyInMemoryDatabaseError extends EmmettError {
-  constructor(message?: string) {
+  constructor(options?: string | Omit<EmmettErrorOptions, 'status'>) {
+    const { message, ...rest } = isString(options)
+      ? { message: options }
+      : (options ?? {});
     super({
+      ...rest,
+      code: rest.code ?? 'EMT_ERR_IN_MEMORY_DATABASE_CONCURRENCY',
       status: EmmettError.Codes.ConcurrencyError,
       message: message ?? `Expected document state does not match current one!`,
     });

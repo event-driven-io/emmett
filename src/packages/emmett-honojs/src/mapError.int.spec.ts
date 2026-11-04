@@ -2,8 +2,8 @@ import {
   assertDeepEqual,
   assertEqual,
   EmmettError,
+  ProblemDocument,
 } from '@event-driven-io/emmett';
-import { ProblemDocument } from 'http-problem-details';
 import { describe, it } from 'vitest';
 import { getApplication, type WebApiSetup } from '.';
 
@@ -128,6 +128,31 @@ void describe('custom error carrying a deprecated errorCode', () => {
     assertEqual(409, response.status);
     assertEqual(
       'Out of stock: shoes',
+      ((await response.json()) as ProblemDocument).detail,
+    );
+  });
+});
+
+void describe('custom error carrying a statusCode', () => {
+  void it('maps a plain error by its statusCode', async () => {
+    const statusCodeApplication = getApplication({
+      apis: [
+        (router) =>
+          router.post('/orders', () => {
+            throw Object.assign(new Error('Order is invalid'), {
+              statusCode: 400,
+            });
+          }),
+      ],
+    });
+
+    const response = await statusCodeApplication.request('/orders', {
+      method: 'POST',
+    });
+
+    assertEqual(400, response.status);
+    assertEqual(
+      'Order is invalid',
       ((await response.json()) as ProblemDocument).detail,
     );
   });

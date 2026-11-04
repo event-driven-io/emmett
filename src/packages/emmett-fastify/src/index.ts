@@ -13,8 +13,13 @@ import Fastify, {
   type FastifyPluginOptions,
   type FastifyServerOptions,
 } from 'fastify';
+import {
+  problemDetailsErrorHandler,
+  type ErrorToProblemDetailsMapping,
+} from './problemDetailsErrorHandler';
 import { traceIdHook } from './traceIdHook';
 
+export * from './problemDetailsErrorHandler';
 export * from './traceIdHook';
 
 // TODO: THIS WILL NEED TO BE BETTER TYPED
@@ -35,6 +40,7 @@ export interface ApplicationOptions {
   activeDefaultPlugins?: Plugin[];
   observability?: Partial<Observability<string>>;
   disableTraceIdHeader?: boolean;
+  mapError?: ErrorToProblemDetailsMapping;
 }
 
 export const getApplication = async (options: ApplicationOptions) => {
@@ -44,6 +50,7 @@ export const getApplication = async (options: ApplicationOptions) => {
     serverOptions,
     observability,
     disableTraceIdHeader,
+    mapError,
   } = options;
 
   const app: FastifyInstance = Fastify(serverOptions);
@@ -59,6 +66,8 @@ export const getApplication = async (options: ApplicationOptions) => {
       await app.register(plugin, options);
     }),
   );
+
+  if (mapError) app.setErrorHandler(problemDetailsErrorHandler(mapError));
 
   if (registerRoutes) {
     registerRoutes(app);

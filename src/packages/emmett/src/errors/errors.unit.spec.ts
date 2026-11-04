@@ -15,6 +15,7 @@ import {
   assertTrue,
   assertUndefined,
 } from '../testing';
+import { ExpectedVersionConflictError } from '../eventStore/expectedVersion';
 import { emmettTypeId, hasTypeId } from '../typing';
 
 void describe('EmmettError', () => {
@@ -42,7 +43,6 @@ void describe('EmmettError', () => {
       error.message,
       `Error with status code '409' ocurred during Emmett processing`,
     );
-    assertUndefined(error.code);
     assertUndefined(error.details);
   });
 
@@ -95,6 +95,31 @@ void describe('EmmettError', () => {
     const error = new EmmettError();
 
     assertEqual(error.status, 500);
+  });
+
+  void it('uses a default code from the status when code is not provided', () => {
+    assertEqual(new EmmettError({ status: 400 }).code, 'EMT_ERR_VALIDATION');
+    assertEqual(new EmmettError({ status: 403 }).code, 'EMT_ERR_ILLEGAL_STATE');
+    assertEqual(new EmmettError({ status: 404 }).code, 'EMT_ERR_NOT_FOUND');
+    assertEqual(new EmmettError({ status: 412 }).code, 'EMT_ERR_CONCURRENCY');
+    assertEqual(new EmmettError({ status: 409 }).code, 'EMT_ERR_INTERNAL');
+    assertEqual(new EmmettError({ status: 500 }).code, 'EMT_ERR_INTERNAL');
+  });
+
+  void it('uses a default code from the status for every constructor form', () => {
+    assertEqual(
+      new EmmettError({ errorCode: 404, message: 'Missing' }).code,
+      'EMT_ERR_NOT_FOUND',
+    );
+    assertEqual(new EmmettError(412).code, 'EMT_ERR_CONCURRENCY');
+    assertEqual(new EmmettError('Something failed').code, 'EMT_ERR_INTERNAL');
+    assertEqual(new EmmettError().code, 'EMT_ERR_INTERNAL');
+  });
+
+  void it('keeps the code passed in options instead of the default one', () => {
+    const error = new EmmettError({ status: 404, code: 'ROOM_NOT_FOUND' });
+
+    assertEqual(error.code, 'ROOM_NOT_FOUND');
   });
 
   void it('carries the Emmett error type id', () => {
@@ -201,6 +226,57 @@ void describe('built-in Emmett errors', () => {
     assertTrue(error instanceof ConcurrencyError);
   });
 
+  void it('ConcurrencyInMemoryDatabaseError carries code, cause and details', () => {
+    const error = new ConcurrencyInMemoryDatabaseError({
+      message: 'Document changed',
+      code: 'DOCUMENT_CHANGED',
+      cause,
+      details,
+    });
+
+    assertEqual(error.status, EmmettError.Codes.ConcurrencyError);
+    assertEqual(error.message, 'Document changed');
+    assertEqual(error.code, 'DOCUMENT_CHANGED');
+    assertEqual(error.cause, cause);
+    assertDeepEqual(error.details, details);
+    assertTrue(error instanceof ConcurrencyInMemoryDatabaseError);
+    assertTrue(error instanceof EmmettError);
+  });
+
+  void it('have default codes', () => {
+    assertEqual(new ValidationError().code, 'EMT_ERR_VALIDATION');
+    assertEqual(new IllegalStateError().code, 'EMT_ERR_ILLEGAL_STATE');
+    assertEqual(new NotFoundError().code, 'EMT_ERR_NOT_FOUND');
+    assertEqual(new ConcurrencyError('1', '2').code, 'EMT_ERR_CONCURRENCY');
+    assertEqual(
+      new ConcurrencyInMemoryDatabaseError().code,
+      'EMT_ERR_IN_MEMORY_DATABASE_CONCURRENCY',
+    );
+  });
+
+  void it('have default codes when options are passed without code', () => {
+    assertEqual(
+      new ValidationError('Invalid dates').code,
+      'EMT_ERR_VALIDATION',
+    );
+    assertEqual(
+      new IllegalStateError({ message: 'Already booked' }).code,
+      'EMT_ERR_ILLEGAL_STATE',
+    );
+    assertEqual(
+      new NotFoundError({ id: 'property-1', type: 'Property' }).code,
+      'EMT_ERR_NOT_FOUND',
+    );
+    assertEqual(
+      new ConcurrencyError('1', '2', 'Booking changed').code,
+      'EMT_ERR_CONCURRENCY',
+    );
+    assertEqual(
+      new ConcurrencyInMemoryDatabaseError('Document changed').code,
+      'EMT_ERR_IN_MEMORY_DATABASE_CONCURRENCY',
+    );
+  });
+
   void it('keep their current arguments', () => {
     const validation = new ValidationError('Invalid dates');
     const illegalState = new IllegalStateError('Already booked');
@@ -220,6 +296,10 @@ void describe('built-in Emmett errors', () => {
     assertEqual(concurrency.current, '1');
     assertEqual(concurrency.expected, '2');
     assertEqual(concurrency.message, 'Booking changed');
+    assertEqual(
+      new ConcurrencyInMemoryDatabaseError('Document changed').message,
+      'Document changed',
+    );
   });
 
   void it('carry the Emmett error type id', () => {
@@ -245,6 +325,25 @@ void describe('built-in Emmett errors', () => {
       new NotFoundError().message,
       'State was not found during Emmett processing',
     );
+    assertEqual(
+      new ConcurrencyInMemoryDatabaseError().message,
+      'Expected document state does not match current one!',
+    );
+  });
+
+  void it('accept code, cause and details in ConcurrencyInMemoryDatabaseError options', () => {
+    type Options = ConstructorParameters<
+      typeof ConcurrencyInMemoryDatabaseError
+    >[0];
+
+    expectTypeOf<string>().toExtend<Options>();
+    expectTypeOf<{
+      message?: string;
+      code?: string;
+      cause?: unknown;
+      details?: Record<string, unknown>;
+    }>().toExtend<Options>();
+    expectTypeOf<{ status: number }>().not.toExtend<Options>();
   });
 });
 
@@ -315,6 +414,25 @@ void describe('EmmettError.mapFrom', () => {
     assertDeepEqual(error.details, { service: 'payments' });
   });
 
+  void it('maps an error without code to an Emmett error with the default code for its status', () => {
+    assertEqual(
+      EmmettError.mapFrom({ status: 404, message: 'Missing' }).code,
+      'EMT_ERR_NOT_FOUND',
+    );
+    assertEqual(
+      EmmettError.mapFrom(new Error('Upstream failed')).code,
+      'EMT_ERR_INTERNAL',
+    );
+  });
+
+  void it('maps an error with a non-string code to an Emmett error with the default code for its status', () => {
+    const error = EmmettError.mapFrom(
+      Object.assign(new Error('Bad input'), { status: 400, code: 42 }),
+    );
+
+    assertEqual(error.code, 'EMT_ERR_VALIDATION');
+  });
+
   void it('uses a default message when the source has none', () => {
     const error = EmmettError.mapFrom({});
 
@@ -363,6 +481,29 @@ void describe('EmmettError.isInstanceOf', () => {
         EmmettError.Codes.ConcurrencyError,
       ),
     );
+  });
+
+  void it('matches all concurrency errors by the concurrency status', () => {
+    // #region match-concurrency-errors
+    assertTrue(
+      EmmettError.isInstanceOf(
+        new ConcurrencyError('1', '2'),
+        EmmettError.Codes.ConcurrencyError,
+      ),
+    );
+    assertTrue(
+      EmmettError.isInstanceOf(
+        new ExpectedVersionConflictError(1n, 2n),
+        EmmettError.Codes.ConcurrencyError,
+      ),
+    );
+    assertTrue(
+      EmmettError.isInstanceOf(
+        new ConcurrencyInMemoryDatabaseError(),
+        EmmettError.Codes.ConcurrencyError,
+      ),
+    );
+    // #endregion match-concurrency-errors
   });
 
   void it('does not match values without a numeric status or errorCode', () => {

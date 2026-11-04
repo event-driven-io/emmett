@@ -2,9 +2,9 @@ import {
   assertDeepEqual,
   assertEqual,
   EmmettError,
+  ProblemDocument,
 } from '@event-driven-io/emmett';
 import type { Router } from 'express';
-import { ProblemDocument } from 'http-problem-details';
 import request from 'supertest';
 import { describe, it } from 'vitest';
 import { getApplication, on } from '.';
@@ -145,6 +145,34 @@ void describe('custom error carrying a deprecated errorCode', () => {
   });
 });
 
+void describe('custom error carrying a statusCode', () => {
+  void it('maps a plain error by its statusCode', async () => {
+    const statusCodeApplication = getApplication({
+      apis: [
+        (router) =>
+          router.post(
+            '/reservations',
+            on(() => {
+              throw Object.assign(new Error('Invalid reservation'), {
+                statusCode: 400,
+              });
+            }),
+          ),
+      ],
+    });
+
+    const response = await request(statusCodeApplication)
+      .post('/reservations')
+      .send();
+
+    assertEqual(400, response.statusCode);
+    assertEqual(
+      'Invalid reservation',
+      (response.body as ProblemDocument).detail,
+    );
+  });
+});
+
 void describe('custom error with code and details', () => {
   // #region error-with-code-and-details
   class RoomAlreadyBookedError extends EmmettError {
@@ -211,6 +239,58 @@ void describe('custom error with code and details', () => {
       code: 'ROOM_ALREADY_BOOKED',
       details: { roomId: 'room-1' },
     });
+  });
+
+  void it('mapError adds the cause code to the response', async () => {
+    const conflictingBookingApi = (router: Router) =>
+      router.post(
+        '/bookings',
+        on(() => {
+          throw new RoomAlreadyBookedError(
+            'room-1',
+            new EmmettError({
+              status: 412,
+              message: 'Stream booking-room-1 expected version 3, got 4',
+              code: 'STREAM_VERSION_CONFLICT',
+            }),
+          );
+        }),
+      );
+
+    // #region map-error-cause
+    const bookingApplication = getApplication({
+      apis: [conflictingBookingApi],
+      mapError: (error) =>
+        error instanceof EmmettError && error.code
+          ? new ProblemDocument(
+              { status: error.status, detail: error.message },
+              {
+                code: error.code,
+                details: error.details ?? {},
+                cause:
+                  error.cause instanceof EmmettError && error.cause.code
+                    ? { code: error.cause.code }
+                    : undefined,
+              },
+            )
+          : undefined,
+    });
+    // #endregion map-error-cause
+
+    const response = await request(bookingApplication).post('/bookings').send();
+
+    assertEqual(409, response.statusCode);
+    assertDeepEqual(response.body, {
+      detail: 'Room room-1 is already booked',
+      status: 409,
+      title: 'Conflict',
+      type: 'about:blank',
+      code: 'ROOM_ALREADY_BOOKED',
+      details: { roomId: 'room-1' },
+      cause: { code: 'STREAM_VERSION_CONFLICT' },
+    });
+    assertEqual(false, response.text.includes('expected version'));
+    assertEqual(false, response.text.includes('stack'));
   });
 });
 

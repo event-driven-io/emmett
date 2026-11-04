@@ -176,6 +176,31 @@ describe('otelTracer', () => {
     });
   });
 
+  it('OTel logger uses the error class name as exception.type for a subclass that does not set name', () => {
+    class OrderNotFound extends Error {}
+    const log = otelLogger();
+
+    log(LogEvent.error(new OrderNotFound('boom'), 'order failed'));
+
+    expect(
+      logExporter.getFinishedLogRecords()[0]!.attributes['exception.type'],
+    ).toBe('OrderNotFound');
+  });
+
+  it('OTel logger uses the error name as exception.type when the error is not an Error instance', () => {
+    const log = otelLogger();
+
+    log(
+      LogEvent.message('error', 'order failed', {
+        error: { name: 'OrderNotFound', message: 'boom' },
+      }),
+    );
+
+    expect(
+      logExporter.getFinishedLogRecords()[0]!.attributes['exception.type'],
+    ).toBe('OrderNotFound');
+  });
+
   it('drops debug logs from the OTel logger when no minLevel is set', () => {
     const log = otelLogger();
 
@@ -226,6 +251,54 @@ describe('otelTracer', () => {
       code: SpanStatusCode.ERROR,
       message: 'something went wrong',
     });
+    expect(span.attributes).toEqual({ 'error.type': 'OrderNotFound' });
+  });
+
+  it('uses the constructor name as error.type and sets emmett.error.code when the error has a code', async () => {
+    class OrderNotFound extends Error {
+      code = 'ORDER_NOT_FOUND';
+    }
+    const tracer = otelTracer();
+    await expect(
+      tracer.startSpan('failing-span', () =>
+        Promise.reject(new OrderNotFound('something went wrong')),
+      ),
+    ).rejects.toThrow('something went wrong');
+
+    const span = exporter.getFinishedSpans()[0]!;
+    expect(span.attributes).toEqual({
+      'error.type': 'OrderNotFound',
+      'emmett.error.code': 'ORDER_NOT_FOUND',
+    });
+  });
+
+  it('does not set emmett.error.code when the error has an empty code', async () => {
+    class OrderNotFound extends Error {
+      code = '';
+    }
+    const tracer = otelTracer();
+    await expect(
+      tracer.startSpan('failing-span', () =>
+        Promise.reject(new OrderNotFound('something went wrong')),
+      ),
+    ).rejects.toThrow('something went wrong');
+
+    const span = exporter.getFinishedSpans()[0]!;
+    expect(span.attributes).toEqual({ 'error.type': 'OrderNotFound' });
+  });
+
+  it('does not set emmett.error.code when the error code is not a string', async () => {
+    class OrderNotFound extends Error {
+      code = 404;
+    }
+    const tracer = otelTracer();
+    await expect(
+      tracer.startSpan('failing-span', () =>
+        Promise.reject(new OrderNotFound('something went wrong')),
+      ),
+    ).rejects.toThrow('something went wrong');
+
+    const span = exporter.getFinishedSpans()[0]!;
     expect(span.attributes).toEqual({ 'error.type': 'OrderNotFound' });
   });
 

@@ -1,6 +1,9 @@
 import type { LogRecord } from '@opentelemetry/api';
 import { logs, SeverityNumber } from '@opentelemetry/api';
-import { severityTextFor } from '../../loggers/formatters/otelLogFormatter';
+import {
+  exceptionTypeFor,
+  severityTextFor,
+} from '../../loggers/formatters/otelLogFormatter';
 import type { LogEvent, Logger } from '../../loggers/logger';
 import { logger, LogLevel } from '../../loggers/logger';
 
@@ -30,7 +33,7 @@ export const otelLogger = (options?: OtelLoggerOptions): Logger => {
     if (metadata.causationId !== undefined)
       attributes['causation_id'] = metadata.causationId;
     if (data.error !== undefined) {
-      attributes['exception.type'] = data.error.name;
+      attributes['exception.type'] = exceptionTypeFor(data.error);
       attributes['exception.message'] = data.error.message;
       if (data.error.stack !== undefined)
         attributes['exception.stacktrace'] = data.error.stack;
