@@ -122,6 +122,10 @@ void describe('EmmettError', () => {
     assertEqual(error.code, 'ROOM_NOT_FOUND');
   });
 
+  void it('always has a code', () => {
+    expectTypeOf(new EmmettError({ status: 400 }).code).toEqualTypeOf<string>();
+  });
+
   void it('carries the Emmett error type id', () => {
     assertTrue(hasTypeId(new EmmettError(), EmmettErrorTypeId));
     assertTrue(hasTypeId(new EmmettError(), emmettTypeId('EmmettError')));
@@ -148,7 +152,7 @@ void describe('EmmettError', () => {
     expectTypeOf<{ message: string }>().not.toExtend<Options>();
 
     expectTypeOf<EmmettError['status']>().toEqualTypeOf<number>();
-    expectTypeOf<EmmettError['code']>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<EmmettError['code']>().toEqualTypeOf<string>();
     expectTypeOf<EmmettError['details']>().toEqualTypeOf<
       Record<string, unknown> | undefined
     >();
@@ -252,6 +256,16 @@ void describe('built-in Emmett errors', () => {
       new ConcurrencyInMemoryDatabaseError().code,
       'EMT_ERR_IN_MEMORY_DATABASE_CONCURRENCY',
     );
+  });
+
+  void it('always have a code', () => {
+    expectTypeOf(new ValidationError().code).toEqualTypeOf<string>();
+    expectTypeOf(new IllegalStateError().code).toEqualTypeOf<string>();
+    expectTypeOf(new NotFoundError().code).toEqualTypeOf<string>();
+    expectTypeOf(new ConcurrencyError('1', '2').code).toEqualTypeOf<string>();
+    expectTypeOf(
+      new ConcurrencyInMemoryDatabaseError().code,
+    ).toEqualTypeOf<string>();
   });
 
   void it('have default codes when options are passed without code', () => {
@@ -361,7 +375,7 @@ void describe('EmmettError.mapFrom', () => {
       [Symbol.for('@event-driven-io/emmett/EmmettError')]: true,
     });
 
-    assertEqual(EmmettError.mapFrom(error), error);
+    assertEqual<unknown>(EmmettError.mapFrom(error), error);
   });
 
   void it('maps an error with a numeric status to an Emmett error with that status', () => {

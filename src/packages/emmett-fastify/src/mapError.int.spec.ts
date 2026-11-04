@@ -2,6 +2,7 @@ import {
   assertDeepEqual,
   assertEqual,
   EmmettError,
+  NotFoundError,
   ProblemDocument,
 } from '@event-driven-io/emmett';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -57,6 +58,51 @@ void describe('Emmett error thrown in a Fastify route', () => {
       assertDeepEqual(response.json(), {
         statusCode: 409,
         code: 'EMT_ERR_INTERNAL',
+        error: 'Conflict',
+        message: 'Room room-1 is already booked',
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  void it('returns the status and the default code of a built-in Emmett error', async () => {
+    const app = await applicationThrowing(
+      new NotFoundError({ id: 'room-1', type: 'Room' }),
+    );
+
+    try {
+      const response = await app.inject({ method: 'POST', url: '/bookings' });
+
+      assertEqual(404, response.statusCode);
+      assertDeepEqual(response.json(), {
+        statusCode: 404,
+        code: 'EMT_ERR_NOT_FOUND',
+        error: 'Not Found',
+        message: 'Room with room-1 was not found during Emmett processing',
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  void it('does not return the cause in the body', async () => {
+    const app = await applicationThrowing(
+      new EmmettError({
+        status: 409,
+        message: 'Room room-1 is already booked',
+        code: 'ROOM_ALREADY_BOOKED',
+        cause: new Error('db connection secret'),
+      }),
+    );
+
+    try {
+      const response = await app.inject({ method: 'POST', url: '/bookings' });
+
+      assertEqual(409, response.statusCode);
+      assertDeepEqual(response.json(), {
+        statusCode: 409,
+        code: 'ROOM_ALREADY_BOOKED',
         error: 'Conflict',
         message: 'Room room-1 is already booked',
       });

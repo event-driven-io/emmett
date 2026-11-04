@@ -48,6 +48,7 @@
     "dist"
   ],
   "devDependencies": {
+    "@event-driven-io/dumbo": "0.13.0-rc.2",
     "@event-driven-io/emmett": "0.43.0-rc.1",
     "@event-driven-io/emmett-esdb": "0.43.0-rc.1",
     "@event-driven-io/emmett-mongodb": "0.43.0-rc.1",

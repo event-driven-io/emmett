@@ -32,6 +32,8 @@ See `plan.md` for the decided behavior.
 
 - [x] Integration test: a thrown `EmmettError` returns its `status` and its `code` in the body
 - [x] If production code must change, stop and ask Oskar (no change needed)
+- [x] Test without `mapError`: `NotFoundError` returns 404 with `EMT_ERR_NOT_FOUND` in Fastify's body
+- [x] Test without `mapError`: whether Fastify's body contains `cause` (if it does, stop and ask Oskar)
 
 ## Core problem details
 
@@ -66,12 +68,20 @@ See `plan.md` for the decided behavior.
 - [x] Rename the `errorCode` parameter to `status` in the Express and Hono testing `apiSpecification.ts`
 - [x] Test and implement Almanac `error.type` from `code`, else the constructor name
 - [x] Docs: default codes table and the concurrency check
+- [x] Type test and change: `EmmettError.code` is `string`, not `string | undefined`
 
 ## Almanac OTel conventions
 
 - [x] Test and implement span `error.type` from the constructor name and `emmett.error.code` from `code`
 - [x] Test and implement log `exception.type` from the constructor name in `otelLogger.ts` and `otelLogFormatter.ts`
 - [ ] Re-run verification
+
+## Dumbo errors in Emmett
+
+- [x] Add `@event-driven-io/dumbo` to `emmett-tests` dependencies
+- [x] Test `mapFrom`, `isInstanceOf` and `defaultErrorToProblemDetailsMapping` with real Dumbo errors
+- [x] Test that `mapFrom` keeps the Dumbo `code` (fails until the Dumbo bump)
+- [x] After the Dumbo release with `status` and `code`: bump Dumbo (0.13.0-rc.2, Pongo 0.17.0-rc.2)
 
 ## Verification
 
