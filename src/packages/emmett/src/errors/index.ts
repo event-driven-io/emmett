@@ -46,7 +46,7 @@ export class EmmettError extends Error {
   };
 
   public status: number;
-  public code?: string;
+  public code: string;
   public details?: Record<string, unknown>;
 
   /**

@@ -219,7 +219,7 @@ void describe('custom error with code and details', () => {
       apis: [bookingApi],
       // expose only what the client needs; never send cause
       mapError: (error) =>
-        error instanceof EmmettError && error.code
+        error instanceof EmmettError
           ? new ProblemDocument(
               { status: error.status, detail: error.message },
               { code: error.code, details: error.details ?? {} },
@@ -261,14 +261,14 @@ void describe('custom error with code and details', () => {
     const bookingApplication = getApplication({
       apis: [conflictingBookingApi],
       mapError: (error) =>
-        error instanceof EmmettError && error.code
+        error instanceof EmmettError
           ? new ProblemDocument(
               { status: error.status, detail: error.message },
               {
                 code: error.code,
                 details: error.details ?? {},
                 cause:
-                  error.cause instanceof EmmettError && error.cause.code
+                  error.cause instanceof EmmettError
                     ? { code: error.cause.code }
                     : undefined,
               },

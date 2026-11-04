@@ -5,7 +5,7 @@
 Emmett errors carry:
 
 - `status: number`: the HTTP status. It replaces `errorCode`.
-- `code?: string`: a stable identifier, for example `'ROOM_ALREADY_BOOKED'`.
+- `code: string`: a stable identifier, for example `'ROOM_ALREADY_BOOKED'`. It is optional in the constructor options and always set on the error.
 - `cause?: unknown`: the native ES2022 `Error` cause.
 - `details?: Record<string, unknown>`: non-sensitive data about the failure, for example `{ propertyId, eventId }`.
 
@@ -44,12 +44,16 @@ Request source: thiagomini on Discord, 2026-10-30.
 18. The `errorCode` parameter in the Express and Hono testing `apiSpecification.ts` is renamed to `status`.
 19. Almanac follows the OTel semantic conventions. The span `error.type` is the constructor name (Oskar approved reverting the earlier use of `code` there). A non-empty string `code` goes to the separate span attribute `emmett.error.code`. The log attribute `exception.type` is the constructor name, not `error.name`.
 20. Docs list the default codes and show the concurrency check from item 16.
+21. Emmett maps Dumbo errors correctly. Tests in `emmett-tests` use real Dumbo errors, for example `UniqueConstraintError` and `ConcurrencyError`. They check that `EmmettError.mapFrom` keeps the status, `message`, `cause` and `stack`, that `EmmettError.isInstanceOf` matches the status, and that `defaultErrorToProblemDetailsMapping` returns the same status. They pass with the current Dumbo through `errorCode` and guard the switch to `status`. `emmett-tests` gets `@event-driven-io/dumbo` as an explicit dependency.
+22. Emmett adds no default code for 409. A test in `emmett-tests` checks that `EmmettError.mapFrom` keeps the Dumbo `code`, for example `DMB_ERR_UNIQUE_CONSTRAINT`. It fails until Emmett bumps to the Dumbo release with `status` and `code`; Oskar accepts that.
+23. The `code` property on `EmmettError` has the type `string`, not `string | undefined`, because the constructor always sets it (items 14-15). `code` stays optional in the constructor options.
+24. Fastify without `mapError`: a built-in error, for example `NotFoundError`, returns its status and its default code in Fastify's body. A test shows whether Fastify's body contains `cause`. If it does, stop and ask Oskar before any code change.
 
 ## Not in this plan (decided by Oskar)
 
 - Redaction support in Almanac loggers and tracers: later, separate work.
 - Removing `errorCode`: next breaking release.
-- `PongoError` type id: Oskar handles it in Pongo.
+- Dumbo and Pongo error changes: see `plan.md` in the Pongo repository.
 
 ## Steps
 
