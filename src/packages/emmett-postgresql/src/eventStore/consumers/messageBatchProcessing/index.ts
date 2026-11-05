@@ -158,6 +158,9 @@ export const zipPostgreSQLEventStoreMessageBatchPullerStartFrom = (
   if (options.every((o) => o === 'END')) return 'END';
 
   return options
-    .filter((o) => o !== undefined && o !== 'BEGINNING' && o !== 'END')
-    .sort((a, b) => (a > b ? 1 : -1))[0]!;
+    .filter(
+      (o): o is { lastCheckpoint: bigint } =>
+        o !== undefined && o !== 'BEGINNING' && o !== 'END',
+    )
+    .sort((a, b) => (a.lastCheckpoint > b.lastCheckpoint ? 1 : -1))[0]!;
 };
