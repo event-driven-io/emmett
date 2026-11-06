@@ -1,0 +1,913 @@
+
+
+        Schema Evolution and Compatibility for Schema Registry on Confluent Platform | Confluent Documentation
+
+            Documentation
+
+          Schema Evolution and Compatibility for Schema Registry on Confluent Platform
+
+          Search the docs or ask a question
+          /
+
+          Confluent Developer
+
+          Marketplace
+
+          Get started
+
+  Home
+
+  Platform
+
+  Manage Schemas on Confluent Platform
+
+  Fundamentals
+
+    Ask
+
+      Copy as markdown
+
+      View as plain text
+
+Schema Evolution and Compatibility for Schema Registry on Confluent Platform
+
+Ready to get started?
+
+Sign up for Confluent Cloud, the fully managed cloud-native service for Apache Kafka® and get
+started for free using the Cloud quick start.
+
+Download Confluent Platform, the self managed, enterprise-grade distribution of Apache Kafka and
+get started using the Confluent Platform quick start.
+
+Schema evolution
+
+Schema evolution is the practice of safely changing schemas over time while
+maintaining compatibility with existing producers and consumers. Schema Registry enforces
+compatibility by comparing new schema versions against previous versions using
+configurable compatibility types.
+
+Compatibility types define which schema changes are allowed:
+
+Backward - consumers using new schema can read data written with old schema (add optional fields, remove fields)
+
+Forward - consumers using old schema can read data written with new schema (remove optional fields, add fields)
+
+Full - both backward and forward compatible (add/remove optional fields only)
+
+Transitive - compatibility checked against all previous versions, not just the last one
+
+The default compatibility mode is BACKWARD. Each schema version gets a unique ID and an incremented version number. When a schema is updated, Schema Registry checks compatibility before accepting the new version.
+
+To learn more about serdes for supported schema formats, see “Formats, Serializers, and Deserializers” in either the
+Confluent Cloud documentation
+or in the Confluent Platform documentation
+
+Compatibility types
+
+Summary
+
+The following tables summarize the compatibility rules for the different
+schema formats: Avro, Protobuf, and JSON Schema for a given
+subject. The Confluent Schema Registry default compatibility type is BACKWARD. The
+sections that follow the tables describe all the compatibility types in more
+detail.
+
+The allowed changes are dependent on how fields are originally defined. For
+example, as described under Backward compatibility, the ability
+to delete a field and keep the schema compatible requires that the field was
+either specified as optional or provided a default value in the original
+version. To learn more, see Configuration
+Options on connectors to
+self-managed Schema Registry that provide further control over compatibility
+requirements.
+
+For JSON Schema, compatibility behavior depends on both the compatibility
+policy (compatibilityPolicy: LENIENT or STRICT) and the content model
+(additionalProperties: true for open, false for closed). The tables below
+show these in separate sections. A third policy, LOGICAL, applies across Avro, Protobuf, and
+JSON Schema.
+
+Avro and Protobuf compatibility
+
+Avro
+
+Protobuf
+
+Allowed changes
+
+BW
+
+FW
+
+Full
+
+BW
+
+FW
+
+Full
+
+Add optional field
+
+✔
+
+✔
+
+✔
+
+✔
+
+✔
+
+✔
+
+Remove optional field
+
+✔
+
+✔
+
+✔
+
+✔
+
+✔
+
+✔
+
+Add required field
+
+✔
+
+Remove required field
+
+✔
+
+Add union/oneof variant
+
+✔
+
+✔
+
+Remove union/oneof variant
+
+✔
+
+✔
+
+Widen a scalar type
+
+✔
+
+✔
+
+✔
+
+✔
+
+Narrow a scalar type
+
+✔
+
+✔
+
+✔
+
+✔
+
+JSON Schema with lenient policy
+
+Lenient policy allows schema changes regardless of the content model.
+
+To set the compatibility policy to LENIENT globally:
+
+curl -X PUT -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  --data '{"compatibilityPolicy": "LENIENT"}' \
+  http://localhost:8081/config
+
+To set the compatibility policy to LENIENT for a specific subject:
+
+curl -X PUT -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  --data '{"compatibilityPolicy": "LENIENT"}' \
+  http://localhost:8081/config/{subject}
+
+To revert to STRICT, replace LENIENT with STRICT in either
+request.
+
+Allowed changes
+
+BW
+
+FW
+
+Full
+
+Add optional field
+
+✔
+
+✔
+
+✔
+
+Remove optional field
+
+✔
+
+✔
+
+✔
+
+Add required field
+
+✔
+
+Remove required field
+
+✔
+
+Add union/oneof variant
+
+✔
+
+Remove union/oneof variant
+
+✔
+
+Widen a scalar type
+
+✔
+
+Narrow a scalar type
+
+✔
+
+JSON Schema with strict policy
+
+Strict policy compatibility rules vary by content model. Open content models
+(additionalProperties: true) allow more changes than closed models
+(additionalProperties: false).
+
+Open content model (additionalProperties: true or omitted):
+
+Allowed changes
+
+BW
+
+FW
+
+Full
+
+Add optional field
+
+✔
+
+Remove optional field
+
+✔
+
+Add required field
+
+✔
+
+Remove required field
+
+✔
+
+Add union/oneof variant
+
+✔
+
+Remove union/oneof variant
+
+✔
+
+Widen a scalar type
+
+✔
+
+Narrow a scalar type
+
+✔
+
+Closed content model (additionalProperties: false):
+
+Allowed changes
+
+BW
+
+FW
+
+Full
+
+Add optional field
+
+✔
+
+Remove optional field
+
+✔
+
+Add required field
+
+Remove required field
+
+Add union/oneof variant
+
+✔
+
+Remove union/oneof variant
+
+✔
+
+Widen a scalar type
+
+✔
+
+Narrow a scalar type
+
+✔
+
+Table Legend:
+
+✔  = Compatible operation for the given schema format and compatibility type
+
+Blank space = Incompatible operation for the given schema format and compatibility type
+
+BW = Backward compatible
+
+FW = Forward compatible
+
+Full = Fully compatible (both backward and forward)
+
+Note
+
+A REST API call to compatibility mode is global, meaning it overrides any compatibility parameters set
+in Schema Registry properties files. This is discussed in Using compatibility types below and
+shown in the API usage examples in Confluent Cloud: Schema Compatibility (V1) API Usage Examples
+and on Confluent Platform: Update compatibility requirements globally.
+
+Schema Registry supports a global configuration context using the special context name :.__GLOBAL:. When looking up compatibility settings with defaultToGlobal,
+the lookup proceeds from the subject to the context, and then to the global context. For contexts without global configuration, compatibility is handled per context.
+To learn more about contexts, see Contexts.
+
+Avro, Protobuf, and JSON Schema have different compatibility rules
+
+Schema evolution and compatibility rules vary somewhat based on schema format. The scenarios and source code examples
+given on this page are geared for Avro, which was the first serializer and deserializer that
+Confluent supported. Avro was developed with schema evolution in mind, and its specification clearly states the rules for
+backward compatibility. The rules and grammar for JSON Schema and Protobuf can be more nuanced.
+
+Although the general concepts apply to all formats, the details on how
+compatibility is implemented differs depending on whether you use
+Avro, JSON Schema, or Protobuf. For more in-depth explanations and specific
+examples on the newer formats, see the following blog posts and documentation:
+
+Protobuf
+
+Blog post: Understanding Protobuf Compatibility
+
+Confluent Cloud documentation: Protobuf compatibility rules
+
+Confluent Platform documentation: Protobuf compatibility rules
+
+Note that best practice for Protobuf is to use BACKWARD_TRANSITIVE, as adding new message types is not forward compatible.
+
+JSON Schema
+
+Blog post: Understanding JSON Schema Compatibility
+
+Confluent Cloud documentation: JSON Schema compatibility rules
+
+Confluent Platform documentation: JSON Schema compatibility rules
+
+Confluent Platform documentation: Compatibility checks
+
+Backward compatibility
+
+BACKWARD compatibility means that consumers using the new schema can read data produced with the last schema.
+For example, if there are three schemas for a subject that change in order X-2, X-1, and X then BACKWARD compatibility ensures that consumers using the new schema X can process data written by producers using schema X or X-1, but not necessarily X-2.
+If the consumer using the new schema needs to be able to process data written by all registered schemas, not just the last two schemas, then use BACKWARD_TRANSITIVE instead of BACKWARD.
+For example, if there are three schemas for a subject that change in order X-2, X-1, and X then BACKWARD_TRANSITIVE compatibility ensures that consumers using the new schema X can process data written by producers using schema X, X-1, or X-2.
+
+BACKWARD: consumer using schema X can process data produced with schema X or X-1
+
+BACKWARD_TRANSITIVE: consumer using schema X can process data produced with schema X, X-1, or X-2
+
+Important
+
+The Confluent Schema Registry default compatibility type is BACKWARD, not BACKWARD_TRANSITIVE. The main reason that
+BACKWARD compatibility mode is the default, and preferred for Kafka, is so that you can rewind consumers to
+the beginning of the topic.  With FORWARD compatibility mode, you aren’t guaranteed the ability to read old messages.
+Also, FORWARD compatibility mode is harder to work with. In a sense, you need to anticipate all future changes.
+For example, in FORWARD compatibility mode with Protobuf, you can’t add new message types to a schema.
+
+For Kafka Streams, only BACKWARD compatibility is supported. To learn more, see the note about Kafka Streams under Order of Upgrading Clients.
+
+To understand how Avro uses a newer backward-compatible schema to decode (deserialize) data that was encoded (serialized) with an older schema,
+see ResolvingDecoder
+in the Apache Avro project.
+
+An example of a backward compatible change is removing a field. A consumer developed to process events without this field can process events written with the old schema, which contain the field. The consumer ignores that field.
+
+Consider the case where all of the data in Kafka is also loaded into HDFS, and you want to run SQL queries (for example, using
+Apache Hive) over all the data. Here, it is important that the same SQL queries continue to work even as the data is
+undergoing changes over time.  To support this kind of use case, you can evolve the schemas in a backward compatible way.
+All Formats, Serializers, and Deserializers have rules as to what changes are allowed
+in the new schema for it to be backward compatible. For example, here are the Avro rules for compatibility.
+If all schemas are evolved in a backward compatible way, you can always use the latest schema to query all the data uniformly.
+
+For example, an application can evolve the
+user schema from the previous section to the following by adding a new field
+favorite_color:
+
+{"namespace": "example.avro",
+ "type": "record",
+ "name": "user",
+ "fields": [
+     {"name": "name", "type": "string"},
+     {"name": "favorite_number",  "type": "int"},
+     {"name": "favorite_color", "type": "string", "default": "green"}
+ ]
+}
+
+Note that the new field favorite_color has the default value “green”. This allows data encoded with the old schema
+to be read with the new one. The default value specified in the new schema is used for the missing field when
+deserializing the data encoded with the old schema.  Had the default value been omitted in the new field, the new
+schema would not be backward compatible with the old one since it’s not clear what value should be assigned to the new
+field, which is missing in the old data.
+
+Forward compatibility
+
+FORWARD compatibility means that data produced with a new schema can be read by consumers using the last schema, even though they may not be able to use the full capabilities of the new schema.
+For example, if there are three schemas for a subject that change in order X-2, X-1, and X then FORWARD compatibility ensures that data written by producers using the new schema X can be processed by consumers using schema X or X-1, but not necessarily X-2.
+If data produced with a new schema needs to be read by consumers using all registered schemas, not just the last two schemas, then use FORWARD_TRANSITIVE instead of FORWARD.
+For example, if there are three schemas for a subject that change in order X-2, X-1, and X then FORWARD_TRANSITIVE compatibility ensures that data written by producers using the new schema X can be processed by consumers using schema X, X-1, or X-2.
+
+FORWARD: data produced using schema X can be read by consumers with schema X or X-1
+
+FORWARD_TRANSITIVE: data produced using schema X can be read by consumers with schema X, X-1, or X-2
+
+An example of a forward compatible schema modification is adding a new field. In most data formats, consumers that were written to process events without the new field can continue doing so even when they receive new events that contain the new field.
+
+Consider a use case where a consumer has application logic tied to a particular version of the schema. When the schema
+evolves, the application logic may not be updated immediately. Therefore, you need to be able to project data with newer
+schemas onto the (older) schema that the application understands. To support this use case, you can evolve the schemas
+in a forward compatible way: data encoded with the new schema can be read with the old schema.  For example, the new
+user schema shown in the previous section on backward compatibility is also
+forward compatible with the old one.  When projecting data written with the new schema to the old one, the new field is
+simply dropped.  Had the new schema dropped the original field favorite_number (number, not color), it would not be
+forward compatible with the original user schema since consumers wouldn’t know how to fill in the value for favorite_number
+for the new data because the original schema did not specify a default value for that field.
+
+Full compatibility
+
+FULL compatibility means schemas are both backward and forward compatible.
+Schemas evolve in a fully compatible way: old data can be read with the new schema, and new data can also be read with the last schema.
+For example, if there are three schemas for a subject that change in order X-2, X-1, and X then FULL compatibility ensures that consumers using the new schema X can process data written by producers using schema X or X-1, but not necessarily X-2, and that data written by producers using the new schema X can be processed by consumers using schema X or X-1, but not necessarily X-2.
+If the new schema needs to be forward and backward compatible with all registered schemas, not just the last two schemas, then use FULL_TRANSITIVE instead of FULL.
+For example, if there are three schemas for a subject that change in order X-2, X-1, and X then FULL_TRANSITIVE compatibility ensures that consumers using the new schema X can process data written by producers using schema X, X-1, or X-2, and that data written by producers using the new schema X can be processed by consumers using schema X, X-1, or X-2.
+
+FULL: backward and forward compatible between schemas X and X-1
+
+FULL_TRANSITIVE: backward and forward compatible between schemas X, X-1, and X-2
+
+In Avro and Protobuf, you can define fields with default values. In that case, adding or removing a field with a default value is a fully compatible change.
+
+In Avro, a field is made nullable (and therefore “optional” at the schema level) by using a union type that includes "null" (for example, ["null", "string"]).
+Providing a default value is not required for nullability itself, but it is important for schema evolution when adding a new field so that existing data can still be read.
+Avro requires that the default value conform to the first branch of the union, so it is common to put "null" first and use "default": null for fields that are intended
+to be optional for schema evolution. Note that Avro does not have a built-in optional keyword like Protobuf; instead, the union-with-null pattern serves this purpose.
+
+Compatibility rules for supported schema types are described in Compatibility checks.
+
+JSON Schema does not explicitly define compatibility rules, so this blog post further explains how JSON Schema compatibility works, including full compatibility.
+
+No compatibility checking
+
+NONE compatibility type means schema compatibility checks are disabled.
+
+Sometimes you need to make incompatible changes.
+For example, modifying a field type from Number to String.
+In this case, you need to either upgrade all producers and consumers to the new schema version at the same time or, more likely, create a brand-new topic and start migrating applications to use the new topic and new schema, avoiding the need to handle two incompatible versions in the same topic.
+
+Transitive property
+
+Transitive compatibility checking is important once you have more than two versions of a schema for a given subject.
+If compatibility is configured as transitive, then it checks compatibility of a new schema against all previously registered schemas; otherwise, it checks compatibility of a new schema only against the latest schema.
+
+For example, if there are three schemas for a subject that change in order X-2, X-1, and X then:
+
+transitive: ensures compatibility between X-2 <==> X-1 and X-1 <==> X and X-2 <==> X
+
+non-transitive: ensures compatibility between X-2 <==> X-1 and X-1 <==> X, but not necessarily X-2 <==> X
+
+Refer to an example of schema changes which are incrementally compatible, but not transitively so.
+
+The Confluent Schema Registry default compatibility type BACKWARD is non-transitive, which means that it’s not BACKWARD_TRANSITIVE.
+As a result, new schemas are checked for compatibility only against the latest schema.
+
+Order of upgrading clients
+
+The configured compatibility type has an implication on the order for upgrading client applications, that is, the producers using schemas to write events to Kafka and the consumers using schemas to read events from Kafka.
+Depending on the compatibility type:
+
+BACKWARD or BACKWARD_TRANSITIVE: there is no assurance that consumers using older schemas can read data produced using the new schema. Therefore, upgrade all consumers before you start producing new events.
+
+FORWARD or FORWARD_TRANSITIVE: there is no assurance that consumers using the new schema can read data produced using older schemas. Therefore, first upgrade all producers to using the new schema and make sure the data already produced using the older schemas are not available to consumers, then upgrade the consumers.
+
+FULL or FULL_TRANSITIVE: there are assurances that consumers using older schemas can read data produced using the new schema and that consumers using the new schema can read data produced using older schemas. Therefore, you can upgrade the producers and consumers independently.
+
+NONE: compatibility checks are disabled. Therefore, you need to be cautious about when to upgrade clients.
+
+Important
+
+For Kafka Streams only FULL, TRANSITIVE, and BACKWARD compatibility is supported.
+For a plain consumer, it is safe to upgrade the consumer to the new schema after
+the producer is upgraded because a plain consumer reads only from the input topic.
+For Kafka Streams, the scenario is different. When you upgrade Kafka Streams, it also can read from
+the input topic (that now contains data with the new schema). However, in contrast to a
+plain consumer, Kafka Streams must also be able to read the old schema (from the state or changelog).
+Therefore, only BACKWARD compatibility is supported. The Kafka Streams apps must be upgraded first,
+then it’s safe to upgrade the upstream producer that writes into the input topic.
+FULL, FULL_TRANSITIVE, and BACKWARD_TRANSITIVE compatibilities are always supported for Kafka Streams, as they include backward compatibility
+and so are, in effect, “stronger” settings than BACKWARD.
+
+With Confluent Cloud for Apache Flink®, FULL, FULL_TRANSITIVE, and BACKWARD_TRANSITIVE compatibility types are supported. For more information, see Schema and Statement Evolution with Flink.
+
+Specify schema compatibility requirements per subject
+
+You can configure and update schema compatibility requirements globally or on a per-subject basis.
+To learn more, see Compatibility in the Schema Registry API Reference and the following topics in the Schema Registry API Usage Examples and Reference docs:
+
+On Confluent Cloud:
+
+Get compatibility level on a subject
+
+Update compatibility level on a subject
+
+On Confluent Platform:
+
+Get compatibility requirements on a subject
+
+Update compatibility requirements on a subject
+
+Examples
+
+Each of the sections above has an example of the compatibility type.
+An additional reference for Avro is Avro compatibility test suite,
+which presents multiple test cases with two schemas and the respective result of the compatibility test between them.
+
+Using compatibility types
+
+Compatibility rules and references for all supported schema types are described in Compatibility checks in Formats, Serializers, and Deserializers,
+and in Schema Evolution and Compatibility (on Confluent Cloud) and Schema Evolution and Compatibility (on Confluent Platform).
+
+For details on how to use Schema Registry to store schemas and enforce compatibility rules during schema evolution, see the REST API usage examples and references for Confluent Cloud and Confluent Platform:
+
+For Confluent Cloud, see Confluent Cloud Schema Registry REST API Usage Examples and Cloud REST API reference: Schemas (V1) and Subjects (v1)
+
+For Confluent Platform, see Confluent Platform Schema Registry API Usage Examples and Schema Registry API Reference
+
+Here are some tips to get you started.
+
+To check the currently configured global compatibility type
+
+On Confluent Cloud:
+
+Use the REST API to Show global compatibility level currently in effect
+
+Use the Confluent Cloud Console to View Global Compatibility Settings on Schemas
+
+On Confluent Platform:
+
+Use the REST API to Get the top level config.
+
+To set the global or per schema compatibility level
+
+You can configure schema compatibility in the following ways:
+
+On Confluent Cloud:
+
+Use the API to Update global compatibility level
+
+Use the API to Update the subject compatibility level
+
+Use the Confluent Cloud Console to View and Edit Global Compatibility Settings on Schemas
+
+Use the Confluent Cloud Console as described in Changing subject level (per topic) compatibility mode of a schema
+
+On Confluent Platform:
+
+Update compatibility in your client application
+
+Use the API to Update global compatibility
+
+Use the API to Update subject compatibility
+
+Use the Control Center Edit Schema feature, as described in Manage Schemas for Topics in the Control Center.
+
+Note
+
+A REST API call to compatibility mode is global on Confluent Platform, meaning it overrides any compatibility parameters set in Schema Registry properties files, as shown in the API usage example
+Update compatibility requirements globally.
+
+To validate the compatibility of a given schema
+
+You can validate the compatibility of a schema as follows:
+
+Use the Schema Registry Maven Plugin
+
+On Confluent Cloud, Get compatibility level on a subject
+
+On Confluent Platform, Get compatibility requirements on a subject
+
+The following Confluent Schema Registry tutorials show examples of checking schema compatibility:
+
+Confluent Cloud Schema Registry Tutorial
+
+On-Premises Schema Registry Tutorial
+
+Format-specific compatibility rules for primitive types, objects, enums, arrays, and unions
+
+Compatibility rules for each schema format are described in their related sections:
+
+Avro schema compatibility rules
+
+JSON Schema compatibility rules
+
+Protobuf schema compatibility rules
+
+Related content
+
+Confluent Cloud documentation
+
+Formats, Serializers, and Deserializers
+
+Compatibility checks
+
+Confluent Platform documentation
+
+Formats, Serializers, and Deserializers
+
+Compatibility checks
+
+Logical compatibility policy
+
+You can set a third compatibility policy, LOGICAL, alongside
+STRICT and LENIENT. For JSON Schema, LOGICAL applies the
+STRICT rules from the preceding tables. For Avro, Protobuf, and
+JSON Schema alike, LOGICAL also adds checks based on how Apache Flink® or
+Iceberg maps the schema to SQL. These checks catch changes that pass
+the existing compatibility checks but still corrupt data after that
+mapping.
+
+LOGICAL and a FORWARD or FORWARD_TRANSITIVE compatibility type
+always conflict: Iceberg only supports backward-compatible schema
+evolution, and FORWARD and FORWARD_TRANSITIVE don’t guarantee
+that, so that combination rejects every new schema version after the
+first one, regardless of the schema. Like any compatibility type, FORWARD
+and FORWARD_TRANSITIVE have nothing to compare against on a
+subject’s first registration, so the conflict doesn’t block it.
+BACKWARD and BACKWARD_TRANSITIVE guarantee backward
+compatibility directly, and FULL and FULL_TRANSITIVE require
+both backward and forward compatibility, so none of the four conflict
+with LOGICAL.
+
+NONE doesn’t conflict either, because it skips the compatibility
+check entirely. The change-specific checks described later compare
+against a previous version, so they don’t run under NONE either.
+Only the check that Flink and Iceberg can represent the schema still
+runs, so LOGICAL with NONE doesn’t protect against the changes
+listed later in this section. If you also use Flink, check its own
+compatibility type requirements, which are narrower than this list.
+
+Caution
+
+Before you set LOGICAL globally, find subjects whose
+compatibilityPolicy comes from the global config, because
+neither the subject nor its context sets one. Every one starts
+running the representability check on its next registration,
+which can reject a schema that passed before, such as a
+self-referencing type.
+
+Unless its compatibility type is NONE, such a subject also starts
+rejecting the changes listed later in this section. Depending on its
+compatibility type, it can start rejecting more than that. One that
+also uses FORWARD or FORWARD_TRANSITIVE, including a type
+inherited from its context or the global config, rejects every new
+schema version after the first. One that uses FULL or
+FULL_TRANSITIVE starts rejecting integer and decimal-precision
+widening, such as Protobuf int32 to int64. A JSON Schema
+subject that inherited LENIENT also starts enforcing the
+STRICT content-model rules.
+
+Before you set LOGICAL globally, set such a subject’s own
+compatibilityPolicy to the policy it inherits now. To read that
+policy, send GET /config/{subject}?defaultToGlobal=true. If the
+response doesn’t include compatibilityPolicy, the subject uses
+the default policy, STRICT. The subject then keeps that policy
+when the global or context config changes. To make it inherit again
+later, use the DELETE steps later in this section.
+
+To look up a subject’s compatibility type, see
+Show compatibility requirements in effect for a subject. That section doesn’t
+cover compatibilityPolicy. To check it, send
+GET /config/{subject} and look for compatibilityPolicy in the
+response. A 404, or a response without compatibilityPolicy, means
+the subject inherits the policy from its context or, if the context
+doesn’t set one, from the global config. To learn more, see
+Contexts.
+
+Before you set LOGICAL globally, send GET /config and note
+its compatibilityPolicy, so you can restore it later. If the
+response doesn’t include compatibilityPolicy, the global config
+uses the default policy, STRICT.
+
+To set the compatibility policy to LOGICAL globally, as the
+default for subjects where neither the subject nor its context sets
+a policy:
+
+curl -X PUT -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  --data '{"compatibilityPolicy": "LOGICAL"}' \
+  http://localhost:8081/config
+
+Before you set it for a subject, send GET /config/{subject} and
+note its compatibilityPolicy, so you can restore it later. A 404
+or a response without compatibilityPolicy means the subject has
+no override of its own to restore.
+
+To set the compatibility policy to LOGICAL for a specific subject:
+
+curl -X PUT -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  --data '{"compatibilityPolicy": "LOGICAL"}' \
+  http://localhost:8081/config/{subject}
+
+To turn off the LOGICAL checks globally, send the global request
+again with the policy you saved, STRICT or LENIENT. For a
+subject, send the subject request with the policy you saved for it.
+If the subject had no override to restore, sending a policy creates
+one, so use the steps later in this section to remove it instead.
+For JSON Schema, STRICT keeps the content-model rules from the
+preceding tables, so restoring the wrong one changes them.
+
+Changing the global policy doesn’t affect subjects that set their own
+LOGICAL policy. Replacing a subject’s LOGICAL policy keeps a
+subject-level override. To make the subject inherit from its context
+again, or from the global config if the context doesn’t set one:
+
+Send GET /config/{subject}, without defaultToGlobal=true,
+and save the response. The DELETE request in step 3 removes
+all of the subject’s config, not just the policy, including any
+subject-level compatibility type, alias, and default or override
+rule sets.
+
+In the saved response, remove compatibilityPolicy and rename
+compatibilityLevel to compatibility, the field name that
+PUT /config/{subject} expects. If no fields remain, skip step 4.
+
+Send DELETE /config/{subject}. Until the PUT request in
+step 4, the subject has none of its saved settings. New schemas
+are checked against the inherited compatibility type and rule
+sets, and an alias doesn’t resolve. Send both requests back to
+back, when no client is registering schemas under the subject.
+
+Send the edited settings back with PUT /config/{subject}.
+
+Unless the compatibility type is NONE, the LOGICAL policy
+rejects the following changes, even when the compatibility type (for
+example, BACKWARD) allows them. Under FULL and
+FULL_TRANSITIVE, LOGICAL also runs these checks in the
+opposite direction, so it also rejects widening an integer or a
+decimal’s precision. The examples use Avro and Protobuf syntax. For
+JSON Schema, LOGICAL also rejects widening integer to
+number, which has the same precision loss as the Avro long
+to double promotion below.
+
+Narrowing an integer in Protobuf, for example changing int64 to
+int32 on the same field. Protobuf treats this as wire-compatible,
+but any reader using the new schema, including Flink, silently
+truncates existing values that don’t fit in 32 bits. Iceberg can’t
+narrow a long column to int, so the table doesn’t follow
+the change.
+
+Turning a date into a timestamp, for example changing a date
+field to timestamp-millis or timestamp-micros. Avro allows
+widening the underlying int to a long. The day count is then
+read as a millisecond or microsecond count, so existing dates
+collapse to timestamps near the Unix epoch. For example, the Avro
+day count 19,723 reads as about 19.7 seconds after the Unix epoch
+under timestamp-millis.
+
+Changing the precision of a time or timestamp value, for example
+timestamp-millis to timestamp-micros. Both store a long,
+so the existing checks don’t see a type change. For time-millis
+to time-micros, the underlying type widens from int to
+long, which Avro allows. In both cases the precision selects the
+unit of the stored integer, so reading it under the new precision
+misreads every existing value.
+
+Promoting int or long to float, long to double,
+or int to double. Avro allows these, but a float
+represents every integer exactly only up to an absolute value of
+16,777,216, and a double only up to 9,007,199,254,740,992. Beyond
+those limits, some values round to the nearest representable value.
+A double holds every int exactly, so int to double
+doesn’t round. LOGICAL still rejects it because, among these
+numeric types, Iceberg allows only int to long and
+float to double, so the table can’t follow the promotion.
+
+Changing a decimal’s scale, or reducing its precision. Avro stores
+both as annotations on a bytes or fixed type, so the existing
+checks don’t see the change. The data holds only the unscaled value,
+so a new scale shifts the decimal point in every existing record. For
+example, 12.34 stored at scale 2 reads as 1.234 at scale 3.
+Reducing the precision leaves no room for values that have more digits.
+
+The LOGICAL policy also validates that a schema is representable in
+both Flink and Iceberg, independent of any earlier version. This check
+runs on every registration, including the first one. For example, it
+rejects self-referencing types, decimals with a precision greater than
+38, and empty records, messages, or unions. In Protobuf, this includes
+the well-known types google.protobuf.Empty, which is an empty
+message, and google.protobuf.Struct, google.protobuf.Value,
+and google.protobuf.ListValue, which reference each other
+recursively. A schema with a field that uses any of these types fails
+this check on every registration while the subject uses the
+LOGICAL policy. To avoid that, set the subject’s own policy to
+STRICT or LENIENT instead.
+
+Forcing a schema past LOGICAL carries a different consequence for
+each kind of check. Forcing past a change-specific check risks the
+data corruption described earlier in this section. Forcing past the
+representability check registers a schema that Flink or Iceberg
+can’t represent. If you accept those risks, you can register a schema
+that violates the LOGICAL policy by adding ?force=true to the
+registration request:
+
+curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  --data '{"schemaType": "AVRO", "schema": "..."}' \
+  'http://localhost:8081/subjects/{subject}/versions?force=true'
+
+Under a *_TRANSITIVE compatibility type, this bypass doesn’t end
+with that one registration. Transitive checks compare every new
+version against all earlier versions. A later version that keeps the
+change, for example a changed decimal scale or timestamp precision,
+fails against the versions before the forced one. That version also
+needs ?force=true.
+
+Reverting a changed decimal scale or time or timestamp precision
+doesn’t help under any compatibility type other than NONE,
+including plain BACKWARD and FULL. The revert is itself the
+same kind of change relative to the forced version, so it’s rejected
+too. Reverting a narrowing, such as int64 to int32 in
+Protobuf or a reduced decimal precision, widens the type again. Under
+BACKWARD and BACKWARD_TRANSITIVE, LOGICAL doesn’t reject
+that revert. Under FULL and FULL_TRANSITIVE, LOGICAL does
+reject it. As described earlier in this section, those types also
+reject any widening, whether or not an earlier version was forced,
+so the revert needs ?force=true. Reverting a date-to-timestamp
+change, a promotion to float or double, or a JSON Schema
+integer to number widening is different, because it narrows
+the type again. The
+format’s own compatibility check rejects that narrowing under
+BACKWARD, FULL, and their transitive forms, so the revert
+also fails.
+
+A schema forced past the representability check is different. That
+check runs on each schema by itself under every compatibility type,
+including NONE, so every later version that keeps the
+unrepresentable type also needs ?force=true.
+
+      Ask the community
+
+      Confluent Support Portal
+
+    Last updated: Oct 13, 2026
+
+      Terms & Conditions
+      |
+      Privacy Policy
+      |
+      Do Not Sell My Information
+      |
+      Modern Slavery Policy
+      |
+      Cookie Settings
+      |
+      Feedback
+
+      Copyright © Confluent, Inc. 2014-
+
+      Apache®, Apache Kafka®, Kafka®, Apache Flink®, Flink®, Apache
+      Iceberg®, Iceberg® and associated open source project names are trademarks of the
+      Apache Software Foundation
+
+                  Give feedback about this page
+
+      Schema Evolution and Compatibility for Schema Registry on Confluent Platform
+
+    Get started
+
+      Search the docs or ask a question
+

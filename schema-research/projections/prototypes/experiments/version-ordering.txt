@@ -1,0 +1,12 @@
+JS, numbers sorted: 1, 2, 9, 10
+JS, semver strings sorted: 1.0.0, 1.10.0, 1.2.0, 10.0.0, 9.0.0
+SQLite, INTEGER ORDER BY: 1, 2, 9, 10
+SQLite, TEXT ORDER BY: 1.0.0, 1.10.0, 1.2.0, 10.0.0, 9.0.0
+SQLite, TEXT WHERE v < '10.0.0': 1.0.0, 1.10.0, 1.2.0
+PostgreSQL, TEXT ORDER BY (COLLATE "C"): 1.0.0, 1.10.0, 1.2.0, 10.0.0, 9.0.0
+PostgreSQL, ORDER BY string_to_array(v, '.')::int[]: 1.0.0, 1.2.0, 1.10.0, 9.0.0, 10.0.0
+PostgreSQL, WHERE string_to_array(v, '.')::int[] < '{10,0,0}': 1.0.0, 1.2.0, 1.10.0, 9.0.0
+MongoDB, string sort: 1.0.0, 1.10.0, 1.2.0, 10.0.0, 9.0.0
+MongoDB, sort with collation numericOrdering: 1.0.0, 1.2.0, 1.10.0, 9.0.0, 10.0.0
+PostgreSQL, string_to_array('2.0.0-beta', '.')::int[]: ERROR:  invalid input syntax for type integer: "0-beta"
+MongoDB, numericOrdering sort of 1.9.0, 2.0.0, 2.0.0-beta: 1.9.0, 2.0.0, 2.0.0-beta (semver puts 2.0.0-beta before 2.0.0)

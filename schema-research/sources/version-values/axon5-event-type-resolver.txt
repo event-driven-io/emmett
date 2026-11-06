@@ -1,0 +1,142 @@
+
+
+EventTypeResolver (Axoniq Framework - Root 5.4.1 API)
+
+JavaScript is disabled on your browser.
+
+Package org.axonframework.eventsourcing.eventstore
+
+Interface EventTypeResolver
+
+Functional Interface:
+This is a functional interface and can therefore be used as the assignment target for a lambda expression or method reference.
+
+@FunctionalInterface
+public interface EventTypeResolver
+
+Read-side resolver that constructs a MessageType from the stored qualified name and version of a stored
+ event.
+
+ The write-side counterpart, MessageTypeResolver, derives a
+ MessageType from a payload class at dispatch time. This interface handles the opposite direction,
+ specifically for events that are reconstructed from a storage solution. Given the stored qualifiedName and
+ (possibly null or empty) version, it returns the MessageType to use when reading a stored
+ event.
+
+ The default resolver, obtained from DEFAULT, substitutes "0.0.0" for any missing
+ or empty stored version. This ensures that events stored by Axon Framework 4 (which allowed a null revision)
+ can be read by Axon Framework 5 without any schema migration. Use withDefaultVersion(String) to override the
+ substituted version when "0.0.0" does not suit your needs.
+
+ Implementations are permitted to rewrite the qualifiedName, but doing so is discouraged: semantic event
+ evolution belongs in the transformation layer, not in version normalization. This interface is intentionally narrow;
+ keep implementations focused on resolving a missing version.
+
+Since:
+5.1.2
+Author:
+Steven van Beelen
+
+Field Summary
+
+Fields
+
+Modifier and Type
+
+Field
+
+Description
+
+static final EventTypeResolver
+
+DEFAULT
+
+A EventTypeResolver that substitutes "0.0.0" for any null or empty
+ stored version, and passes the stored version through unchanged when present.
+
+static final String
+
+MISSING_VERSION_DEFAULT
+
+The version substituted for null or empty versions by the DEFAULT event type resolver.
+
+Method Summary
+
+All MethodsStatic MethodsInstance MethodsAbstract Methods
+
+Modifier and Type
+
+Method
+
+Description
+
+MessageType
+
+resolve(String qualifiedName,
+ @Nullable String version)
+
+Resolves the MessageType for an event read from the event store.
+
+static EventTypeResolver
+
+withDefaultVersion(String defaultVersion)
+
+Returns a EventTypeResolver that substitutes the given defaultVersion for any null or
+ empty stored version, and passes the stored version through unchanged when present.
+
+Field Details
+
+MISSING_VERSION_DEFAULT
+
+static final String MISSING_VERSION_DEFAULT
+
+The version substituted for null or empty versions by the DEFAULT event type resolver.
+
+ Set to "0.0.0", deliberately distinct from MessageType.DEFAULT_VERSION (0.0.1), so legacy AF4
+ events without a revision always sort as older than any explicitly versioned event.
+
+See Also:
+
+Constant Field Values
+
+DEFAULT
+
+static final EventTypeResolver DEFAULT
+
+A EventTypeResolver that substitutes "0.0.0" for any null or empty
+ stored version, and passes the stored version through unchanged when present.
+
+Method Details
+
+withDefaultVersion
+
+static EventTypeResolver withDefaultVersion(String defaultVersion)
+
+Returns a EventTypeResolver that substitutes the given defaultVersion for any null or
+ empty stored version, and passes the stored version through unchanged when present.
+
+Parameters:
+defaultVersion - the version to use when the stored version is absent; must not be null or empty
+Returns:
+a EventTypeResolver that substitutes the given defaultVersion for any null or
+ empty stored version, and passes the stored version through unchanged when present
+Throws:
+AxonConfigurationException - if the given defaultVersion is null
+                                                             or empty
+
+resolve
+
+MessageType resolve(String qualifiedName,
+ @Nullable String version)
+
+Resolves the MessageType for an event read from the event store.
+
+Parameters:
+qualifiedName - the qualified name of the event as stored; never null
+version - the version of the event as stored; may be null or empty for events written by Axon
+                      Framework 4, which allowed a null revision
+Returns:
+the MessageType to use for the event; never null
+
+Copyright © 2026 AxonIQ B.V.. All rights reserved.
+

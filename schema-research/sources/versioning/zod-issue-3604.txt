@@ -1,0 +1,107 @@
+title:	Schema evolutions using zod?
+state:	CLOSED
+author:	kasleet
+labels:	
+comments:	1
+assignees:	
+projects:	
+milestone:	
+number:	3604
+--
+I'm trying to achieve schema versioning / schema evolution / schema migration using zod. I guess zod isn't meant to be used this way, however I got a simple working prototype and wanted to get an opinion if this approach works, scales or if I should drop it and try to use different zod APIs or a completely different library. I would like to stick with zod though as its works quite nice and we already use it for our schema validations.
+
+Basically, what I try to achieve is having different versions of a schema, which would be able to map all versions to the "latest" type - allowing me to modify types and schemas over time and still be able to parse "old" objects from a previous version of the schema.
+
+For example, imagine a User type with only one string property `id`. Objects of type User are written to some persistence layer.  Over time, Users are extended by another string property `name`. Again after some time, the `name` field is renamed to `userName`. There are possibly three different versions of type User in the persistence layer and I am not able to do database migrations. So we end up with these versions:
+
+v1: { id: string }
+v2: { id: string, name: string }
+v3 (latest): { id: string, userName: string }
+
+In my application, I only want to deal with latest User type
+```ts
+type User = {
+  id: string,
+  userName: string,
+}
+```
+
+Parsing objects conforming the "latest" schema obviously works, but will break for older objects
+
+```ts
+const userSchema: z.ZodType<User> = z.object({ id: z.string(), userName: z.string() })
+
+userSchema.parse({ id: '1' }) // fails
+userSchema.parse({ id: '2', name: 'alice' }) // fails
+userSchema.parse({ id: '3', userName: 'alice' }) // works
+```
+
+So my idea was to use a combination of `.transform()`, `.or()` and `.pipe()` to basically create "schema migrations", which would be able to lift v1 to v2, v2 to v3, and so on. In the end, I came up with the following solution:
+
+```ts
+export const createSchemaEvolution = <T, S>(
+  oldSchema: z.ZodType<T>,
+  _: z.ZodType<S>,
+  mapper: (value: T) => S,
+): z.ZodEffects<z.ZodType<T>, S> => oldSchema.transform(mapper)
+
+export const createSchema = <T>(
+  latest: z.ZodType<T>,
+  evolutions: z.ZodTypeAny[],
+): z.ZodType<T> => {
+  let schemaEvolutionPipeline = latest
+  for (let i = evolutions.length - 1; i >= 0; i--) {
+    let currentPipeline = evolutions[i]
+    for (let j = i + 1; j < evolutions.length; j++) {
+      currentPipeline = currentPipeline.pipe(evolutions[j])
+    }
+    schemaEvolutionPipeline = schemaEvolutionPipeline.or(currentPipeline)
+  }
+  return schemaEvolutionPipeline
+}
+```
+
+Concrete solution for the different versions of User:
+
+```ts
+const userSchemaV1 = z.object({ id: z.string() })
+const userSchemaV2 = userSchemaV1.extend({ name: z.string() })
+const userSchemaV3 = userSchemaV2.omit({ name: true }).extend({ userName: z.string() })
+
+const V1toV2 = createSchemaEvolution(userSchemaV1, userSchemaV2, v1 => ({
+  ...v1,
+  name: `${v1.id}-defaultName`,
+}))
+const V2toV3 = createSchemaEvolution(userSchemaV2, userSchemaV3, v2 => ({
+  id: v2.id,
+  userName: v2.name,
+}))
+
+const userSchema = createSchema<User>(userSchemaV3, [V1toV2, V2toV3]) // userSchemaV3.or(V2toV3).or(V1toV2.pipe(V2toV3)) as z.ZodType<User>
+
+userSchema.parse({ id: '1' }) // result: { id: '1', userName: '1-defaultName' }
+userSchema.parse({ id: '2', name: 'alice' }) // result: { id: '2', userName: 'alice' }
+userSchema.parse({ id: '3', userName: 'alice' }) // result: { id: '3', userName: 'alice' }
+```
+
+One can already see, that this approach might be prone to errors and mistakes, `createSchema` is not really typesafe, especially regarding the `evolutions` array and also the order is really important.
+
+Is there a better approach using zod?
+author:	dosubot
+association:	none
+edited:	false
+status:	none
+--
+Hi, @kasleet. I'm [Dosu](https://dosu.dev), and I'm helping the Zod team manage their backlog. I'm marking this issue as stale.
+
+**Issue Summary:**
+- You opened an issue regarding schema versioning and migration using Zod.
+- You created a prototype using `.transform()`, `.or()`, and `.pipe()` methods.
+- You are seeking feedback on the scalability of your approach and suggestions for other Zod APIs or libraries.
+
+**Next Steps:**
+- Please let us know if this issue is still relevant to the latest version of the Zod repository. If so, you can keep the discussion open by commenting on the issue.
+- Otherwise, the issue will be automatically closed in 7 days.
+
+Thank you for your understanding and contribution!
+--

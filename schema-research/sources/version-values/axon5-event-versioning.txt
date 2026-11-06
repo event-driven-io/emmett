@@ -1,0 +1,107 @@
+
+
+    Event Versioning
+
+    Workflows is now live with Axoniq Framework 5.4.0. Visit the Getting Started guide to deploy your first workflow. Get started
+
+      Search documentation…
+      ⌘K / Ctrl+K
+
+Event Versioning
+
+In the lifecycle of an application, events will typically change their format.
+As events are stored indefinitely, the application should be able to cope with several versions of an event.
+This chapter will discuss what to keep in mind when creating your events, for backwards (and forwards) compatibility.
+It will explain Axon’s versioning approach using payload conversion and when you might need upcasters.
+
+Event versioning at handling time
+
+Axon Framework provides a flexible approach to event versioning that minimizes the need for complex migration strategies.
+We dub this payload conversion at handling time, which allows different handlers to receive events in the format they expect.
+
+When events are stored in the event store, they retain their serialized form (for example JSON or Avro binary) along with metadata about their MessageType.
+When a handler needs to process an event, Axon converts the payload to the handler’s expected type at that moment.
+
+This means:
+
+Different handlers can process the same event using different Java representations.
+
+You can evolve your event handling without modifying stored events.
+
+Simple structural changes often require no upcasters.
+
+For example, consider an event stored with this structure:
+
+@Event(name = "OrderPlaced", version = "1.0.0")
+public record OrderPlacedEvent(
+    String orderId,
+    String customerId,
+    List<String> productIds
+) {
+}
+
+Later, you want to process this same event with additional computed information:
+
+@Event(name = "OrderPlaced", version = "2.0.0")
+public record EnrichedOrderPlacedEvent(
+    String orderId,
+    String customerId,
+    List<String> productIds,
+    int productCount  // Computed from productIds
+) {
+    // Compact constructor that computes productCount
+    public EnrichedOrderPlacedEvent(String orderId, String customerId, List<String> productIds) {
+        this(orderId, customerId, productIds, productIds != null ? productIds.size() : 0);
+    }
+}
+
+You can add a handler that receives the event in this new format:
+
+@EventHandler
+public void on(EnrichedOrderPlacedEvent event) {
+    // Axon converts the stored OrderPlacedEvent to EnrichedOrderPlacedEvent
+    // The productCount field is computed during conversion
+    notifyAnalytics(event.productCount());
+}
+
+In doing the above, Axon will know you want to handle the "OrderPlaced" and desire it in the EnrichedOrderPlacedEvent.
+It will thus convert the stored format of the "OrderPlaced" into a EnrichedOrderPlacedEvent.
+In the meantime, another handler (in for example another application) can still use the old format:
+
+@EventHandler(eventName = "OrderPlaced")
+public void on(OrderPlacedEvent event) {
+    // Old handling flow...
+}
+
+Both handlers process the same stored event, each receiving it in their preferred format.
+Axon’s Converter performs the transformation automatically at handling time.
+
+For complete details on payload conversion, see Conversion.
+
+When payload conversion is sufficient
+
+Payload conversion handles many common versioning scenarios without requiring upcasters:
+
+Adding fields with defaults - New fields can have default values during conversion.
+
+Removing fields - Handlers simply don’t declare fields they don’t need.
+
+Renaming fields - Use Jackson annotations like @JsonProperty to map old names to new fields.
+
+Changing field types - Converters can transform compatible types (for example String to Integer, Date to Instant).
+
+Restructuring for different handlers - Different handlers can use completely different Java types for the same event.
+
+Structural changes use event transformation
+
+For the structural changes that payload conversion cannot express (reshaping, renaming, splitting, or dropping stored events), Axoniq Framework provides event transformation, the declarative successor to the Axon Framework 4 upcaster.
+See the event transformation reference to get started, and the upcaster migration path to migrate existing Axon Framework 4 upcasters.
+
+      ESC
+
+      ↑↓ navigate
+      ↵ open
+      ESC close
+
+Copyright © 2025 Axoniq BV. All Rights Reserved
+

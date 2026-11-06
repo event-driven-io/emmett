@@ -1,0 +1,3 @@
+s builder, objectId(): stored ObjectId, code gets string 64f000000000000000000001
+zod, z.stringFormat(objectid): stored ObjectId, code gets string 64f000000000000000000001
+zod, codec to ObjectId: stored ObjectId, code gets ObjectId 64f000000000000000000001

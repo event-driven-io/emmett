@@ -1,0 +1,1 @@
+ShoppingCartConfirmed 2 ShoppingCartOpened 1 carts 2

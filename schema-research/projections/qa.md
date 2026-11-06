@@ -345,3 +345,450 @@ Oskar, after that answer (verbatim):
 > Also how do we support multiple schema version? We need that also for messages to be consistent and organised, currently that's dispersed
 
 Answer: yes, a schema-aware serializer was agreed in Q1 and Q2a; spec.md sections 6 and 7 are older and only need updating, which keeps the Q19/Q20 flow (deserialize, upcast, check) and swaps the guessing serializer for the schema-aware one. Upcast and downcast should map between schema versions, each version having its own schema; the prototype's downcast has no schema for what it returns, which causes the validator conflict. The rejection happens in MongoDB, on the single `updateOne` in `appendToStream` (`src/packages/emmett-mongodb/src/eventStore/mongoDBEventStore.ts:479`) that pushes the events and sets the inline projection, so the events aren't appended either. Suggested one versioned definition for messages and documents, listing each version's schema with its upcast and downcast; listed where versioning lives today. Not prototyped yet.
+
+Oskar, after that answer (verbatim):
+
+> I assume that this upcast and downcast should be optional?
+>
+> ALso why do you define version outside of versions?
+>
+> Dude, rethink and make it consistent, this seems weird in general, and I think that you're again making things up and try to monkey patch instead of come up with consistent design. Also for message versioning. This should be the general concept, you should also check how others are handling that
+
+Oskar, after I started reading .NET and JVM sources (verbatim):
+
+> Dude, are you fng kidding me with checking non-ts code? I'm asking about schema versionig
+
+Answer: surveyed schema versioning in TS tools ([findings.md](findings.md#18-schema-versioning-in-the-typescript-ecosystem), section 18; sources in [../sources/versioning/](../sources/versioning/)). Yes, both are optional: upcast is needed only when old data doesn't parse with the next schema, downcast only when something must store an older version. `version` outside the list was inconsistent; the versions list alone says which is current. Suggested one concept for messages and documents: an ordered list of versions, each with its schema and optional upcast and downcast. Not prototyped.
+
+Oskar, after that answer (verbatim):
+
+> How will upcast from v1 to v3 be done? And if you don't know then check it
+
+Answer: checked with a prototype and tests ([findings.md](findings.md#19-upcasting-across-several-versions-verified), section 19). A v1 document is converted with the v1 schema, upcast to v2 by v2's function, then passed to v3 as it is because v3 has none; validation on read checks the result against v3. 25 of 25 tests on MongoDB and Pongo, for the `s` builder and Zod. A tuple of versions types each `upcast` argument from the version before and requires `upcast` only when the shape changed; a map keyed by version can't type it. Messages are not tested yet.
+
+Oskar, after that answer (verbatim):
+
+> @ts-expect-error - we shouldn't use it
+
+Answer: removed every `@ts-expect-error`. The cases that must not compile moved to [prototypes/tests/versionedTypes.test.ts](prototypes/tests/versionedTypes.test.ts), which compiles each snippet with the TypeScript compiler API and asserts the reported errors (6 of 6; all suites 92 of 92).
+
+Oskar, after the status summary (verbatim):
+
+> And you didn't answer my question about schema v1 => v3
+
+Answer: the earlier test had no upcast on v3, so it showed only one step. Added a test where v3 has its own upcast ([findings.md](findings.md#two-upcasts-in-a-row-verified)): v1 is converted with the v1 schema, then upcast v1 -> v2, then v2 -> v3; v2 runs only v2 -> v3; writing v1 runs v3 -> v2 -> v1. There is no direct v1 -> v3 function; the only direct form would be Q31's single function.
+
+Oskar, after the status summary (verbatim):
+
+> Dude, wtf do you mean by ObjectId in code (Q4): should it be a hex string or an ObjectId? The PoC uses a string.
+>
+> I told you that you're using some detached questions and expect me to give you answer same for others
+
+Answer: Q4 is not a decision for Oskar. Checked ([findings.md](findings.md#20-what-the-code-gets-for-an-objectid-verified), section 20): once the MongoDB codec stops turning the `ObjectId` into a string itself, the schema's output side decides, as for dates. `objectId()` or `z.stringFormat('objectid', ...)` gives a string, a Zod codec to `ObjectId` gives an `ObjectId`; MongoDB stores an `ObjectId` in both. The remaining questions will be asked one at a time with an example.
+
+Oskar, while I was checking that (verbatim):
+
+> Why would we do one step at a time? Isn't that an overhead?
+
+Answer: measured ([findings.md](findings.md#21-cost-of-upcasting-step-by-step-measured), section 21): 3 steps 240 ns per document, one direct function 83 ns, one MongoDB `findOne` about 605,000 ns. Steps keep each new version to one function; direct functions need one per older version, rewritten for every new version.
+
+Oskar, after that answer (verbatim):
+
+> Why single function has no schemas, can't we have union type based on the schema version?
+
+Answer: it can; my claim was wrong. Built and tested ([findings.md](findings.md#22-one-upcast-function-over-a-union-of-stored-versions-verified), section 22): with the versions list still naming each version's schema, `versioned([{ schema: V1 }, { schema: V2 }, { schema: V3 }], { upcast: (stored) => switch (stored.schemaVersion) ... })` gets `{ schemaVersion, value }` with `value` converted by that version's schema and narrowed per `case`; a missing case is a compile error. It is also the direct path, one call instead of one per step. 107 of 107 tests. Downcast for this form not done.
+
+Oskar, after the conclusion and suggested API (verbatim):
+
+> OK, so what's the conclusion and where are we in discussions? How your suggested api would look like?
+
+Answer: summarised the agreed parts (Standard Schema, opt-in validation, schema-aware serializer with format codecs, `versioned` list with optional upcast and downcast, step or single-function form), showed the suggested API for projections, messages, Pongo and store `formats`, and listed three open decisions: version type, removing `version` from `Event(...)`, and rewriting spec.md sections 6 to 8.
+
+Oskar, on the version type (verbatim):
+
+> maybe we could align version to number always?
+
+Answer: it fits the `versioned` list, where the version is the position (1, 2, 3). Checked what changes in today's code: `schemaVersion?: string` and `DefaultMessageSchemaVersion = '1'` in `emmett/src/typing/message.ts:76-82`; PostgreSQL and SQLite store it in a `message_schema_version TEXT NOT NULL` column and also inside the `message_metadata` JSON, which wins on read (`readStream.ts:76`); MongoDB events keep it in metadata as a string, while MongoDB projections already use a number (`mongoDBEventStore.ts:77`). Asked how old string versions should be read.
+
+Oskar, after that answer (verbatim):
+
+> Then why did you claim it should be number and this is the issue?
+
+Answer: the suggested API already made the version a number (the list position, `case 1:` in the single-function form, numeric `StoredVersion` in the PoC), so asking "keep or change" was a false decision. The only real point is how events already stored with string versions are read; that is a compatibility detail of the number decision, not a reason against it.
+
+Oskar, after that answer (verbatim):
+
+> Ok, so are there any issues in using text value here?
+
+Answer: no blocker, but four issues. (1) Text sorts by characters: checked in Node and SQLite, `ORDER BY` puts `'10'` before `'9'`, and `WHERE v < '10'` does not find `'9'`; this hits queries such as "find events stored below version 10", not today's code, which never compares versions. (2) The `versioned` list needs a number for the position (`schemaVersion - 1`, `slice`), so every read parses the text; `'2'`, `'02'` and `' 2'` parse to 2 but fail an equality check such as `case '2':`. (3) A `string` type accepts `'v2'` or `'2.1'`, which have no position in the list. (4) MongoDB projections already store a number, so keeping text for events leaves two types for one concept; switching projections to text breaks their stored `_metadata.schemaVersion: 1`.
+
+Oskar, after that answer (verbatim):
+
+> What's versioned list?
+
+Answer: my shorthand for the array passed to `versioned([...])` in the PoC ([versionedSchema.ts](prototypes/lib/versionedSchema.ts), [versioning.test.ts](prototypes/tests/versioning.test.ts)). Each entry is one schema version: `{ schema, upcast?, downcast? }`. Its position is the version number (first entry is version 1), the last entry is the current version, and `upcast`/`downcast` convert between an entry and the one before it. Should have named it instead of using an undefined term.
+
+Oskar, after that answer (verbatim):
+
+> I was thinking about the semver versioning, but my concern is what will happened if there are multiple versions being handled, not only "old" and "new"
+
+Answer: many versions in storage already work: the list can hold any number of entries and a read walks from the stored position to the last one (tests cover 1 to 3). Two cases the list does not cover: (a) several app versions running at once, where an app that knows versions 1 to 2 reads a version 3 written by a newer app and throws `Unknown schema version 3` (`versionAt`, [versionedSchema.ts:56-59](prototypes/lib/versionedSchema.ts#L56-L59)); semver's minor part could say "3 is compatible with 2, read it as 2". (b) Branches, such as a fix to 1.x released after 2.0; a linear list has no place for it. Asked which case is the concern.
+
+Oskar, after that answer (verbatim):
+
+> Dude, that's why we have upcast and downcast to map to newer and older versions, so I don't get "A plain number can't tell A whether v3 is safe to read as v2 or not."
+>
+> It doesn't have to if we have defined how to map them.
+>
+> Semver could be useful for mapping strategies, as if we have major then we can asume that's compatible
+>
+> Ok, rethink this and back to the questions
+
+Answer: agreed, the claim was wrong. Mapping covers it: the app that knows v3 downcasts to v2 when it writes (the PoC already has `write(value, 2)`, [versionedSchema.ts:73](prototypes/lib/versionedSchema.ts#L73)), so a reader that knows only v1 to v2 never sees v3. Semver then is a mapping strategy: the same major means compatible, so no upcast or downcast is needed inside a major.
+
+Question 1 (version value): with semver, the stored version is no longer the list position. Should each list entry declare its version as a semver string, with upcast and downcast needed only when the major changes? For example:
+
+```ts
+versioned([
+  { version: '1.0.0', schema: V1 },
+  { version: '1.1.0', schema: V1_1 },
+  { version: '2.0.0', schema: V2, upcast, downcast },
+]);
+```
+
+Stored: `"schemaVersion": "1.1.0"`.
+
+Oskar, on Question 1 (verbatim):
+
+> I didn't say that it has to be semver
+
+Answer: correct, I turned an idea into a decision. Question 1 withdrawn. Semver stays a possible mapping strategy (same major means compatible), not a decision. The version stays a number, as in your earlier suggestion.
+
+Question 2 (stored string versions): events already stored by Emmett carry the version as a string, in the metadata JSON (`"schemaVersion": "2"`) and in PostgreSQL and SQLite also in the `message_schema_version TEXT` column. Users could also have set their own values, such as `"v2"` or `"2.1"`. How should Emmett read these once the version is a number?
+
+Oskar, on Question 2 (verbatim):
+
+> What's the question behind the question?
+
+Answer: converting `"2"` to `2` on read is trivial, so that is not the real question. The real one is: must Emmett read data written by earlier Emmett versions as it is, without the user running a migration? If yes, Emmett needs a rule for values that are not integers (`"v2"`, `"2.1"`). If no, the change to a number can ship with a migration step and a breaking-change note.
+
+Question 2 (restated): must Emmett read events stored by earlier versions as they are, or can the change to a number require a migration?
+
+Oskar, on Question 2 (verbatim):
+
+> How other tools are setting the message and projection version? Check in the Internet for schema registries and Marten and Axon
+
+Answer: researched, [findings.md](findings.md#23-how-other-tools-set-message-and-projection-versions-researched) section 23. Schema registries (Confluent, AWS Glue, Azure) use an integer version assigned by the registry, and the message carries a schema ID, not the version; Confluent marks breaking changes with a separate major-version property and maps across majors with UPGRADE and DOWNGRADE rules. Apicurio allows string versions. Marten has no version on events (a version is a new type name) and a `uint` projection version. Axon uses a string: `@Revision("1.0")` in 4, matched by equality; `@Event(version = "1.0")` in 5, default `0.0.1`, with missing stored versions read as `0.0.0` without a migration.
+
+Oskar, after that answer (verbatim):
+
+> What about kurrent?
+
+Oskar, while I was checking that (verbatim):
+
+> WHy axon then use semver?
+
+Answer: [findings.md](findings.md#24-kurrent-and-whether-axon-uses-semver-researched) section 24. Kurrent: no version field in KurrentDB; KurrentDB 26 has a schema registry used by the Surge SDK. A record carries a schema name; compatible changes are new registry versions under the same name, checked by compatibility modes; breaking changes get a new name (`order.shipped.v2`) with one upcast per hop. Axon: it does not use semver, only a semver-looking default. The version is any non-blank string without `#`, nothing parses or compares it, and matching is exact or a user-written predicate such as `startsWith("0.")`. No reason is documented; Axon 4 already took revisions from the Maven project version.
+
+Oskar, after that answer (verbatim):
+
+> How do tej detect compatible from breaking?
+
+Answer: [findings.md](findings.md#25-how-tools-tell-compatible-from-breaking-changes-researched) section 25. Registries (Confluent, Kurrent) diff the new schema against the previous one (or all previous ones) at registration, by rules per compatibility mode: required fields, removed fields, type changes. A failing check rejects the version; it is never accepted as "breaking". Starting a breaking line is the user's decision: a new major-version property (Confluent) or a new schema name (Kurrent). Marten and Axon do not check; the user decides.
+
+Oskar, after that answer (verbatim):
+
+> you said, that Axon and Marten knows if it's breaking or not
+
+Answer: I wrote "Confluent, Kurrent and Marten all separate compatible changes from breaking ones". That was wrong for Marten: it has no version and no check; a compatible change is the same type read by a tolerant JSON deserializer, a breaking change is a new type name plus an upcaster, and the user picks which. I did not claim it for Axon, but "a same major check done by hand" could read that way: Axon does not know either; the user writes the predicate. Only the registries (Confluent, Kurrent) check, and they only reject.
+
+Oskar, after that answer (verbatim):
+
+> ok, so now we're back to our case, we don't have yet schema registry, we'll probably have it at some point, but what's your thought on numeric vs semantic versioned. My guess that other shouldn't be taken into an account, thoughts?
+
+Answer: number. (1) Without a registry nothing checks a semver label, so "same major" is a claim the user makes (Axon shows this); if Emmett skipped mapping because of it, a wrong label gives silently wrong reads. (2) The `versioned` list already gives what "same major" would: upcast is optional only where the previous version's type fits the next schema, and the compiler requires it otherwise (`Versions` type, [versionedSchema.ts:10-17](prototypes/lib/versionedSchema.ts#L10-L17); test "requires an upcast when the previous version does not fit the next schema"). That is a checked backward rule, not a label; downcast is not checked the same way. (3) A number orders without parsing; semver strings need a parser, and text order puts `"10.0.0"` before `"9.0.0"`. (4) Registries number versions with integers (Confluent, AWS Glue, Azure) and keep the major as a separate property, so a number now does not block a registry later. Projections already use a number (Marten `uint`, Emmett MongoDB). Agreed on leaving the other forms (free strings, version in the type name) out.
+
+Oskar, after that answer (verbatim):
+
+> Dude, the fact that we don't have registry atm is not an argument, as we need to set foundations for now.
+>
+> I'm not saying that we need to use semver, but I want a proper tradeoff analysis, without making things up
+
+Answer: dropped the registry argument. Tradeoffs in [findings.md](findings.md#26-number-or-semver-for-the-version-tradeoffs-verified-where-marked) section 26, with ordering checked in JS, SQLite, PostgreSQL and MongoDB, and semver literal types checked with tsc. The deciding point: semver adds information only for a reader that meets a version newer than it knows. Asked whether such a reader should accept it without the writer downcasting.
+
+Oskar, after that answer (verbatim):
+
+> Ok, then let's settle projection and message version on number
+
+Decision: the version of a message and of a projection document is a number. Semver, free strings and a version in the type name are out.
+
+Correction: this record first also said "It is the position in the `versioned` list, starting at 1, and the last entry is the current version." Oskar did not say that. Q7 (removing old versions) makes it an open point.
+
+### Q5. Reading versions already stored as strings
+
+Asked: should Emmett read events already stored with a string version as they are, or can the switch to a number require a one-time migration of the stored data?
+
+Oskar (verbatim):
+
+> We need to keep it backward compatible, I think that recently we aligned in in v43 to be string, maybe we can rewind this? Check migrations
+
+Answer, checked in git history, the migrations and npm:
+
+- `schemaVersion?: string` in `CommonRecordedMessageMetadata` came with commit 2090840b ("Set an event schema version in metadata and use it in upcasting (PostgreSQL, SQLite)", 2026-10-22). It first shipped in 0.43.0-beta.54, then in 0.43.0-rc.1 and rc.2.
+- The latest stable release on npm is 0.42.4. 0.43.0 is still a release candidate (rc.2, 2026-11-04). So the string type was never in a stable release.
+- Before that commit, the `message_schema_version TEXT` column was written but never read. PostgreSQL wrote the literal `'1'`, with the quotes, for every event (`messages.map(() => "'1'")`). SQLite wrote the expected stream version. Metadata had no `schemaVersion`.
+- Since that commit, reads take the version from the metadata JSON and use `'1'` when it is missing. They do not read the column.
+- No migration changes the column. PostgreSQL migrations 0_43_0 and 0_44_0 and SQLite 0_43_0 only recreate the append function with the same `text[]` parameter. The column has been TEXT since 0.36.0 (renamed from `event_schema_version`).
+- MongoDB events have no version handling; metadata is stored as given. MongoDB projections store `schemaVersion: number`, with a default of 1 (`mongoDBInlineProjection.ts:161`).
+
+So yes, it can be rewound: change the type to `number` before 0.43.0 is final. Rows from 0.42.x and earlier have no version in metadata, so they read as 1. The column does not block this, because reads ignore it. Only rows written by 0.43.0-beta.54 or an rc with a version set by the user have a string in metadata.
+
+Oskar, after that answer (verbatim):
+
+> it may, but assume it's numeric
+
+Decision: a reader may accept a string version from metadata and assumes it holds a number, so `"2"` reads as 2. Non-numeric strings such as `"v2"` get no special handling.
+
+### Q6. Whether `Event(...)` keeps a `version` option
+
+Asked: should `Event(...)` and `Command(...)` still accept a `version` option, or should the version come only from the `versioned` list, so a definition without a list is version 1?
+
+Oskar (verbatim):
+
+> Why do we need versioned helper and do we need to have explicit version?
+
+Answer: [findings.md](findings.md#27-whether-the-versions-list-needs-a-versioned-helper-and-an-explicit-version-verified) section 27. `versioned()` returns its input unchanged; it exists only for type inference. Checked with tsc and tests: a plain array passed straight to `Event(...)` or a projection types each upcast the same way, with the same errors, so the helper is not needed. The current version comes from the list length as a literal type, so an explicit `version` is not needed for it. One limit: because the stored version is a position, old entries can never be removed from the list.
+
+### Q7. Removing old versions from the list
+
+Asked: should a user be able to remove old versions from the list once no stored data uses them, or do all versions stay in the list for good?
+
+Oskar (verbatim):
+
+> Yes, they should be able to remove them (not that I recommend it, but yes), we should probably make optional currentVersion, when we're preparing, or using the exact version, but are aware of new, right?
+
+Decision: removing old versions is allowed (not recommended). An optional `currentVersion` is proposed for when the list already holds a newer version than the one in use: while preparing a rollout, or while using an exact version and knowing about newer ones.
+
+Note: one number cannot cover both cases at once. With v1 removed and v4 prepared, the list is [v2, v3, v4] and `currentVersion: 3`. The same list and number also fit [v1, v2, v3] with no removal and no prepared version, so a reader cannot tell whether stored `2` is the first or the second entry. Removal needs its own anchor, for example the number of the first entry. Asked first which version's type the code works with.
+
+### Q8. Which type the code works with when `currentVersion` is older than the last entry
+
+Asked: with `currentVersion: 3` and v4 in the list, does the code work with the v3 type (stored v4 is downcast to v3 on read, writes store v3) or with the v4 type (writes downcast to v3, stored v4 read as is)?
+
+Oskar (verbatim):
+
+> the v3, thoughts on that? currentVersion definitely shouldn't be also required
+
+Decision: the code works with the type of the `currentVersion` entry. `currentVersion` is optional; without it, the last entry is current.
+
+My thoughts, sent with the next question:
+
+- Reads: stored v1 and v2 upcast up to v3 and stop there; stored v4 is downcast to v3. Writes store v3.
+- This is the direction Confluent calls FORWARD: "consumers using old schema can read data written with new schema" (`sources/version-values/confluent-schema-evolution.txt:53`). Confluent also says FORWARD "is harder to work with. In a sense, you need to anticipate all future changes" (line 402). Here the v4 entry and its downcast ship before the switch, so the reader does not have to anticipate anything.
+- Entries after `currentVersion` then need a `downcast`; in the PoC it is always optional. Whether the type can require it from a literal `currentVersion` is not checked yet.
+- Events are never rewritten, so downcasting on read loses nothing stored. Projection documents are read, evolved and written back whole (`mongoDBInlineProjection.ts:168-196`). A v3 instance that updates a document stored as v4 would write it back as v3, and the v4-only fields would be lost.
+
+### Q9. What a `currentVersion: 3` instance does with a projection document stored as v4
+
+Asked: when an instance with `currentVersion: 3` updates a projection document stored as v4, should it write v3 and accept the loss, upcast its v3 result to v4 and write v4, or refuse the update and fail the handler?
+
+Oskar (verbatim):
+
+> hmmm, what would be the least surprising? Also could we generate current event type based on current Version (so the number or non existing) and also have all versions as a separate variable?
+>
+> Thoughts?
+
+Answer: [findings.md](findings.md#28-code-type-from-an-optional-currentversion-and-every-stored-version-as-its-own-type-verified) section 28. Types: yes, checked with tsc. `typeof X.Type` follows `currentVersion` (or the last entry), `typeof X.Stored` is a union of every stored version narrowed by `schemaVersion`, and entries after `currentVersion` must have a `downcast`. Least surprising: the two write options both lose v4-only fields without an error (upcasting fills defaults, it does not bring the value back). Refusing loses nothing, but in MongoDB it fails the append. Marten avoids the case by storing each projection version separately.
+
+Oskar, after that answer (verbatim):
+
+> Stored is a bad term, imprecise
+>
+> So my take: for events, currentVersion with a downcast on read works well. For projection documents, a newer stored version may be a case to keep from happening, rather than one to handle.
+>
+> I don't understand what do you mean.
+>
+> Q - that's already done in the code and outside of that discussion
+
+Answer:
+
+- `Stored` is imprecise because the union is every version of the message, wherever the value comes from (the event store, a queue, an HTTP request), not only what is stored. Name still open.
+- What I meant: events are only read, never written back, so reading stored v4 as v3 through `downcast` changes nothing in the database. Projection documents are read, evolved and written back. If an instance at v3 meets a v4 document, each option either loses data or fails the append. So the question is not how to handle that case, but how to make sure an old instance never meets a newer document.
+- Already done in the code: Pongo projections write each version to its own collection, `${collectionName}_v${version}` (`emmett-postgresql/src/eventStore/projections/pongo/pongoProjections.ts:235-236`). Out of this discussion.
+
+### Q10. Name for the type of any version of a message
+
+Asked: what should the type for "any version of this message" be called (for example `AnyVersion`, `AllVersions`, `Versioned`)?
+
+Oskar (verbatim):
+
+> Ok, so what about our discussions about current version, I don't think that's settled
+
+Answer: not answered yet, parked. Listed what is agreed and what is open about `currentVersion`, and asked about the open part that blocks the rest: how the list says which version its first entry is after old entries are removed.
+
+Oskar, while I was writing that answer (verbatim):
+
+> WTF is any version of this message?
+
+Answer: it is the type of a value before upcasting, when it can still be v1, v2 or v3 and `schemaVersion` says which. The single-function `upcast` takes it, and a `switch` on `schemaVersion` narrows `data`. It was my reading of "have all versions as a separate variable" from Q9, and may not be what Oskar meant.
+
+### Q11. How the first remaining entry gets its version after removal
+
+Asked: once old entries are removed, how should the definition say which version the first remaining entry is (a number on every entry, a `firstVersion` option, or placeholders for removed entries)?
+
+Oskar (verbatim):
+
+> Maybe we shouldn't have union or current, but user should explicitly select which version do they use?
+>
+> I mean we could have the Versions.All and Versions.Any or something similar for the use in upcast/downcast
+
+Idea: no `currentVersion` and no default type on the definition. The user picks the version they work with explicitly. Something like `Versions.All` and `Versions.Any` exists for upcast and downcast. Not settled; asked where the runtime learns the picked version, because a type alone does not exist at runtime.
+
+Oskar, after that answer (verbatim):
+
+> No, All, should be AND, we could use it to have backward compatible downcast. Versions.1 or Versions.2 would be imho better
+>
+> Regarding question isn't enough to do with typing and use in evolve specific version dogether with upcast?
+
+Answer: [findings.md](findings.md#29-picking-a-version-explicitly-without-currentversion-verified) section 29. `Versions.2` is a syntax error; `Versions[2]` works. Typing plus one user-written upcast is enough for reads: the upcast's return type names the version and `evolve` takes that version, with no runtime number. Writes carry the number in `metadata.schemaVersion`, and the compiler makes the writer set it. The per-entry form (upcast and downcast on each list entry) still needs a runtime number, because the runtime runs the steps and has to know where to stop. `All` as AND works (a value parses with every version), but it is `never` when a field changes type. TypeScript does not narrow by `metadata.schemaVersion`, so `Any` keeps the number at the top level.
+
+Oskar, after that answer (verbatim):
+
+> The per-entry form isn't covered. With an upcast and downcast on each list entry, the runtime runs the steps itself, so it has to know where to stop. A type doesn't exist at runtime, so that form still needs a number. - I don't understand
+>
+> Same
+>
+> metadata.schemaVersion doesn't narrow. On TypeScript 6.0.3, switching on it leaves message.data un-narrowed ("Property 'total' does not exist"). Only a top-level field narrows. That's why Any is { schemaVersion: 1; message: Versions[1] } | { schemaVersion: 2; ... } | ....
+>
+> Could you stop using jargon and imprecise statements?
+
+Answer: explained both again with examples. (1) With one small function per step, Emmett picks and runs the steps. To pick, it needs the version that `evolve` wants, but `evolve`'s parameter type is removed when TypeScript produces JavaScript (checked with tsc: `(state: number, event: V2): number => ...` becomes `(state, event) => ...`). So that number must be passed as a value. With one function written by the user, the user's code decides, so Emmett only calls it. (2) Inside `case 1:` of a `switch (event.metadata.schemaVersion)`, TypeScript still treats `event.data` as v1, v2 or v3, so `event.data.total` does not compile. With `switch (value.schemaVersion)`, where the field is directly on the switched value, TypeScript treats `data` as v1 inside `case 1:`.
+
+Oskar, after that answer (verbatim):
+
+> Didn't we agree to have a single upcast function?
+>
+> TypeScript does this when the version sits inside metadata. - why?
+
+Answer: (1) It was not recorded as agreed. My summary ("step or single-function form") kept both, and Oskar's questions "Why would we do one step at a time? Isn't that an overhead?" and "Why single function has no schemas" pointed to one function, but I never asked for the decision. Recorded now. (2) TypeScript narrows a union only by a field that sits directly on the value being checked; TypeScript issue #18758, open since 2017 ([findings.md](findings.md#29-picking-a-version-explicitly-without-currentversion-verified) section 29).
+
+Decision: the upcast is a single function written by the user, not one function per step. How downcast is written is not decided.
+
+### Q12. How downcast is written
+
+Asked: with a single upcast function, should downcast also be a single function written by the user, for example `downcast: (message: Versions[3]) => Versions[2]`?
+
+Oskar (verbatim):
+
+> ok, so we could add version to Event higher, right and move it from metadata, right?
+
+Answer, checked:
+
+- Narrowing: with Emmett's own `Event` type plus a top-level `schemaVersion` (`Event<'Confirmed', { total: number }, M> & { readonly schemaVersion: 1 }`), a `switch (event.schemaVersion)` gives `event.data` as v1 inside `case 1:`. tsc 6.0.3, no errors.
+- `Event` already has one optional top-level field besides `type`, `data` and `metadata`: `kind?: 'Event'` (`emmett/src/typing/event.ts`).
+- Today the version is `schemaVersion?: string` in `CommonRecordedMessageMetadata`, so it exists only on recorded messages (read from a store), not on an `Event` the code creates.
+- Stores: PostgreSQL and SQLite have the `message_schema_version` column, but old rows hold wrong values there (`'1'` with quotes, or the stream version), so reads take the version from the metadata JSON. MongoDB stores `{ type, data, metadata }` built field by field (`mongoDBEventStore.ts:432-439`), so a new top-level field is dropped unless that mapping changes. KurrentDB records have only type, data and metadata, so the version has to be stored in metadata there anyway (`eventstoreDBEventStore.ts:276-296`).
+- Users of 0.43.0-beta.54 and the rcs who read `event.metadata.schemaVersion` in an upcast would have to change it.
+
+Asked whether the top-level field only changes what the code sees, with each store keeping the version where it is stored today.
+
+Oskar, after that answer (verbatim):
+
+> Dude, it'd be a regular part of the Event, not something accidental.
+
+Decision: `schemaVersion` is a regular part of the `Event`, next to `type`, `data` and `metadata`, not an entry in metadata. How each store saves it is not decided.
+
+Oskar, after my next message (verbatim):
+
+> DUDE, WTF, I didn't say that
+
+Answer: my record and reply added "every store saves and reads it as such, not as a metadata entry". Oskar did not say how stores save it; removed. Asked which part was wrong if it is something else.
+
+### Q13. Whether a hand-written event must include `schemaVersion`
+
+Asked: when an event is written by hand, without the `Event(...)` factory, must it include `schemaVersion`, or can it be left out and read as 1?
+
+Oskar (verbatim):
+
+> Can it be only required on the RecordedEvent? Or maybe for "Payload" we could add v1 suffix to type also? Thought? Probably we'll need that for payload?
+
+Answer, checked in the code:
+
+- Required only on recorded messages has a precedent: `kind` is optional on `Event` (`kind?: 'Event'`, `emmett/src/typing/event.ts`) and required on `RecordedMessage` (`message.ts:68-73`), which `ReadEvent` is. The upcast runs on recorded messages, so its `switch` gets a required field. A created event without it would be stored as 1; the `Versions[2]` types from section 29 already require `schemaVersion: 2`.
+- "Payload" in Emmett today is `EventPayloadType` / `MessagePayloadType`: the stored shape when it differs from the current one (`upcasting.ts`, docs `api-reference/commandhandler.md`, "Schema versioning"). The docs example names the stored shape `ProductItemAddedV1` in TypeScript but keeps the `type` string `'ProductItemAdded'` ("The event type name stays the same across versions"), and its upcast tells versions apart by shape: `if ('productItem' in event.data)` (`handleCommandWithDecider.versioning.unit.spec.ts:15-33`).
+- A suffix in the `type` string (`'ProductItemAdded.v1'`) is the version-in-type-name form that was left out earlier. It would make each version a different type for everything that filters by type, such as projections' `canHandle` lists. With a top-level `schemaVersion`, a payload union already narrows by it, so the suffix is not needed for the `switch`.
+
+Asked whether the suffix meant the `type` string or the TypeScript type name.
+
+Oskar (verbatim):
+
+> nam
+
+Read as "name": the suffix on the TypeScript type name (`ProductItemAddedV1`), as in today's docs; the stored `type` string stays `'ProductItemAdded'`.
+
+Oskar, after I moved to the next question (verbatim):
+
+> Why are you going to the next uestion? What did you record?
+
+> How is it closing?! What does it settle?
+
+Answer: it settles nothing. A TypeScript type name is the user's naming choice and is removed when TypeScript produces JavaScript, so Emmett never sees it. I was wrong to treat it as closing Q13. Still open from Q13: whether `schemaVersion` is required only on recorded messages (Oskar's question, checked as possible, not decided), and how a hand-written payload type says its version, since `Event<Type, Data, Metadata>` has no place for it.
+
+### Q14. Whether `schemaVersion` is required on `Event` or only on recorded messages
+
+Asked: must `schemaVersion` be required only on recorded events (optional on `Event`, like `kind`), or required on both?
+
+Oskar (verbatim):
+
+> Dude, I'd say that only for Recorded, but you need to double check
+
+Answer: checked, [findings.md](findings.md#30-schemaversion-required-only-on-recorded-messages-verified-where-marked) section 30. It works in the types: recorded messages narrow fully, and plain events compile without it. Two catches. (1) The `kind` precedent is only a type promise: MongoDB returns recorded events without `kind` (verified at runtime), and KurrentDB's mapping does not set it either (read from code). So every driver must set `schemaVersion` on read, with a test per driver. (2) A v2-shaped event without `schemaVersion` compiles, so the store saves its default for it.
+
+### Q15. What the store saves when an appended event has no `schemaVersion`
+
+Asked: when an event is appended without `schemaVersion`, should the store save 1, or should the append fail?
+
+Oskar (verbatim):
+
+> > Catch 1: kind is required only on paper. RecordedMessage marks kind as required, but not every store sets it:
+>
+> Then this is a bug that needs to be fixed.
+>
+> Catch 2 - I don't understand where v2 did come from
+>
+> what should the store save: 1, - can it be the latest version?
+
+Answer:
+
+- `kind` missing on MongoDB (and, from the code, KurrentDB) recorded events: a bug to fix, separate from this design. Asked whether to open an issue or fix it in its own change.
+- V2 was a type I wrote by hand in the check: `type V2 = Event<'Added', { totalAmount: number }> & { readonly schemaVersion?: 2 }`, a second version of the same event. Because the field is optional, an object of that type compiles without it, so nothing stops code from appending a v2 event with no version.
+- Latest version: the store gets only the plain object (`{ type, data, metadata }`). TypeScript types are removed at runtime, so for hand-written types nothing at runtime knows which version is the latest. With `Event(...)` definitions, the definition knows it (the length of its list), but the message spec says event stores do not know about definitions in the first version (spec.md section 8). So the store can save the latest version only if it is given the definitions, or if the factory already set it on the event.
+
+Oskar, after that answer (verbatim):
+
+> Dude, wtf is this syntax Event<'Added', { totalAmount: number }> & { readonly schemaVersion?: 2 };?
+>
+> It's artificial, and obviously if you set schemaVersion to not required then it'll allow to pass 2
+>
+> I don't think that 1 is a good choice, people will accidentally forget it imho. I also don't want to force store for that. Definitely we can provide schema to command handler, thoughts?
+
+Decisions: no default of 1 for an appended event without `schemaVersion`. The event store is not required to know the definitions for this. Proposal: give the definitions to the command handler.
+
+Answer, checked in the code:
+
+- The intersection syntax was mine, made up for the check, and the result was obvious. Not an API.
+- The command handler already takes `schema: { versioning: { upcast, downcast } }` (`emmett/src/commandHandling/handleCommand.ts:91-96`). It passes it to the read (`:192`) and to `appendToStream` (`:295`). So definitions there are a small addition to an existing option.
+- Every event decide returns goes through the handler before the append (`eventsToAppend`, `:236-237` and `:290-295`). The handler can set the latest version from the definition, or fail when an event's type has no definition.
+- Other paths append without the command handler: `handleWorkflow` (`workflows/handleWorkflow.ts:366` and `:531`, no `schema` option), the workflow processor (`workflowProcessor.ts:316`, has a `schema` option at `:50`), processors forwarding messages (`processors/processors.ts:466`), and direct `eventStore.appendToStream` calls. Events appended there would not get a version from the definitions.
+
+Asked what should happen to events appended outside the command handler.
+
+Oskar, after my thoughts on giving definitions to the command handler (verbatim, two messages):
+
+> Dude, I asked you a question
+
+> Man, they can take definitions, but schema is not mandatory, people should still be able to comfortably use it without them
+
+Decision: the command handler (and workflows) can take definitions, but definitions are optional. Without them, Emmett works as today.
+
+Follow-up: without definitions, nothing knows the latest version, so a hand-written event without `schemaVersion` reaches the store with no version. Data from 0.42 and earlier has none either, and reads it as 1 (Q5). Asked to confirm that a missing version without definitions is read as 1, the same as old data.

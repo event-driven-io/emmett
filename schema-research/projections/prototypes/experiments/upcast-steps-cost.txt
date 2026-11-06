@@ -1,0 +1,4 @@
+v1 -> v4 in 3 steps:      240 ns
+v1 -> v4 in one function: 83 ns
+conversion of the stored document (codec.read): 48 ns
+MongoDB findOne on localhost: 605420 ns

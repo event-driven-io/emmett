@@ -1,0 +1,2 @@
+MongoDB: kind in recorded event: false value: undefined
+In-memory: kind in recorded event: true value: Event

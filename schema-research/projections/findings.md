@@ -340,3 +340,212 @@ Test suite [prototypes/tests/designAssumptions.test.ts](prototypes/tests/designA
 - A database-side check for Pongo. Pongo's collection definition takes only `indexes` (`pongoSchema.collection(name, { indexes })`), and its columns are fixed, so there is no place for a `CHECK` constraint today.
 - PostgreSQL DDL from the Dumbo columns, Valibot and Effect Schema output sides.
 - Q4 (what the code sees for an `ObjectId`) is still open; the prototype uses a hex string.
+
+## 18. Schema versioning in the TypeScript ecosystem
+
+Question from Oskar: should upcast and downcast be optional, why is `version` defined outside `versions`, and how do others version schemas? Sources are saved in [../sources/versioning/](../sources/versioning/). All findings below are "reported" (read from docs and READMEs), not run.
+
+### How TS tools describe several versions
+
+1. Every version is a full schema, and each later version has a function from the previous one.
+   - verzod (`verzod-README.md`): `createVersionedEntity({ latestVersion: 2, versionMap: { 1: defineVersion({ initial: true, schema: V1 }), 2: defineVersion({ initial: false, schema: V2, up(old: z.infer<typeof V1>) {...} }) }, getVersion(data) })`. `up` exists on every non-initial version. `safeParse` reads the version with `getVersion`, validates with that version's schema, then runs `up` steps to the latest. `latestVersion` repeats the highest key in `versionMap`. The README annotates `old` by hand.
+   - Zod issue #3604 (`zod-issue-3604.txt`): a user builds the same thing from `.transform()`, `.or()` and `.pipe()`: v1, v2, v3 schemas, each old schema piped through a mapper to the next. Closed as stale without an answer from maintainers.
+   - Dexie (`dexie-version-README.md`): `db.version(1).stores({...})`, `db.version(2).stores({...}).upgrade(tx => ...)`. Each version declares its stores; `upgrade` is optional.
+2. Only the latest schema exists; old data comes as untyped JSON to migration functions keyed by version.
+   - RxDB (`rxdb-schema.md`, `rxdb-migration-schema.md`): the JSON Schema has `version: 0, 1, ...`; `migrationStrategies: { 1: (oldDoc) => newDoc }`, keyed by the target version, required for every version above 0. Schema defaults aren't applied during migration.
+   - redux-persist (`redux-persist-migrations.md`): `version: 1` in config, `createMigrate({ 0: state => ..., 1: state => ... })`, runs every migration above the stored version in order.
+   - zustand persist (`zustand-persist.md`): `version: 1` and one `migrate(persistedState, version)` function that switches on the version itself; default is identity.
+3. The next schema is derived from the previous one, together with the data function.
+   - @tonerow/zod-migrate (`zod-migrate-npm.json`, 0.1.0): `createEntity('user', V1).addMigration(schema => schema.extend({...}), data => ({...}))`. There is no stored version: it detects the version by trying each schema with `safeParse`, newest first.
+   - Cambria (`cambria-README.md`, `cambria.txt`): a lens (rename, add, remove, convert) between two schemas. One lens converts documents both ways and also converts the JSON Schema itself. Marked by its authors as not ready for production.
+4. No version transforms; only compatible changes, breaking changes become a new name.
+   - LiveStore (`livestore-events.txt`): event names carry the version (`'v1.TodoCreated'`), schemas may change only in forward-compatible ways (add optional fields or fields with defaults, remove fields).
+   - Avro (`avro-spec.txt`, schema resolution): the reader resolves data written with the writer's schema using defaults and aliases, without functions. Confluent (`confluent-data-contracts.txt`) adds optional UPGRADE and DOWNGRADE migration rules per schema version.
+
+### Two-way transforms
+
+Zod codecs (`zod-codecs.txt`: `z.codec(A, B, { decode, encode })`) and Effect (`effect-schema-transformations.txt`: `Schema.transform(from, to, { decode, encode })`) connect two schemas with both directions, and both functions are required. Cambria derives both directions from one lens. None of the persistence tools above (verzod, RxDB, Dexie, redux-persist, zustand) has a downcast.
+
+### What this says about the earlier sketch
+
+- Upcast is optional in Dexie, zustand (identity default) and LiveStore (compatible changes need none); required per version in verzod and RxDB. Downcast exists only in the two-way transforms.
+- A separate `version` next to the versions list repeats information: verzod's `latestVersion` duplicates the highest key of `versionMap`; Dexie has none (the highest declared version wins). In my sketch the current schema sat outside `versions` and `version: '2'` was a third place, which is inconsistent.
+- Keeping each old version's schema (group 1) is what lets a schema-aware serializer convert old data, because conversion paths come from the schema of the version that wrote the data. Group 2 hands raw JSON to the function.
+
+## 19. Upcasting across several versions (verified)
+
+Prototype: [prototypes/lib/versionedSchema.ts](prototypes/lib/versionedSchema.ts). Tests: [prototypes/tests/versioning.test.ts](prototypes/tests/versioning.test.ts), 25 of 25 on MongoDB and Pongo with SQLite, for the `s` builder and Zod. Types: [prototypes/tests/versionedTypes.test.ts](prototypes/tests/versionedTypes.test.ts) compiles snippets with the TypeScript compiler API and checks the reported errors, 6 of 6; the map and chain shapes it compares are in [prototypes/experiments/versioned-inference.ts](prototypes/experiments/versioned-inference.ts). Making `upcast` always optional fails 1 of them, typing the previous version as `any` fails 2.
+
+Versions used: v1 `{ orderId, placedAt: Date, total }`, v2 renames `placedAt` to `createdAt` (upcast and downcast), v3 adds optional `note` (no functions).
+
+Reading a v1 document as v3:
+
+1. Convert the stored document with the v1 schema's formats, so `placedAt` becomes a `Date`.
+2. Run v2's `upcast`: `{ orderId, createdAt: Date, total }`.
+3. v3 has no `upcast`, so the v2 value goes on as it is.
+4. With validation on read, check the result against v3.
+
+Writing as v1 runs the downcasts the other way (v3 has none, v2 renames back), then converts with the v1 schema's formats.
+
+Types (TypeScript 6.0.3): a tuple `versioned([{ schema: V1 }, { schema: V2, upcast: (v1) => ... }, { schema: V3 }])` types `v1` from the entry before it without an annotation, rejects a wrong upcast result, and makes `upcast` required when the previous version's output doesn't fit the next schema (v1 to v2), optional when it does (v2 to v3). A map keyed by version (`{ '1': ..., '2': ... }`) gives `v1` no type. A chain (`versions(V1).then(V2, {...}).then(V3)`) types it too.
+
+Mutation checks: skipping upcasts fails 8 tests, skipping downcasts fails 4, and converting with the latest schema instead of the stored version's fails the 4 Pongo tests that read v1. On MongoDB that mutation passes, because BSON keeps the `Date`; on Pongo the date stays a string, which the separate test "converting a version 1 document with the latest schema leaves its date a string" shows directly.
+
+Not verified: messages (`metadata.schemaVersion`, `Event(...)`), the MongoDB validator built from all versions, where Pongo stores the version, and runtime checks of the versions list (for example a missing upcast when types are bypassed).
+
+### Two upcasts in a row (verified)
+
+The suite in section 19 had v3 without an upcast, so it showed one upcast plus a pass-through. Added "two upcasts in a row" to [prototypes/tests/versioning.test.ts](prototypes/tests/versioning.test.ts): v3 changes `total: number` to `total: { amount, currency }` with its own upcast and downcast. On MongoDB and Pongo, a v1 document runs v1 -> v2 (which gets `placedAt` as a `Date`, converted with the v1 schema), then v2 -> v3. A v2 document runs only v2 -> v3. Writing v3 as v1 runs v3 -> v2 -> v1. There is no direct v1 -> v3 function in this design; each step is written once, against its neighbour.
+
+## 20. What the code gets for an ObjectId (verified)
+
+The MongoDB `objectid` codec turned an `ObjectId` into a hex string itself, so every schema got a string. It now returns the stored `ObjectId`, and the output-side rule from section 17 decides, as for dates. [prototypes/experiments/objectid-output-side.ts](prototypes/experiments/objectid-output-side.ts) ([output](prototypes/experiments/objectid-output-side.txt)), on MongoDB: `objectId()` from the `s` builder and Zod's `z.stringFormat('objectid', ...)` (output side `string`) give a hex string; a Zod codec to `z.instanceof(ObjectId)` (output side `{}`) gives an `ObjectId`. In all three, MongoDB stores an `ObjectId`. All suites still pass (98 of 98). So Q4 is not a separate decision: the schema the user writes decides it.
+
+## 21. Cost of upcasting step by step (measured)
+
+[prototypes/experiments/upcast-steps-cost.ts](prototypes/experiments/upcast-steps-cost.ts) ([output](prototypes/experiments/upcast-steps-cost.txt)), Node 24, one machine, MongoDB on localhost: v1 to v4 in 3 steps took 240 ns per document, one direct function 83 ns, conversion of the stored document 48 ns, one MongoDB `findOne` about 605,000 ns. The steps cost about 160 ns more per document than a direct function. For 10,000 old events that is about 1.6 ms.
+
+Why steps anyway: adding v4 needs one function (v3 to v4). Direct functions need one per older version (v1 to v4, v2 to v4, v3 to v4), and all of them change again when v5 comes. verzod, redux-persist, RxDB and Dexie run steps; only zustand's single `migrate(state, version)` goes direct, untyped. For inline projections the cost is paid once per document: the next append stores the current version (section 17).
+
+## 22. One upcast function over a union of stored versions (verified)
+
+Oskar's question: why would a single upcast function have no schemas; can't it take a union typed by schema version? It can, as long as the versions list still names each version's schema. [prototypes/lib/versionedSchema.ts](prototypes/lib/versionedSchema.ts) now has a second form:
+
+```ts
+versioned([{ schema: V1 }, { schema: V2 }, { schema: V3 }], {
+  upcast: (stored) => {
+    switch (stored.schemaVersion) {
+      case 1: ...            // stored.value is V1's output, placedAt already a Date
+      case 2: ...            // stored.value is V2's output
+      case 3: return stored.value;
+    }
+  },
+});
+```
+
+Emmett converts the stored document with the stored version's schema, then calls the function once with `{ schemaVersion, value }`. Tests in [prototypes/tests/versioning.test.ts](prototypes/tests/versioning.test.ts) ("one upcast function for all versions", MongoDB and Pongo) and [prototypes/tests/versionedTypes.test.ts](prototypes/tests/versionedTypes.test.ts): `stored.value` narrows per `case`; a field the narrowed version doesn't have is a compile error; a missing `case` gives "Not all code paths return a value." plus a return type error. All suites 107 of 107. Mutations: typing `value` as `any` fails 2 type tests, ignoring the function fails 6 runtime tests, converting with the latest schema fails the Pongo v1 tests.
+
+This is also the direct path from section 21: one call per document instead of one per step.
+
+TypeScript detail: a homomorphic mapped type over `[never, ...S]` with a generic `S` restarts the keys at `"0"` for the `S` part, so versions came out shifted by one. The union is built with a recursive type that counts versions instead.
+
+Not done: a downcast for this form, and checking that per-version `upcast` fields are rejected when the single function is used.
+
+## 23. How other tools set message and projection versions (researched)
+
+Sources saved in [sources/version-values/](../sources/version-values/).
+
+Confluent Schema Registry ([confluent-api.txt](../sources/version-values/confluent-api.txt), [confluent-serdes.txt](../sources/version-values/confluent-serdes.txt), [confluent-data-contracts.txt](../sources/versioning/confluent-data-contracts.txt)): the version is an integer per subject, `[1, 2^31-1]`, assigned by the registry in increasing order. A message does not carry the version; it carries the schema ID (4-byte integer in the payload prefix, or a 16-byte GUID in a header since 8.1.1). Breaking changes are marked separately: a metadata property such as `application.major.version: "2"` (name is free), `compatibilityGroup` limits compatibility checks to schemas with the same major, and migration rules map across majors: `UPGRADE` lets new consumers read old messages, `DOWNGRADE` lets old consumers read new ones. Compatibility modes: `BACKWARD`, `FORWARD`, `FULL`, and `_TRANSITIVE` variants that check against all previous versions, not just the last one.
+
+AWS Glue Schema Registry ([aws-glue-registry.txt](../sources/version-values/aws-glue-registry.txt), [aws-glue-how-it-works.txt](../sources/version-values/aws-glue-how-it-works.txt)): `SchemaVersionNumber` is an integer; a record carries the schema version ID (a UUID). Modes as Confluent, with `_ALL` for "all previous versions".
+
+Azure Schema Registry ([azure-schema-registry.txt](../sources/version-values/azure-schema-registry.txt)): the payload carries a schema ID; versions per schema; backward and forward compatibility modes.
+
+Apicurio Registry: the version is a string; the default is generated (`1`, `2`, ...), custom values such as `2.1.6` are allowed. How custom values are ordered was not confirmed (reference page returned 404).
+
+Marten ([marten-events-versioning.txt](../sources/version-values/marten-events-versioning.txt), [marten-rebuilding.txt](../sources/version-values/marten-rebuilding.txt), [marten-llms-full.txt](../sources/version-values/marten-llms-full.txt)): events have no version field. A version is a different event type name or CLR class; upcasters are keyed by the old type name (`Upcast<NewType>("shopping_cart_opened", ...)`). Projections have `[ProjectionVersion(uint)]` (or the `Version` property); bumping it writes to separate tables, so old and new run side by side (blue/green).
+
+Axon Framework 4 ([axon-event-versioning.txt](../sources/version-values/axon-event-versioning.txt)): `@Revision("1.0")`, a free string, `null` allowed. An upcaster matches by exact equality of payload type and revision (`canUpcast`); the chain runs in registration order, revisions are never compared.
+
+Axon Framework 5 ([axon5-message-migration.txt](../sources/version-values/axon5-message-migration.txt), [axon5-upcaster-migration.txt](../sources/version-values/axon5-upcaster-migration.txt), [axon5-event-type-resolver.txt](../sources/version-values/axon5-event-type-resolver.txt)): `@Event(name = "MyEvent", version = "1.0")`; the version is part of `MessageType` (qualified name + version), a string defaulting to `0.0.1`. Stored events with a missing or empty version (Axon 4) are read as `0.0.0` without a schema migration, "so legacy AF4 events without a revision always sort as older"; `withDefaultVersion(...)` overrides it. Transformations match `from(MessageType)` or `from(Predicate<MessageType>)` for a range of versions, and are registered in order.
+
+## 24. Kurrent, and whether Axon uses semver (researched)
+
+Kurrent ([kurrent-surge-README.md](../sources/version-values/kurrent-surge-README.md), [kurrent-surge-schema.txt](../sources/version-values/kurrent-surge-schema.txt), [kurrent-surge-names.md](../sources/version-values/kurrent-surge-names.md), [kurrent-surge-evolution.md](../sources/version-values/kurrent-surge-evolution.md), [kurrent-surge-registration.txt](../sources/version-values/kurrent-surge-registration.txt), [kurrent-connectors-features.txt](../sources/version-values/kurrent-connectors-features.txt)): KurrentDB itself has no version field; an event has a type and free metadata. KurrentDB 26 has a schema registry (PR #5757 fixes its projector), used by the Kurrent Surge .NET SDK. Every record carries a schema name (string), and connectors expose it as the `esdb-record-schema-subject` header. Two levels: a compatible change is a new registry version under the same name (`RegisterSchemaVersion("order-placed", v2Json)`), checked by a compatibility mode (`Backward`, `BackwardAll`, `Forward`, `ForwardAll`, `Full`, `FullAll`, `None`); a breaking change "mints" a new schema name, for example `order.shipped.v1` and `order.shipped.v2`, linked by one upcast function per hop. Rule from their docs: "Version the meaning, not the release". Readers that get an unknown name receive the raw bytes plus the name instead of failing. How registry versions are numbered was not shown in the pages read.
+
+Axon 5 does not use semver, it only looks like it ([axon5-MessageType.java.txt](../sources/version-values/axon5-MessageType.java.txt), [axon5-SimpleVersionedType.java.txt](../sources/version-values/axon5-SimpleVersionedType.java.txt), [axon5-SemanticMatchingTest.java.txt](../sources/version-values/axon5-SemanticMatchingTest.java.txt)). `MessageType(QualifiedName, String version)`; `validateVersion` accepts any non-blank string without `#`. The default `"0.0.1"` is just a string. No code in the repository tree parses or compares versions (no semver or version-comparator file). Transformations match a version exactly, or by a predicate the user writes, e.g. `type.version().startsWith("0.")`. No reason for the dotted default is given in the docs. Axon 4 had `MavenArtifactRevisionResolver`, which used the project's Maven version as the revision, so dotted strings were already the habit there.
+
+## 25. How tools tell compatible from breaking changes (researched)
+
+Registries compare schemas, not data, when a new version is registered. Confluent ([confluent-schema-evolution.txt](../sources/version-values/confluent-schema-evolution.txt)): "Schema Registry checks compatibility before accepting the new version", by the subject's mode (default `BACKWARD`), against the last version or, with `_TRANSITIVE`, all of them. Rules per format; for JSON Schema they also depend on the policy (`LENIENT` or `STRICT`) and on `additionalProperties`. Lenient JSON Schema, backward: add or remove an optional field, remove a required field, add a union variant, widen a type; adding a required field is backward-incompatible. Strict and open (`additionalProperties: true` or omitted): adding an optional field is not backward-compatible, because old data may already hold that name with any type.
+
+Kurrent ([kurrent-surge-evolution.md](../sources/version-values/kurrent-surge-evolution.md)): the registry diffs JSON Schemas by the top-level `required` array and property types; errors are `MissingRequiredProperty`, `IncompatibleTypeChange`, `OptionalToRequired` (backward), `NewRequiredProperty`, `RemovedProperty` (forward), `ArrayTypeIncompatibility`, `DataFormatMismatch`. `CheckSchemaCompatibility` runs the rules without registering.
+
+Neither registry labels a change as breaking and accepts it. It rejects the version. Starting a breaking line is the user's decision: in Confluent a new `application.major.version` value, with `compatibilityGroup` skipping checks across groups; in Kurrent a new schema name, by their table (add a required field, rename, remove or retype a field: new name; add an optional field with a default: same name). Marten and Axon do not check at all; the user decides by adding a new type or version and an upcaster.
+
+## 26. Number or semver for the version: tradeoffs (verified where marked)
+
+Both must do the same job in the `versioned` design: name the stored shape, pick its schema and codec, give the order for the upcast chain, and name the target for a downcast.
+
+Ordering in stores (verified, [version-ordering.ts](prototypes/experiments/version-ordering.ts), [version-ordering.txt](prototypes/experiments/version-ordering.txt)): integers sort and filter correctly in JS, SQLite, PostgreSQL and MongoDB. Semver strings sort as text in all four: `1.0.0, 1.10.0, 1.2.0, 10.0.0, 9.0.0`, and SQLite `WHERE v < '10.0.0'` misses `9.0.0`. Correct order needs parsing: PostgreSQL `string_to_array(v, '.')::int[]` works for `x.y.z` but fails on `2.0.0-beta` (`invalid input syntax for type integer`); MongoDB collation `numericOrdering: true` orders `x.y.z` but puts `2.0.0-beta` after `2.0.0`, while semver puts it before.
+
+Who writes the value: a number is the list position, so it cannot be duplicated or out of order (PoC). Semver is written per entry; Axon 5 validates only "not blank, no `#`". Literal types still work for semver: a `const` list of declared strings gives `'1.0.0' | '1.1.0' | '2.0.0'`, and a switch missing a case fails with TS2366 (verified, [semver-literal-types.ts](prototypes/experiments/semver-literal-types.ts)).
+
+Compatibility: with the list, the compiler already requires an upcast where the previous version's type does not fit the next schema (PoC, backward direction only). So for a reader that has all schemas, major/minor adds nothing at compile time. Semver adds information only where the reader does not have the schema: a version newer than the reader knows. Today the PoC throws `Unknown schema version`; with semver a reader could accept `2.1.0` as `2.0.0` by the "same major" rule. That rule is a declaration; no tool read here checks it without a registry. Confluent keeps an integer version and puts the major in a separate metadata property, which gives both the order and the intent.
+
+Branches (`1.3.0` after `2.0.0`): semver can name them, a number cannot; neither fits a linear upcast list, and none of the tools read supports branched history.
+
+Existing data: today's `"1"`, `"2"` are neither numbers nor valid semver, so both need a read rule; Axon 5 needed one too (`0.0.0` for missing). A number changes the PostgreSQL and SQLite TEXT column or casts on read; semver keeps TEXT but changes MongoDB projections, which store a number.
+
+## 27. Whether the versions list needs a `versioned()` helper and an explicit version (verified)
+
+Question from Oskar: why do we need the `versioned` helper, and do we need an explicit version?
+
+`versioned()` in [prototypes/lib/versionedSchema.ts](prototypes/lib/versionedSchema.ts) returns `{ versions, upcast }` unchanged. Its only job is the `const S` type parameter, which makes TypeScript infer the list as a tuple and type each `upcast` and `downcast` from the neighbouring entries.
+
+The same works without the helper when the function that takes the list has that type parameter itself. Prototype: [prototypes/experiments/inline-versions.ts](prototypes/experiments/inline-versions.ts), output in [inline-versions.txt](prototypes/experiments/inline-versions.txt), negative cases in [prototypes/tests/inlineVersions.test.ts](prototypes/tests/inlineVersions.test.ts). Zod 4.6.5, TypeScript from the prototypes' `package.json`.
+
+- `Event('ShoppingCartConfirmed', { data: [{ schema: V1 }, { schema: V2, upcast: (v1) => ... }] })` types `v1` as V1's output, with no annotation and no helper.
+- `Event` has two overloads: one for a list, one for a single schema. `Event('ShoppingCartOpened', { data: V1 })` still works.
+- A projection that takes `schema: [...]` behaves the same way.
+- The negative cases match the `versioned()` ones: a field the previous version lacks fails ("Property 'nope' does not exist..."), and a missing upcast where the shape changed fails ("Property 'upcast' is missing").
+- The version comes out as a literal type from the list length: `Confirmed.version` is `2`, `Opened.version` is `1`, `carts.version` is `2`. So no explicit `version` is needed for the current version.
+- Not checked yet: the single-function `upcast` form (one function over all stored versions) as a sibling option next to the list.
+
+Where an explicit version still matters, read from the code:
+
+- The stored version picks the list entry by position (`versionAt` returns `schemaVersion - 1`, [versionedSchema.ts:56-59](prototypes/lib/versionedSchema.ts#L56-L59)). If the first entry is removed, for example after all v1 data was migrated, every later entry moves down by one, and stored v2 data is read with the v1 schema. With positions only, old entries can never be removed.
+- The downcast target is chosen per write (`write(value, schemaVersion)`), not on the definition.
+- Events without a definition keep today's path: the user sets `metadata.schemaVersion` on append (commit 2090840b). That does not need a `version` option on `Event(...)`.
+
+## 28. Code type from an optional `currentVersion`, and every stored version as its own type (verified)
+
+Question from Oskar: can we generate the current event type from `currentVersion` (a number, or left out) and also have all versions as a separate variable?
+
+Prototype: [prototypes/experiments/current-version-types.ts](prototypes/experiments/current-version-types.ts), output in [current-version-types.txt](prototypes/experiments/current-version-types.txt), negative cases in [prototypes/tests/currentVersionTypes.test.ts](prototypes/tests/currentVersionTypes.test.ts). Zod 4.6.5.
+
+- `Event(type, { data: [...], currentVersion? })` infers `currentVersion` as a literal. Left out, it defaults to the list length.
+- `typeof X.Type` is the message with the `currentVersion` entry's data. With `currentVersion: 2` and v3 in the list, `.data.note` (a v3-only field) fails: "Property 'note' does not exist".
+- `typeof X.Stored` is a union of `{ type; schemaVersion: 1; data: V1 } | { ...; schemaVersion: 2; data: V2 } | ...` for every entry. A `switch` on `schemaVersion` narrows `data`, and a missing case fails ("Function lacks ending return statement").
+- `X.versions` is the list itself at runtime, and `X.currentVersion` is the number.
+- Entries after `currentVersion` must have a `downcast` ("Property 'downcast' is missing"). Without `currentVersion`, `downcast` stays optional everywhere.
+- A `currentVersion` outside the list fails ("Type '4' is not assignable to type '1 | 2 | 3 | undefined'"). TypeScript also reports a follow-on error asking v2 for a `downcast`: once 4 is rejected, the type parameter widens to `1 | 2 | 3`.
+- Not checked: removing old entries (the first-entry anchor), and the single-function `upcast` form with `currentVersion`.
+
+What a `currentVersion: 3` instance can do with a projection document stored as v4, read from the code:
+
+- MongoDB keeps inline projections in the stream document. Events and projection updates go in one `updateOne` (`mongoDBEventStore.ts:446-485`), and the projection is written whole (`mongoDBInlineProjection.ts:168-196`).
+- Write v3: the v4-only fields are lost, with no error.
+- Upcast the v3 result to v4 and write v4: the upcast fills v4-only fields with its defaults (in the prototype, `note: ''`), so the stored value is lost too. The document says v4, which hides the loss.
+- Refuse: nothing is lost, but because the projection update shares the `updateOne` with the events, the append fails. That instance cannot append to that stream until it is upgraded.
+- Marten avoids the case: bumping `ProjectionVersion` "writes to separate database tables from the previous version", and old and new run side by side (`sources/version-values/marten-rebuilding.txt:122-129`).
+
+## 29. Picking a version explicitly, without `currentVersion` (verified)
+
+Question from Oskar: no union or current version on the definition; the user picks the version explicitly (`Versions.1`, `Versions.2`), with `Versions.All` as the AND of every version for a backward-compatible downcast and `Versions.Any` for upcast and downcast. Is typing plus evolve on one version, fed by an upcast, enough?
+
+Prototype: [prototypes/experiments/explicit-version-types.ts](prototypes/experiments/explicit-version-types.ts), output in [explicit-version-types.txt](prototypes/experiments/explicit-version-types.txt), negative cases in [prototypes/tests/explicitVersionTypes.test.ts](prototypes/tests/explicitVersionTypes.test.ts). TypeScript 6.0.3, Zod 4.6.5.
+
+- `Versions.2` is a syntax error. `Versions[2]` works: `typeof ShoppingCartConfirmed.Versions[2]` is the v2 message, with `metadata: { schemaVersion: 2 }` as a literal.
+- Reads need no runtime number when the user writes one upcast function. Its return type names the version: `(message: Versions['Any']) => Versions[2]`. `evolve(state, event: Versions[2])` then gets only v2. Stored v1, v2 and v3 folded to `{ clientId: 'c1', total: 16 }`. An `evolve` on `Versions[3]` with that upcast fails ("Type '2' is not assignable to type '3'").
+- The per-entry form (an `upcast` and `downcast` on each list entry) is different: the runtime runs the steps itself, so it needs to know where to stop. A type does not exist at runtime, so that form still needs a number.
+- Writes carry the number in the message: a `Versions[2]` value must have `metadata.schemaVersion: 2`, so the compiler makes the writer set it.
+- TypeScript does not narrow a union by `message.metadata.schemaVersion`; only a top-level field narrows ("Property 'total' does not exist"). So `Any` is `{ schemaVersion: 1; message: Versions[1] } | { schemaVersion: 2; message: Versions[2] } | ...`, with the number at the top level.
+- `All` is the intersection of every version's data: `{ clientId; total; totalAmount; note }`. A value of it parses with V1, V2 and V3 (Zod objects strip unknown keys by default). Not checked: strict schemas that reject unknown keys, which would reject it.
+- `All` becomes `never` when two versions give one field different types (`total: number` in v1, `total: string` in v2), so no value can be written.
+- Not checked: which `schemaVersion` a written `All` value carries.
+
+Comment added in the prototype: the `Any` line explains why `schemaVersion` is at the top level.
+
+Why TypeScript does not narrow by `metadata.schemaVersion` (reported): TypeScript issue #18758 "Nested Tagged Unions", open since 2017-09-26 with the labels Suggestion and In Discussion ([../sources/versioning/typescript-issue-18758.json](../sources/versioning/typescript-issue-18758.json), comments in [typescript-issue-18758-comments.json](../sources/versioning/typescript-issue-18758-comments.json)). Ryan Cavanaugh (TypeScript team): "A discriminant property only applies to the object it's directly a member of." So `event.metadata.schemaVersion === 1` narrows `event.metadata`, but not `event`, so `event.data` stays the union. A later comment notes that a hand-written type guard (`(e): e is V1 => ...`) does narrow by a nested field.
+
+## 30. `schemaVersion` required only on recorded messages (verified where marked)
+
+Oskar's proposal: `schemaVersion` optional on `Event`, required only on recorded messages, like `kind`. Checked against the code and with tsc 6.0.3; runtime check in [prototypes/experiments/recorded-kind.ts](prototypes/experiments/recorded-kind.ts), output in [recorded-kind.txt](prototypes/experiments/recorded-kind.txt), MongoDB 8 and the local `emmett-mongodb`.
+
+- The `kind` precedent is only a type promise. `RecordedMessage` marks `kind` as required (`emmett/src/typing/message.ts:68-73`). PostgreSQL and SQLite set it on read (`readStream.ts`, `readMessagesBatch.ts`), and in-memory sets it on append (`inMemoryEventStore.ts:243`). MongoDB does not: it stores `{ type, data, metadata }` (`mongoDBEventStore.ts:432-439`) and returns the stored messages as they are; verified, a read event has no `kind` (`'kind' in event` is `false`). KurrentDB's read mapping builds `{ type, data, metadata }` without it (`eventstoreDBEventStore.ts:389-400`, read from code, not run). So a required `schemaVersion` on recorded messages holds only if every driver sets it on read, with a test per driver.
+- Required on recorded messages (verified): `switch (event.schemaVersion)` over recorded v1 and v2 narrows `data` in each case and needs no `default`.
+- Optional on `Event` (verified): the plain objects decide functions return compile without it. A `switch` on the optional field narrows in `case 1:` and `case 2:`; in `default:` (version missing) `data` stays the union.
+- Risk (verified that it compiles): `const written: V2 = { type: 'Added', data: { totalAmount: 1 } }` compiles with no `schemaVersion`. A v2-shaped event can be appended without its version, and the store then saves whatever its default is.
+- The same `evolve` gets recorded events from the store (after upcast) and new plain events from decide (`handleCommand.ts:183-189` and `:236`). So `evolve` cannot rely on `schemaVersion` being present. It works on the current version only, so it does not need to.
+- Emmett's upcast type has a plain-payload form, `(message: MessagePayloadType) => MessageType` (`upcasting.ts:13`). With an optional version, that form needs a `default` branch. At runtime the upcast always gets the recorded message (`upcasting.ts:41-46`).

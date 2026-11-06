@@ -1,0 +1,166 @@
+
+
+    Message Migration
+
+    Workflows is now live with Axoniq Framework 5.4.0. Visit the Getting Started guide to deploy your first workflow. Get started
+
+      Search documentation…
+      ⌘K / Ctrl+K
+
+Message Migration
+
+Axon Framework 5 introduces a more explicit way of defining and handling messages.
+This path covers the message-model migration from Axon Framework 4.x annotations to the new message-centric approach in Axon Framework 5.
+
+Message-specific annotations
+
+In Axon Framework 4, the type of a message was often implicitly determined by its class or by how it was dispatched.
+Axon Framework 5 introduces dedicated annotations to explicitly define the nature of your message objects.
+
+The following table summarizes the primary annotation changes:
+
+AF4 Annotation
+AF5 Replacement
+Reasoning
+
+@TargetAggregateIdentifier
+
+@TargetEntityId + @Command(routingKey = "…​")
+
+Axon Framework 5 moves from the "Aggregate" terminology towards a more general "Entity" model. This aligns with the Dynamic Consistency Boundary (DCB) principles where boundaries are more fluid. Note that AF4’s @TargetAggregateIdentifier also served as the routing key; in AF5 the routing key must be declared explicitly via @Command(routingKey = "…​") to keep same-target commands handled sequentially. See the architecture principles for more details.
+
+@Revision
+
+@Event(version = "…​")
+
+Consolidation of message metadata. The version is now part of the MessageType, which is a core concept in Axon Framework 5 for message identification and conversion.
+
+@RoutingKey
+
+@Command(routingKey = "…​")
+
+Similar to revision, routing information is now consolidated within the @Command annotation, making the command’s intent and behavior more explicit at the class level.
+
+Explicit message types
+
+One of the most significant changes in Axon Framework 5 is the introduction of MessageType.
+It decouples the logical name and version of a message from its Java class.
+One of the most significant changes in AF5 is the introduction of MessageType, which introduces the QualifiedName and decouples the logical name and version of a message from its implementing class.
+
+To embrace this, you should use the @Command, @Event, and @Query annotations on your message classes.
+
+// AF4
+@Revision("1.0")
+public class MyEvent {
+}
+
+// AF5
+@Event(name = "MyEvent", version = "1.0")
+public class MyEvent {
+}
+
+By using these annotations, you provide Axon with the necessary information to resolve the MessageType without relying on fully qualified class names, which simplifies refactoring and cross-service communication.
+
+Setting the name and namespace on @Event, will change how events are stored.
+Specifically, it influences the payloadType column/field, which has been renamed to type in Axon Framework 5 to align with the architectural shift.
+
+As a first migration step it is recommended to keep the default behavior to align with the previous implicit naming strategy.
+
+If you don’t specify the annotation parameters, Axon uses the following default behavior:
+
+namespace: First checks if the @Namespace annotation is present (as described here). When not present, defaults to the package name of the message class.
+
+name: Defaults to the simple class name.
+
+version: Defaults to 0.0.1.
+
+For more details on how message types are resolved and used, see the Message type resolution section in the Anatomy of a Message guide.
+
+Message versioning
+
+With Axon Framework 5, the versioning strategy for messages has evolved.
+Instead of using the @Revision annotation, you now specify the version directly in the @Event, @Command, or @Query annotations.
+
+If you used @Revision in AF4, ensure to migrate to the new versioning approach to maintain compatibility and leverage the benefits of the new message type system and support upcasting in upcoming releases.
+
+Routing and identification
+
+Target entity identification
+
+When sending a command to an entity (formerly aggregate), you previously used @TargetAggregateIdentifier.
+In Axon Framework 5, this is replaced by @TargetEntityId. This shift is part of the broader move towards Dynamic Consistency Boundaries. See the architecture principles for more context.
+
+In Axon Framework 4, @TargetAggregateIdentifier did two things: it identified the target and acted as the command’s routing key, guaranteeing that commands for the same aggregate were handled by the same instance, one at a time. @TargetEntityId only does the first. To preserve the sequential-handling guarantee you must also make the routing key explicit with @Command(routingKey = "<field>"), naming the field annotated with @TargetEntityId. Effectively, AF4’s @TargetAggregateIdentifier equals AF5’s @TargetEntityId plus @Command(routingKey = "…​").
+
+Omitting the routingKey compiles and passes unit tests, but under concurrent load commands with the same target ID may be handled in parallel, breaking state-based validation.
+
+// AF4
+public class MarkOrderAsShippedCommand {
+    @TargetAggregateIdentifier
+    private String orderId;
+}
+
+// AF5
+@Command(routingKey = "orderId")
+public class MarkOrderAsShippedCommand {
+    @TargetEntityId
+    private String orderId;
+}
+
+Command routing
+
+For commands that require a specific routing key (for example for consistent hashing in a distributed command bus), the @RoutingKey annotation is replaced by the routingKey field in the @Command annotation.
+
+// AF4
+public class MyCommand {
+    @RoutingKey
+    private String someKey;
+}
+
+// AF5
+@Command(routingKey = "someKey")
+public class MyCommand {
+    private String someKey;
+}
+
+Note that in Axon Framework 5, the routingKey property in the annotation refers to the name of the property (field or method) in the class that should be used for routing.
+If a method name is provided, it can be the actual method name (getCardId) or the property name (cardId).
+For more details, see the Configuring routing keys with @Command section in the Command Dispatching guide.
+
+Event tagging for aggregate identification
+
+In Axon Framework 4, events were implicitly associated with an aggregate through the aggregate identifier and the aggregate type, which were stored alongside the event in the event store.
+Axon Framework 5 moves towards a more flexible tagging system.
+
+When migrating events that were previously associated with an aggregate, you must ensure that the event’s aggregate identifier field is annotated with @EventTag.
+
+The key for this tag should reflect the aggregate’s type (typically the simple class name of the aggregate).
+
+This ensures compatibility with an aggregate-based storage solution, wherein events are stored with an aggregate type column.
+
+// AF4
+public class OrderCreatedEvent {
+    private String orderId;
+    // ...
+}
+
+import org.axonframework.eventsourcing.annotation.EventTag;
+
+// AF5
+public class OrderCreatedEvent {
+    @EventTag(key = "Order") // "Order" is the aggregate type
+    private String orderId;
+    // ...
+}
+
+This tagging is crucial for maintaining the link between the event and its entity, enabling correct event sourcing and consistency boundary protection in AF5.
+For more details on migrating to event tagging, see Event tagging migration guide.
+
+      ESC
+
+      ↑↓ navigate
+      ↵ open
+      ESC close
+
+Copyright © 2025 Axoniq BV. All Rights Reserved
+

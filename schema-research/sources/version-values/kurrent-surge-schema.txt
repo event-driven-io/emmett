@@ -1,0 +1,99 @@
+Schema | Kurrent SurgeSkip to content
+
+Kurrent Surge
+SearchCtrlK
+Cancel
+
+GitHubKurrentDBCapacitor
+
+Schema
+Copy Markdown
+
+Open
+Open in ChatGPTOpen in ClaudeOpen in GitHub CopilotView in Markdown
+Share
+Share on LinkedInShare on XShare on ThreadsShare on BlueskyShare on FacebookShare on RedditShare on Hacker NewsShare on EmailShare on WhatsAppShare on Telegram
+
+Collapse sidebar
+
+Every record on a stream carries a schema name, a string identity for its type. Readers use it
+to decide which CLR type to decode into. The registry uses it as the key for storage and
+compatibility rules.
+
+Four things decide what happens to a message:
+
+Step
+Decides
+Page
+
+Catalog
+Which types this client can append and decode
+Catalogs
+
+Name
+The string identity a record carries on the wire
+Schema Names
+
+Format
+How the payload becomes bytes
+Data Formats
+
+Registry
+Whether the shape is registered and checked
+Registration
+
+How the format is chosenSection titled “How the format is chosen”
+
+A record that states a format gets it. A record that states none takes its format from the message
+type: Avro when a codec was generated for it, Protobuf when it is a Protocol Buffers message,
+Json otherwise. See Data Formats.
+
+Nothing is inferredSection titled “Nothing is inferred”
+
+Kurrent Surge never invents a mapping. The set of types a client speaks is exactly what you
+declared, either with attributes on your contracts or with explicit Map calls.
+
+[MessageType<OrderPlaced>("order.placed.v1")]
+
+public record OrderPlaced(string OrderId);
+
+Appending a type no catalog maps throws. There is nothing safe to guess a permanent wire name from,
+and a name guessed today is a contract you cannot change tomorrow.
+
+Reading is deliberately softer. A record whose schema name has no mapping comes back raw, as
+bytes plus the name with no decoded value. An unknown type from a newer producer therefore does not
+kill your subscription.
+
+The registry is opt-inSection titled “The registry is opt-in”
+
+The default is KurrentClientSchemaOptions.Disabled: schema names resolve locally through your
+catalog, and the registry is never consulted. Turn it on when you want registration, validation, or
+both. See Registration.
+
+One definition format, three registered encodingsSection titled “One definition format, three registered encodings”
+
+Your payload can be JSON, Protobuf or Avro on the wire. Whatever the encoding, the definition
+stored in the registry is a JSON Schema, exported from your CLR type. Bytes is the fourth format
+and the exception: it never reaches the registry at all.
+
+That is deliberate. It gives one comparable shape to run compatibility rules against, no matter how
+the bytes were encoded. Data Formats covers what each encoding does and where they
+genuinely differ.
+
+Edit page
+Last updated: Sep 9, 2026
+Previous
+IndexesNext
+Catalogs
+
+Community
+
+Preferences
+
+Dyslexic
+Windows
+
+macOS
+Windows
+Linux
+SHA cac7de7© Kurrent, Inc. 2026
