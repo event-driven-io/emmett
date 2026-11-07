@@ -1,0 +1,4 @@
+usage.ts(22,54): error TS2339: Property 'productId' does not exist on type '{ productId: string; } | { productItem: ProductItem; }'.
+  Property 'productId' does not exist on type '{ productItem: ProductItem; }'.
+usage.ts(46,50): error TS2339: Property 'productId' does not exist on type 'Readonly<{ productItem: ProductItem; }> | Readonly<{ productId: string; }>'.
+  Property 'productId' does not exist on type 'Readonly<{ productItem: ProductItem; }>'.

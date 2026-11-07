@@ -1,0 +1,958 @@
+diff --git a/src/packages/emmett/src/eventStore/afterCommit/afterEventStoreCommitHandler.unit.spec.ts b/src/packages/emmett/src/eventStore/afterCommit/afterEventStoreCommitHandler.unit.spec.ts
+index 128b846..2134947 100644
+--- a/src/packages/emmett/src/eventStore/afterCommit/afterEventStoreCommitHandler.unit.spec.ts
++++ b/src/packages/emmett/src/eventStore/afterCommit/afterEventStoreCommitHandler.unit.spec.ts
+@@ -33,6 +33,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+     const events: TestReadEvent[] = [
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 1 },
+         metadata: {
+@@ -46,6 +47,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+       },
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 2 },
+         metadata: {
+@@ -82,6 +84,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+     const events: TestReadEvent[] = [
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 1 },
+         metadata: {
+@@ -95,6 +98,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+       },
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 2 },
+         metadata: {
+@@ -110,6 +114,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+     const nextEvents: TestReadEvent[] = [
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 3 },
+         metadata: {
+@@ -123,6 +128,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+       },
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 4 },
+         metadata: {
+@@ -166,6 +172,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+     const events: TestReadEvent[] = [
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 1 },
+         metadata: {
+@@ -179,6 +186,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+       },
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 2 },
+         metadata: {
+diff --git a/src/packages/emmett/src/eventStore/afterCommit/forwardToMessageBus.unit.spec.ts b/src/packages/emmett/src/eventStore/afterCommit/forwardToMessageBus.unit.spec.ts
+index 2b2ab50..d163038 100644
+--- a/src/packages/emmett/src/eventStore/afterCommit/forwardToMessageBus.unit.spec.ts
++++ b/src/packages/emmett/src/eventStore/afterCommit/forwardToMessageBus.unit.spec.ts
+@@ -35,6 +35,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+     const events: TestReadEvent[] = [
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 1 },
+         metadata: {
+@@ -48,6 +49,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+       },
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 2 },
+         metadata: {
+@@ -85,6 +87,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+     const events: TestReadEvent[] = [
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 1 },
+         metadata: {
+@@ -98,6 +101,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+       },
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 2 },
+         metadata: {
+@@ -113,6 +117,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+     const nextEvents: TestReadEvent[] = [
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 3 },
+         metadata: {
+@@ -126,6 +131,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+       },
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 4 },
+         metadata: {
+@@ -165,6 +171,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+     const events: TestReadEvent[] = [
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 1 },
+         metadata: {
+@@ -178,6 +185,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
+       },
+       {
+         kind: 'Event',
++        schemaVersion: 1,
+         type: 'test',
+         data: { counter: 2 },
+         metadata: {
+diff --git a/src/packages/emmett/src/eventStore/inMemoryEventStore.ts b/src/packages/emmett/src/eventStore/inMemoryEventStore.ts
+index 0a2cf72..225fa6a 100644
+--- a/src/packages/emmett/src/eventStore/inMemoryEventStore.ts
++++ b/src/packages/emmett/src/eventStore/inMemoryEventStore.ts
+@@ -5,12 +5,13 @@ import {
+ import { withOperationScope } from '../observability';
+ import { bigIntProcessorCheckpoint } from '../processors';
+ import type { ProjectionRegistration } from '../projections';
+-import type {
+-  CombinedReadEventMetadata,
+-  Event,
+-  MessageHandlerContext,
+-  ReadEvent,
+-  ReadEventMetadataWithGlobalPosition,
++import {
++  DefaultMessageSchemaVersion,
++  type CombinedReadEventMetadata,
++  type Event,
++  type MessageHandlerContext,
++  type ReadEvent,
++  type ReadEventMetadataWithGlobalPosition,
+ } from '../typing';
+ import { tryPublishMessagesAfterCommit } from './afterCommit';
+ import type {
+@@ -241,6 +242,7 @@ export const getInMemoryEventStore = (
+             return {
+               ...event,
+               kind: event.kind ?? 'Event',
++              schemaVersion: event.schemaVersion ?? DefaultMessageSchemaVersion,
+               metadata: {
+                 ...('metadata' in event ? (event.metadata ?? {}) : {}),
+                 ...metadata,
+diff --git a/src/packages/emmett/src/eventStore/observability/eventStoreCollector.unit.spec.ts b/src/packages/emmett/src/eventStore/observability/eventStoreCollector.unit.spec.ts
+index 63c4dbe..96e48b7 100644
+--- a/src/packages/emmett/src/eventStore/observability/eventStoreCollector.unit.spec.ts
++++ b/src/packages/emmett/src/eventStore/observability/eventStoreCollector.unit.spec.ts
+@@ -30,6 +30,7 @@ const makeEvents = (types: string[]) =>
+     type,
+     data: {},
+     kind: 'Event' as const,
++    schemaVersion: 1,
+     metadata: {} as AnyRecordedMessageMetadata,
+   }));
+ 
+diff --git a/src/packages/emmett/src/eventStore/projections/inMemory/inMemoryProjectionSpec.ts b/src/packages/emmett/src/eventStore/projections/inMemory/inMemoryProjectionSpec.ts
+index 27d0194..9b95c7b 100644
+--- a/src/packages/emmett/src/eventStore/projections/inMemory/inMemoryProjectionSpec.ts
++++ b/src/packages/emmett/src/eventStore/projections/inMemory/inMemoryProjectionSpec.ts
+@@ -18,10 +18,11 @@ import {
+   assertTrue,
+   type ThenThrows,
+ } from '../../../testing';
+-import type {
+-  CombinedReadEventMetadata,
+-  Event,
+-  ReadEvent,
++import {
++  DefaultMessageSchemaVersion,
++  type CombinedReadEventMetadata,
++  type Event,
++  type ReadEvent,
+ } from '../../../typing';
+ import type {
+   InMemoryEventStore,
+@@ -97,6 +98,7 @@ export const InMemoryProjectionSpec = {
+               allEvents.push({
+                 ...event,
+                 kind: 'Event',
++                schemaVersion: event.schemaVersion ?? DefaultMessageSchemaVersion,
+                 metadata: {
+                   ...metadata,
+                   ...('metadata' in event ? (event.metadata ?? {}) : {}),
+diff --git a/src/packages/emmett/src/eventStore/versioning/downcasting.ts b/src/packages/emmett/src/eventStore/versioning/downcasting.ts
+index 13daf0a..de95314 100644
+--- a/src/packages/emmett/src/eventStore/versioning/downcasting.ts
++++ b/src/packages/emmett/src/eventStore/versioning/downcasting.ts
+@@ -60,6 +60,9 @@ export const downcastRecordedMessage = <
+           },
+         }
+       : {}),
++    ...(downcasted.schemaVersion !== undefined
++      ? { schemaVersion: downcasted.schemaVersion }
++      : {}),
+   } as unknown as RecordedMessage<
+     MessagePayloadType,
+     RecordedMessageMetadataType
+diff --git a/src/packages/emmett/src/eventStore/versioning/upcasting.ts b/src/packages/emmett/src/eventStore/versioning/upcasting.ts
+index af717c9..62a37bb 100644
+--- a/src/packages/emmett/src/eventStore/versioning/upcasting.ts
++++ b/src/packages/emmett/src/eventStore/versioning/upcasting.ts
+@@ -60,6 +60,9 @@ export const upcastRecordedMessage = <
+           },
+         }
+       : {}),
++    ...(upcasted.schemaVersion !== undefined
++      ? { schemaVersion: upcasted.schemaVersion }
++      : {}),
+   } as unknown as RecordedMessage<MessageType, RecordedMessageMetadataType>;
+ };
+ 
+diff --git a/src/packages/emmett/src/processors/observability/processorCollector.unit.spec.ts b/src/packages/emmett/src/processors/observability/processorCollector.unit.spec.ts
+index a1979e8..d4803ee 100644
+--- a/src/packages/emmett/src/processors/observability/processorCollector.unit.spec.ts
++++ b/src/packages/emmett/src/processors/observability/processorCollector.unit.spec.ts
+@@ -34,6 +34,7 @@ const makeMessage = (type: string, meta: Record<string, unknown> = {}) => ({
+   type,
+   data: {},
+   kind: 'Event' as const,
++  schemaVersion: 1,
+   metadata: meta as unknown as AnyRecordedMessageMetadata,
+ });
+ 
+diff --git a/src/packages/emmett/src/processors/processors.observability.unit.spec.ts b/src/packages/emmett/src/processors/processors.observability.unit.spec.ts
+index 27180de..2a28056 100644
+--- a/src/packages/emmett/src/processors/processors.observability.unit.spec.ts
++++ b/src/packages/emmett/src/processors/processors.observability.unit.spec.ts
+@@ -35,6 +35,7 @@ const makeMessage = (type: string, meta: Record<string, unknown> = {}) => ({
+   type,
+   data: {},
+   kind: 'Event' as const,
++  schemaVersion: 1,
+   metadata: meta as unknown as AnyRecordedMessageMetadata,
+ });
+ 
+diff --git a/src/packages/emmett/src/processors/processors.unit.spec.ts b/src/packages/emmett/src/processors/processors.unit.spec.ts
+index a6b3826..9b87286 100644
+--- a/src/packages/emmett/src/processors/processors.unit.spec.ts
++++ b/src/packages/emmett/src/processors/processors.unit.spec.ts
+@@ -285,6 +285,7 @@ void describe('Processors', () => {
+       > = {
+         type: 'test',
+         kind: 'Event',
++        schemaVersion: 1,
+         data: { counter: 1 },
+         metadata: {
+           streamName: 'test-stream',
+@@ -349,6 +350,7 @@ void describe('Processors', () => {
+           {
+             ...event1,
+             kind: 'Event',
++            schemaVersion: 1,
+             metadata: {
+               streamName: 'test-stream',
+               messageId: uuid(),
+@@ -360,6 +362,7 @@ void describe('Processors', () => {
+           {
+             ...event2,
+             kind: 'Event',
++            schemaVersion: 1,
+             metadata: {
+               streamName: 'test-stream',
+               messageId: uuid(),
+@@ -417,6 +420,7 @@ void describe('Processors', () => {
+           {
+             ...event1,
+             kind: 'Event',
++            schemaVersion: 1,
+             metadata: {
+               streamName: 'test-stream',
+               messageId: uuid(),
+@@ -428,6 +432,7 @@ void describe('Processors', () => {
+           {
+             ...event2,
+             kind: 'Event',
++            schemaVersion: 1,
+             metadata: {
+               streamName: 'test-stream',
+               messageId: uuid(),
+@@ -478,6 +483,7 @@ void describe('Processors', () => {
+         {
+           ...event1,
+           kind: 'Event',
++          schemaVersion: 1,
+           metadata: {
+             streamName: 'test-stream',
+             messageId: uuid(),
+@@ -489,6 +495,7 @@ void describe('Processors', () => {
+         {
+           ...event2,
+           kind: 'Event',
++          schemaVersion: 1,
+           metadata: {
+             streamName: 'test-stream',
+             messageId: uuid(),
+@@ -500,6 +507,7 @@ void describe('Processors', () => {
+         {
+           ...event3,
+           kind: 'Event',
++          schemaVersion: 1,
+           metadata: {
+             streamName: 'test-stream',
+             messageId: uuid(),
+@@ -511,6 +519,7 @@ void describe('Processors', () => {
+         {
+           ...event4,
+           kind: 'Event',
++          schemaVersion: 1,
+           metadata: {
+             streamName: 'test-stream',
+             messageId: uuid(),
+@@ -587,6 +596,7 @@ void describe('Processors', () => {
+       > = {
+         ...event,
+         kind: 'Event',
++        schemaVersion: 1,
+         metadata: {
+           streamName: 'test-stream',
+           messageId: uuid(),
+@@ -643,6 +653,7 @@ void describe('Processors', () => {
+         type: 'test',
+         data: { counter },
+         kind: 'Event',
++        schemaVersion: 1,
+         metadata: {
+           streamName: 'test-stream',
+           messageId: uuid(),
+@@ -690,6 +701,7 @@ void describe('Processors', () => {
+       >[] = [1n, 2n, 3n, 4n].map((position) => ({
+         ...event,
+         kind: 'Event',
++        schemaVersion: 1,
+         metadata: {
+           streamName: 'test-stream',
+           messageId: uuid(),
+@@ -733,6 +745,7 @@ void describe('Processors', () => {
+     > => ({
+       type: 'test',
+       kind: 'Event',
++      schemaVersion: 1,
+       data: { counter: Number(position) },
+       metadata: {
+         streamName: 'test-stream',
+@@ -1047,6 +1060,7 @@ void describe('Processors', () => {
+       amounts.map((amount, i) => ({
+         type: 'OrderPlaced',
+         kind: 'Event',
++        schemaVersion: 1,
+         data: { amount },
+         metadata: {
+           streamName: 'orders',
+@@ -1326,6 +1340,7 @@ void describe('Processors', () => {
+         {
+           ...event1,
+           kind: 'Event',
++          schemaVersion: 1,
+           metadata: {
+             streamName: 'test-stream',
+             messageId: uuid(),
+@@ -1337,6 +1352,7 @@ void describe('Processors', () => {
+         {
+           ...event2,
+           kind: 'Event',
++          schemaVersion: 1,
+           metadata: {
+             streamName: 'test-stream',
+             messageId: uuid(),
+diff --git a/src/packages/emmett/src/typing/command.ts b/src/packages/emmett/src/typing/command.ts
+index f0d31e3..fb29772 100644
+--- a/src/packages/emmett/src/typing/command.ts
++++ b/src/packages/emmett/src/typing/command.ts
+@@ -1,9 +1,14 @@
+ import type { DefaultRecord } from './';
++import type {
++  SchemaVersionProperty,
++  WithSchemaVersionArgument,
++} from './message';
+ 
+ export type Command<
+   CommandType extends string = string,
+   CommandData extends DefaultRecord = DefaultRecord,
+   CommandMetaData extends DefaultRecord | undefined = undefined,
++  SchemaVersion extends number = string extends CommandType ? number : 1,
+ > = Readonly<
+   CommandMetaData extends undefined
+     ? {
+@@ -16,10 +21,10 @@ export type Command<
+         data: CommandData;
+         metadata: CommandMetaData;
+       }
+-> & { readonly kind?: 'Command' };
++> & { readonly kind?: 'Command' } & SchemaVersionProperty<CommandType, SchemaVersion>;
+ 
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
+-export type AnyCommand = Command<any, any, any>;
++export type AnyCommand = Command<any, any, any, any>;
+ 
+ export type CommandTypeOf<T extends Command> = T['type'];
+ export type CommandDataOf<T extends Command> = T['data'];
+@@ -48,24 +53,38 @@ export type CreateCommandType<
+ > & { readonly kind?: 'Command' };
+ 
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
+-export const command = <CommandType extends Command<string, any, any>>(
++export const command = <CommandType extends Command<string, any, any, any>>(
+   ...args: CommandMetaDataOf<CommandType> extends undefined
+-    ? [
+-        type: CommandTypeOf<CommandType>,
+-        data: CommandDataOf<CommandType>,
+-        metadata?: DefaultCommandMetadata | undefined,
+-      ]
+-    : [
+-        type: CommandTypeOf<CommandType>,
+-        data: CommandDataOf<CommandType>,
+-        metadata: CommandMetaDataOf<CommandType>,
+-      ]
++    ? undefined extends CommandType['schemaVersion']
++      ? [
++          type: CommandTypeOf<CommandType>,
++          data: CommandDataOf<CommandType>,
++          metadata?: DefaultCommandMetadata | undefined,
++        ]
++      : WithSchemaVersionArgument<
++          CommandType,
++          [type: CommandTypeOf<CommandType>, data: CommandDataOf<CommandType>]
++        >
++    : WithSchemaVersionArgument<
++        CommandType,
++        [
++          type: CommandTypeOf<CommandType>,
++          data: CommandDataOf<CommandType>,
++          metadata: CommandMetaDataOf<CommandType>,
++        ]
++      >
+ ): CommandType => {
+-  const [type, data, metadata] = args;
++  const [type, data, third, fourth] = args as unknown[];
++  const metadata = typeof third === 'number' ? undefined : third;
++  const schemaVersion = typeof third === 'number' ? third : fourth;
+ 
+-  return metadata !== undefined
+-    ? ({ type, data, metadata, kind: 'Command' } as CommandType)
+-    : ({ type, data, kind: 'Command' } as CommandType);
++  return {
++    type,
++    data,
++    ...(metadata !== undefined ? { metadata } : {}),
++    kind: 'Command',
++    ...(schemaVersion !== undefined ? { schemaVersion } : {}),
++  } as CommandType;
+ };
+ 
+ export type DefaultCommandMetadata = { now: Date };
+diff --git a/src/packages/emmett/src/typing/event.ts b/src/packages/emmett/src/typing/event.ts
+index 36eae61..67a9c75 100644
+--- a/src/packages/emmett/src/typing/event.ts
++++ b/src/packages/emmett/src/typing/event.ts
+@@ -7,6 +7,8 @@ import type {
+   RecordedMessageMetadata,
+   RecordedMessageMetadataWithGlobalPosition,
+   RecordedMessageMetadataWithoutGlobalPosition,
++  SchemaVersionProperty,
++  WithSchemaVersionArgument,
+ } from './message';
+ 
+ export type StreamPosition = bigint;
+@@ -16,6 +18,7 @@ export type Event<
+   EventType extends string = string,
+   EventData extends DefaultRecord = DefaultRecord,
+   EventMetaData extends DefaultRecord | undefined = undefined,
++  SchemaVersion extends number = string extends EventType ? number : 1,
+ > = Readonly<
+   EventMetaData extends undefined
+     ? {
+@@ -27,10 +30,10 @@ export type Event<
+         data: EventData;
+         metadata: EventMetaData;
+       }
+-> & { readonly kind?: 'Event' };
++> & { readonly kind?: 'Event' } & SchemaVersionProperty<EventType, SchemaVersion>;
+ 
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
+-export type AnyEvent = Event<any, any, any>;
++export type AnyEvent = Event<any, any, any, any>;
+ 
+ export type EventTypeOf<T extends Event> = T['type'];
+ export type EventDataOf<T extends Event> = T['data'];
+@@ -56,20 +59,32 @@ export type CreateEventType<
+ > & { readonly kind?: 'Event' };
+ 
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
+-export const event = <EventType extends Event<string, any, any>>(
++export const event = <EventType extends Event<string, any, any, any>>(
+   ...args: EventMetaDataOf<EventType> extends undefined
+-    ? [type: EventTypeOf<EventType>, data: EventDataOf<EventType>]
+-    : [
+-        type: EventTypeOf<EventType>,
+-        data: EventDataOf<EventType>,
+-        metadata: EventMetaDataOf<EventType>,
+-      ]
++    ? WithSchemaVersionArgument<
++        EventType,
++        [type: EventTypeOf<EventType>, data: EventDataOf<EventType>]
++      >
++    : WithSchemaVersionArgument<
++        EventType,
++        [
++          type: EventTypeOf<EventType>,
++          data: EventDataOf<EventType>,
++          metadata: EventMetaDataOf<EventType>,
++        ]
++      >
+ ): EventType => {
+-  const [type, data, metadata] = args;
++  const [type, data, third, fourth] = args as unknown[];
++  const metadata = typeof third === 'number' ? undefined : third;
++  const schemaVersion = typeof third === 'number' ? third : fourth;
+ 
+-  return metadata !== undefined
+-    ? ({ type, data, metadata, kind: 'Event' } as EventType)
+-    : ({ type, data, kind: 'Event' } as EventType);
++  return {
++    type,
++    data,
++    ...(metadata !== undefined ? { metadata } : {}),
++    kind: 'Event',
++    ...(schemaVersion !== undefined ? { schemaVersion } : {}),
++  } as EventType;
+ };
+ 
+ export type CombinedReadEventMetadata<
+diff --git a/src/packages/emmett/src/typing/message.ts b/src/packages/emmett/src/typing/message.ts
+index 22fda66..6b7893e 100644
+--- a/src/packages/emmett/src/typing/message.ts
++++ b/src/packages/emmett/src/typing/message.ts
+@@ -13,7 +13,19 @@ export type Message<
+   Type extends string = string,
+   Data extends DefaultRecord = DefaultRecord,
+   MetaData extends DefaultRecord | undefined = undefined,
+-> = Command<Type, Data, MetaData> | Event<Type, Data, MetaData>;
++  SchemaVersion extends number = string extends Type ? number : 1,
++>=
++  | Command<Type, Data, MetaData, SchemaVersion>
++  | Event<Type, Data, MetaData, SchemaVersion>;
++
++export type SchemaVersionProperty<
++  _Type extends string,
++  SchemaVersion extends number,
++> = number extends SchemaVersion
++  ? { readonly schemaVersion?: SchemaVersion }
++  : SchemaVersion extends 1
++    ? { readonly schemaVersion?: SchemaVersion }
++    : { readonly schemaVersion: SchemaVersion };
+ 
+ export type AnyMessage = AnyEvent | AnyCommand;
+ 
+@@ -25,29 +37,51 @@ export type MessageMetaDataOf<T extends Message> = T extends {
+ }
+   ? M
+   : undefined;
++export type MessageSchemaVersionOf<T extends Message> = NonNullable<
++  T['schemaVersion']
++>;
++
++export type WithSchemaVersionArgument<
++  MessageType extends Message,
++  Args extends unknown[],
++> = undefined extends MessageType['schemaVersion']
++  ? Args
++  : [...Args, schemaVersion: MessageSchemaVersionOf<MessageType>];
+ 
+ export type CanHandle<T extends Message> = MessageTypeOf<T>[];
+ 
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
+-export const message = <MessageType extends Message<string, any, any>>(
++export const message = <MessageType extends Message<string, any, any, any>>(
+   ...args: MessageMetaDataOf<MessageType> extends undefined
+-    ? [
+-        kind: MessageKindOf<MessageType>,
+-        type: MessageTypeOf<MessageType>,
+-        data: MessageDataOf<MessageType>,
+-      ]
+-    : [
+-        kind: MessageKindOf<MessageType>,
+-        type: MessageTypeOf<MessageType>,
+-        data: MessageDataOf<MessageType>,
+-        metadata: MessageMetaDataOf<MessageType>,
+-      ]
++    ? WithSchemaVersionArgument<
++        MessageType,
++        [
++          kind: MessageKindOf<MessageType>,
++          type: MessageTypeOf<MessageType>,
++          data: MessageDataOf<MessageType>,
++        ]
++      >
++    : WithSchemaVersionArgument<
++        MessageType,
++        [
++          kind: MessageKindOf<MessageType>,
++          type: MessageTypeOf<MessageType>,
++          data: MessageDataOf<MessageType>,
++          metadata: MessageMetaDataOf<MessageType>,
++        ]
++      >
+ ): MessageType => {
+-  const [kind, type, data, metadata] = args;
+-
+-  return metadata !== undefined
+-    ? ({ type, data, metadata, kind } as MessageType)
+-    : ({ type, data, kind } as MessageType);
++  const [kind, type, data, fourth, fifth] = args as unknown[];
++  const metadata = typeof fourth === 'number' ? undefined : fourth;
++  const schemaVersion = typeof fourth === 'number' ? fourth : fifth;
++
++  return {
++    type,
++    data,
++    ...(metadata !== undefined ? { metadata } : {}),
++    kind,
++    ...(schemaVersion !== undefined ? { schemaVersion } : {}),
++  } as MessageType;
+ };
+ 
+ export type CombinedMessageMetadata<
+@@ -71,15 +105,15 @@ export type RecordedMessage<
+     AnyRecordedMessageMetadata,
+ > = CombineMetadata<MessageType, MessageMetaDataType> & {
+   kind: NonNullable<MessageKindOf<Message>>;
++  readonly schemaVersion: number;
+ };
+ 
+-export const DefaultMessageSchemaVersion = '1';
++export const DefaultMessageSchemaVersion = 1;
+ 
+ export type CommonRecordedMessageMetadata = Readonly<{
+   messageId: string;
+   streamPosition: StreamPosition;
+   streamName: string;
+-  schemaVersion?: string;
+   checkpoint?: ProcessorCheckpoint | null;
+   correlationId?: string;
+   causationId?: string;
+diff --git a/src/packages/emmett-esdb/src/eventStore/consumers/eventStoreDBCheckpointer.int.spec.ts b/src/packages/emmett-esdb/src/eventStore/consumers/eventStoreDBCheckpointer.int.spec.ts
+index 63a72cc..9a839f2 100644
+--- a/src/packages/emmett-esdb/src/eventStore/consumers/eventStoreDBCheckpointer.int.spec.ts
++++ b/src/packages/emmett-esdb/src/eventStore/consumers/eventStoreDBCheckpointer.int.spec.ts
+@@ -207,6 +207,7 @@ void describe('EventStoreDB processor checkpointer', () => {
+       ReadEventMetadataWithGlobalPosition
+     > = {
+       kind: 'Event',
++      schemaVersion: 1,
+       type: 'TestEvent',
+       data: {},
+       metadata: {
+diff --git a/src/packages/emmett-esdb/src/eventStore/consumers/eventStoreDBEventStoreConsumer.observability.unit.spec.ts b/src/packages/emmett-esdb/src/eventStore/consumers/eventStoreDBEventStoreConsumer.observability.unit.spec.ts
+index 95b3319..fb685c2 100644
+--- a/src/packages/emmett-esdb/src/eventStore/consumers/eventStoreDBEventStoreConsumer.observability.unit.spec.ts
++++ b/src/packages/emmett-esdb/src/eventStore/consumers/eventStoreDBEventStoreConsumer.observability.unit.spec.ts
+@@ -17,6 +17,7 @@ const makeMessage = (
+ ) => ({
+   type,
+   kind: 'Event' as const,
++  schemaVersion: 1,
+   data: {},
+   metadata: {
+     globalPosition: 1n,
+diff --git a/src/packages/emmett-postgresql/src/eventStore/projections/postgresProjectionSpec.ts b/src/packages/emmett-postgresql/src/eventStore/projections/postgresProjectionSpec.ts
+index e318a87..7308d77 100644
+--- a/src/packages/emmett-postgresql/src/eventStore/projections/postgresProjectionSpec.ts
++++ b/src/packages/emmett-postgresql/src/eventStore/projections/postgresProjectionSpec.ts
+@@ -13,6 +13,7 @@ import {
+   AssertionError,
+   assertThatArray,
+   assertTrue,
++  DefaultMessageSchemaVersion,
+   isErrorConstructor,
+   type CombinedReadEventMetadata,
+   type Event,
+@@ -147,6 +148,7 @@ export const PostgreSQLProjectionSpec = {
+                 allEvents.push({
+                   ...event,
+                   kind: 'Event',
++                  schemaVersion: event.schemaVersion ?? DefaultMessageSchemaVersion,
+                   metadata: {
+                     ...metadata,
+                     ...('metadata' in event ? (event.metadata ?? {}) : {}),
+diff --git a/src/packages/emmett-postgresql/src/eventStore/schema/appendToStream.ts b/src/packages/emmett-postgresql/src/eventStore/schema/appendToStream.ts
+index 86c4099..cc5027b 100644
+--- a/src/packages/emmett-postgresql/src/eventStore/schema/appendToStream.ts
++++ b/src/packages/emmett-postgresql/src/eventStore/schema/appendToStream.ts
+@@ -350,7 +350,7 @@ export const appentToStreamRaw = (
+           return rawMetadata;
+         }),
+         schemaVersions: messages.map(
+-          (e) => e.metadata.schemaVersion ?? DefaultMessageSchemaVersion,
++          (e) => String(e.schemaVersion ?? DefaultMessageSchemaVersion),
+         ),
+         messageTypes: messages.map((e) => e.type),
+         messageKinds: messages.map((e) => (e.kind === 'Event' ? 'E' : 'C')),
+diff --git a/src/packages/emmett-postgresql/src/eventStore/schema/readMessagesBatch.int.spec.ts b/src/packages/emmett-postgresql/src/eventStore/schema/readMessagesBatch.int.spec.ts
+index 8f16482..bf0a70d 100644
+--- a/src/packages/emmett-postgresql/src/eventStore/schema/readMessagesBatch.int.spec.ts
++++ b/src/packages/emmett-postgresql/src/eventStore/schema/readMessagesBatch.int.spec.ts
+@@ -59,6 +59,7 @@ void describe('reading messages in batches', () => {
+   ): RecordedMessage => ({
+     type: 'TestEvent',
+     kind: 'Event',
++    schemaVersion: 1,
+     data: { meta },
+     metadata: {
+       messageId: uuid(),
+@@ -569,12 +570,12 @@ void describe('reading messages in batches', () => {
+       {
+         type: 'TestEvent',
+         kind: 'Event',
++        schemaVersion: 2,
+         data: { meta: 'evt1' },
+         metadata: {
+           messageId: uuid(),
+           streamName: streamId,
+           streamPosition: '1' as unknown as bigint,
+-          schemaVersion: '2',
+         } satisfies AnyRecordedMessageMetadata,
+       },
+     ]);
+@@ -585,8 +586,8 @@ void describe('reading messages in batches', () => {
+     });
+ 
+     assertDeepEqual(
+-      poll.messages.map((m) => m.metadata.schemaVersion),
+-      ['2'],
++      poll.messages.map((m) => m.schemaVersion),
++      [2],
+     );
+   });
+ 
+@@ -603,8 +604,8 @@ void describe('reading messages in batches', () => {
+     });
+ 
+     assertDeepEqual(
+-      poll.messages.map((m) => m.metadata.schemaVersion),
+-      ['1'],
++      poll.messages.map((m) => m.schemaVersion),
++      [1],
+     );
+   });
+ });
+diff --git a/src/packages/emmett-postgresql/src/eventStore/schema/readMessagesBatch.ts b/src/packages/emmett-postgresql/src/eventStore/schema/readMessagesBatch.ts
+index 6830efc..f1f9351 100644
+--- a/src/packages/emmett-postgresql/src/eventStore/schema/readMessagesBatch.ts
++++ b/src/packages/emmett-postgresql/src/eventStore/schema/readMessagesBatch.ts
+@@ -152,7 +152,6 @@ export const readMessagesBatch = async <
+           });
+ 
+         const metadata: RecordedMessageMetadataWithGlobalPosition = {
+-          schemaVersion: DefaultMessageSchemaVersion,
+           ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
+           messageId: row.message_id,
+           streamName: row.stream_id,
+@@ -164,6 +163,7 @@ export const readMessagesBatch = async <
+         return {
+           ...rawEvent,
+           kind: 'Event',
++          schemaVersion: DefaultMessageSchemaVersion,
+           metadata: metadata as CombinedMessageMetadata<
+             MessageType,
+             RecordedMessageMetadataType
+diff --git a/src/packages/emmett-postgresql/src/eventStore/schema/readStream.int.spec.ts b/src/packages/emmett-postgresql/src/eventStore/schema/readStream.int.spec.ts
+index 870d6ca..4fc1763 100644
+--- a/src/packages/emmett-postgresql/src/eventStore/schema/readStream.int.spec.ts
++++ b/src/packages/emmett-postgresql/src/eventStore/schema/readStream.int.spec.ts
+@@ -186,8 +186,8 @@ void describe('readStream', () => {
+     const result = await readStream(pool.execute, streamId);
+ 
+     assertDeepEqual(
+-      result.events.map((e) => e.metadata.schemaVersion),
+-      ['2'],
++      result.events.map((e) => e.schemaVersion),
++      [2],
+     );
+   });
+ 
+@@ -200,8 +200,8 @@ void describe('readStream', () => {
+     const result = await readStream(pool.execute, streamId);
+ 
+     assertDeepEqual(
+-      result.events.map((e) => e.metadata.schemaVersion),
+-      ['1', '1'],
++      result.events.map((e) => e.schemaVersion),
++      [1, 1],
+     );
+   });
+ 
+diff --git a/src/packages/emmett-postgresql/src/eventStore/schema/readStream.ts b/src/packages/emmett-postgresql/src/eventStore/schema/readStream.ts
+index 7336288..1ad3155 100644
+--- a/src/packages/emmett-postgresql/src/eventStore/schema/readStream.ts
++++ b/src/packages/emmett-postgresql/src/eventStore/schema/readStream.ts
+@@ -74,7 +74,6 @@ export const readStream = async <
+           });
+ 
+         const metadata: ReadEventMetadataWithGlobalPosition = {
+-          schemaVersion: DefaultMessageSchemaVersion,
+           ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
+           messageId: row.message_id,
+           streamName: streamId,
+diff --git a/src/packages/emmett-postgresql/src/node/streaming/subscriptions/caughtUpTransformStream.unit.spec.ts b/src/packages/emmett-postgresql/src/node/streaming/subscriptions/caughtUpTransformStream.unit.spec.ts
+index 0ec448c..2dd13c7 100644
+--- a/src/packages/emmett-postgresql/src/node/streaming/subscriptions/caughtUpTransformStream.unit.spec.ts
++++ b/src/packages/emmett-postgresql/src/node/streaming/subscriptions/caughtUpTransformStream.unit.spec.ts
+@@ -25,6 +25,7 @@ void describe('CaughtUpTransformStream', () => {
+   ): ReadEvent<ShoppingCartOpened, ReadEventMetadataWithGlobalPosition> => ({
+     type: 'ShoppingCartOpened',
+     kind: 'Event',
++    schemaVersion: 1,
+     data: { cartId: 'cartId' },
+     metadata: {
+       messageId: uuid(),
+diff --git a/src/packages/emmett-postgresql/src/node/streaming/subscriptions/streamingCoordinator.unit.spec.ts b/src/packages/emmett-postgresql/src/node/streaming/subscriptions/streamingCoordinator.unit.spec.ts
+index bdd9674..33c1544 100644
+--- a/src/packages/emmett-postgresql/src/node/streaming/subscriptions/streamingCoordinator.unit.spec.ts
++++ b/src/packages/emmett-postgresql/src/node/streaming/subscriptions/streamingCoordinator.unit.spec.ts
+@@ -152,6 +152,7 @@ const createMockEvent = (
+ ): ReadEvent<MockEvent, ReadEventMetadataWithGlobalPosition> => ({
+   type: 'Mocked',
+   kind: 'Event',
++  schemaVersion: 1,
+   data: { mocked: true },
+   metadata: {
+     streamName: 'testStream',
+diff --git a/src/packages/emmett-sqlite/src/eventStore/projections/sqliteProjectionSpec.ts b/src/packages/emmett-sqlite/src/eventStore/projections/sqliteProjectionSpec.ts
+index 74be72b..6ad3d3f 100644
+--- a/src/packages/emmett-sqlite/src/eventStore/projections/sqliteProjectionSpec.ts
++++ b/src/packages/emmett-sqlite/src/eventStore/projections/sqliteProjectionSpec.ts
+@@ -8,6 +8,7 @@ import {
+   assertThatArray,
+   assertTrue,
+   bigIntProcessorCheckpoint,
++  DefaultMessageSchemaVersion,
+   isErrorConstructor,
+   type CombinedReadEventMetadata,
+   type Event,
+@@ -157,6 +158,7 @@ export const SQLiteProjectionSpec = {
+                 allEvents.push({
+                   ...event,
+                   kind: 'Event',
++                  schemaVersion: event.schemaVersion ?? DefaultMessageSchemaVersion,
+                   metadata: {
+                     ...metadata,
+                     ...('metadata' in event ? (event.metadata ?? {}) : {}),
+diff --git a/src/packages/emmett-sqlite/src/eventStore/schema/appendToStream.ts b/src/packages/emmett-sqlite/src/eventStore/schema/appendToStream.ts
+index 4ac163a..e0e60a9 100644
+--- a/src/packages/emmett-sqlite/src/eventStore/schema/appendToStream.ts
++++ b/src/packages/emmett-sqlite/src/eventStore/schema/appendToStream.ts
+@@ -290,7 +290,7 @@ const buildMessageInsertQuery = (
+     const streamPosition =
+       BigInt(message.metadata.streamPosition) + BigInt(expectedStreamVersion);
+ 
+-    return SQL`(${streamId},${streamPosition ?? 0n},${partition ?? defaultTag},${message.kind === 'Event' ? 'E' : 'C'},${message.data},${message.metadata},${message.metadata.schemaVersion ?? DefaultMessageSchemaVersion},${message.type},${message.metadata.messageId},${false})`;
++    return SQL`(${streamId},${streamPosition ?? 0n},${partition ?? defaultTag},${message.kind === 'Event' ? 'E' : 'C'},${message.data},${message.metadata},${message.schemaVersion ?? DefaultMessageSchemaVersion},${message.type},${message.metadata.messageId},${false})`;
+   });
+ 
+   return SQL`
+diff --git a/src/packages/emmett-sqlite/src/eventStore/schema/readMessagesBatch.ts b/src/packages/emmett-sqlite/src/eventStore/schema/readMessagesBatch.ts
+index f346ba0..3f14767 100644
+--- a/src/packages/emmett-sqlite/src/eventStore/schema/readMessagesBatch.ts
++++ b/src/packages/emmett-sqlite/src/eventStore/schema/readMessagesBatch.ts
+@@ -101,7 +101,6 @@ export const readMessagesBatch = async <
+         );
+ 
+         const metadata: RecordedMessageMetadataWithGlobalPosition = {
+-          schemaVersion: DefaultMessageSchemaVersion,
+           ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
+           messageId: row.message_id,
+           streamName: row.stream_id,
+@@ -113,6 +112,7 @@ export const readMessagesBatch = async <
+         return {
+           ...rawEvent,
+           kind: 'Event',
++          schemaVersion: DefaultMessageSchemaVersion,
+           metadata: metadata as CombinedMessageMetadata<
+             MessageType,
+             RecordedMessageMetadataType
+diff --git a/src/packages/emmett-sqlite/src/eventStore/schema/readStream.ts b/src/packages/emmett-sqlite/src/eventStore/schema/readStream.ts
+index 18bc9d5..9663ee8 100644
+--- a/src/packages/emmett-sqlite/src/eventStore/schema/readStream.ts
++++ b/src/packages/emmett-sqlite/src/eventStore/schema/readStream.ts
+@@ -69,7 +69,6 @@ export const readStream = async <
+       } as unknown as EventPayloadType;
+ 
+       const metadata: ReadEventMetadataWithGlobalPosition = {
+-        schemaVersion: DefaultMessageSchemaVersion,
+         ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
+         messageId: row.message_id,
+         streamName: streamId,
+diff --git a/src/packages/emmett-sqlite/src/storage/sqlite3/eventStore/schema/readStream.int.spec.ts b/src/packages/emmett-sqlite/src/storage/sqlite3/eventStore/schema/readStream.int.spec.ts
+index 223d936..dc874a0 100644
+--- a/src/packages/emmett-sqlite/src/storage/sqlite3/eventStore/schema/readStream.int.spec.ts
++++ b/src/packages/emmett-sqlite/src/storage/sqlite3/eventStore/schema/readStream.int.spec.ts
+@@ -135,8 +135,8 @@ void describe('appendEvent', () => {
+     });
+ 
+     assertDeepEqual(
+-      result.events.map((e) => e.metadata.schemaVersion),
+-      ['2'],
++      result.events.map((e) => e.schemaVersion),
++      [2],
+     );
+   });
+ 
+@@ -149,8 +149,8 @@ void describe('appendEvent', () => {
+     });
+ 
+     assertDeepEqual(
+-      result.events.map((e) => e.metadata.schemaVersion),
+-      ['1', '1'],
++      result.events.map((e) => e.schemaVersion),
++      [1, 1],
+     );
+   });
+ 
+diff --git a/samples/cloudflare/durable-objects/src/shoppingCarts/projections.unit.spec.ts b/samples/cloudflare/durable-objects/src/shoppingCarts/projections.unit.spec.ts
+index 37305d4..629495e 100644
+--- a/samples/cloudflare/durable-objects/src/shoppingCarts/projections.unit.spec.ts
++++ b/samples/cloudflare/durable-objects/src/shoppingCarts/projections.unit.spec.ts
+@@ -67,6 +67,7 @@ describe('Shopping cart projections', () => {
+     events.map((event, index) => ({
+       ...event,
+       kind: 'Event',
++      schemaVersion: 1,
+       metadata: {
+         ...event.metadata,
+         messageId: crypto.randomUUID(),
