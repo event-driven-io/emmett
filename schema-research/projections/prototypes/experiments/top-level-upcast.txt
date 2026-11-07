@@ -1,0 +1,1 @@
+{"type":"ShoppingCartConfirmed","schemaVersion":2,"data":{"clientId":"c1","totalAmount":10},"metadata":{"clientId":"client-1"}}

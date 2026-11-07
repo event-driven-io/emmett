@@ -57,7 +57,7 @@ Checked, not decisions:
 - A definition lists its versions, each with its own schema. This was my proposal (Q4 follow-ups); Oskar's later answers build on it (Q7) but never confirmed it.
 - Upcast and downcast are optional (Q4 follow-up, "I assume that this upcast and downcast should be optional?").
 - Users may remove old versions from the list. Oskar does not recommend it, but it is allowed (Q7).
-- The upcast is one function written by the user, not one function per step (Q11). This followed Oskar's questions "Why would we do one step at a time? Isn't that an overhead?" and "Why single function has no schemas, can't we have union type based on the schema version?" (Q4 follow-ups). Example from the PoC ([explicit-version-types.ts](prototypes/experiments/explicit-version-types.ts)):
+- The upcast is one function written by the user, not one function per step (Q11). This followed Oskar's questions "Why would we do one step at a time? Isn't that an overhead?" and "Why single function has no schemas, can't we have union type based on the schema version?" (Q4 follow-ups). Example from the PoC ([explicit-version-types.ts](prototypes/experiments/explicit-version-types.ts)). The PoC was written before Q12, so it keeps the version in `metadata` and wraps the message. With `schemaVersion` at the top level, `switch (event.schemaVersion)` narrows without the wrapper ([top-level-upcast.ts](prototypes/experiments/top-level-upcast.ts)), as in [../spec.md](../spec.md) section 8.3.
 
 ```ts
 const upcast = ({ schemaVersion, message }: Versions['Any']): Versions[2] => {

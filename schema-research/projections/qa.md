@@ -792,3 +792,17 @@ Oskar, after my thoughts on giving definitions to the command handler (verbatim,
 Decision: the command handler (and workflows) can take definitions, but definitions are optional. Without them, Emmett works as today.
 
 Follow-up: without definitions, nothing knows the latest version, so a hand-written event without `schemaVersion` reaches the store with no version. Data from 0.42 and earlier has none either, and reads it as 1 (Q5). Asked to confirm that a missing version without definitions is read as 1, the same as old data.
+
+### What can already go into the spec
+
+Oskar (verbatim):
+
+> Ok, so what can we already bring to spec?
+
+Answer: listed the points that need no open decision (projection scope, validation opt-in, the conversion principle, the number, the top-level `schemaVersion` required on recorded events, the single upcast, optional definitions, no default of 1) and the points that would force an answer (`currentVersion` versus picking explicitly, downcast form, removal anchor, newer versions, store layout, missing version without definitions, `version` option, registration, query filter conversion). Asked whether to start `projections/spec.md` and rewrite `../spec.md` sections 4.1, 4.6, 7.2 and 8.
+
+Oskar (verbatim):
+
+> Ok, then bring what could be brought
+
+Decision: write the agreed points into `projections/spec.md` and `../spec.md`; open points go to the open questions of each spec.
