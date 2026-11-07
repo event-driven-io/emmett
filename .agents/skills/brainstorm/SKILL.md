@@ -5,20 +5,14 @@ description: Develop an idea iteratively into a detailed specification by asking
 
 # Brainstorm an idea
 
-Turn the user's idea into a detailed specification that can be handed to a
-developer.
+Turn the user's idea into a detailed specification that can be handed to a developer.
 
-Ask exactly one question at a time. Each question should build on the previous
-answers and resolve the most important remaining uncertainty.
+Create the subfolder for this q&a.
 
-Before asking the next question, append the previous question and its answer to
-`qa.md`. Do not combine multiple questions into one message.
+Ask exactly one question at a time. Each question should build on the previous answers and resolve the most important remaining uncertainty.
 
-Continue until the goals, scope, behavior, constraints, edge cases, and relevant
-technical decisions are clear. Then ask whether the user is ready for the
-specification to be written. Only after confirmation, save it as `spec.md`.
+Before asking the next question, append the previous question and itsverbatim answer to `qa.md` stored in subfolder created for this q&a. Do not combine multiple questions into one message.
 
-After saving the specification, ask whether the user wants to create a new GitHub
-repository for it. Do not create a repository, commit, or push anything unless
-the user explicitly confirms. If confirmed, collect any missing repository
-details before taking those actions.
+Continue until the goals, scope, behavior, constraints, edge cases, and relevant technical decisions are clear. Then ask whether the user is ready for the specification to be written. Only after confirmation, call the Skill tool with `specification`.
+
+When you are asked to do research or doublecheck, please do it through subagent with a fresh context and store all findings in the subfolder of this q&a named by the research topic. This subagent should continuously update progress.md in their research subfolder.
