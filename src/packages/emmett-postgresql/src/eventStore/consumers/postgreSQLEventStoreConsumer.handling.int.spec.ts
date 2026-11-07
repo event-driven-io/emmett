@@ -447,6 +447,89 @@ void describe('PostgreSQL event store started consumer', () => {
         }
       },
     );
+    void it(
+      'starts from the earliest checkpoint when a new processor is registered before one that has advanced',
+      withDeadline,
+      async () => {
+        // Given
+        const guestId = uuid();
+        const otherGuestId = uuid();
+        const streamName = `guestStay-${guestId}`;
+        const earlierEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId } },
+          { type: 'GuestCheckedOut', data: { guestId } },
+        ];
+        const laterEvents: GuestStayEvent[] = [
+          { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+          { type: 'GuestCheckedOut', data: { guestId: otherGuestId } },
+        ];
+
+        const advancedProcessorId = uuid();
+        const earlierAppend = await eventStore.appendToStream(
+          streamName,
+          earlierEvents,
+        );
+        const firstRun = postgreSQLEventStoreConsumer({ connectionString });
+        firstRun.reactor<GuestStayEvent>({
+          processorId: advancedProcessorId,
+          stopAfter: (event) =>
+            event.metadata.globalPosition ===
+            earlierAppend.lastEventGlobalPosition,
+          eachMessage: () => {},
+        });
+        try {
+          await firstRun.start();
+        } finally {
+          await firstRun.close();
+        }
+
+        const laterAppend = await eventStore.appendToStream(
+          streamName,
+          laterEvents,
+        );
+
+        const fromNewProcessor: GuestStayEvent[] = [];
+        const fromAdvancedProcessor: GuestStayEvent[] = [];
+
+        // When the new processor is registered BEFORE the advanced one
+        const consumer = postgreSQLEventStoreConsumer({ connectionString });
+        consumer.reactor<GuestStayEvent>({
+          processorId: uuid(),
+          stopAfter: (event) =>
+            event.metadata.globalPosition ===
+            laterAppend.lastEventGlobalPosition,
+          eachMessage: (event) => {
+            fromNewProcessor.push(event);
+          },
+        });
+        consumer.reactor<GuestStayEvent>({
+          processorId: advancedProcessorId,
+          stopAfter: (event) =>
+            event.metadata.globalPosition ===
+            laterAppend.lastEventGlobalPosition,
+          eachMessage: (event) => {
+            fromAdvancedProcessor.push(event);
+          },
+        });
+
+        try {
+          await consumer.start();
+
+          // Then the new processor still sees the whole history, while the
+          // advanced one resumes after its own checkpoint
+          assertThatArray(fromNewProcessor).containsElementsMatching([
+            ...earlierEvents,
+            ...laterEvents,
+          ]);
+          assertThatArray(fromNewProcessor).hasSize(4);
+          assertThatArray(fromAdvancedProcessor).containsOnlyElementsMatching(
+            laterEvents,
+          );
+        } finally {
+          await consumer.close();
+        }
+      },
+    );
   });
 
   void describe('processor lock', () => {
