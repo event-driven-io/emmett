@@ -1,0 +1,89 @@
+--- original/event.ts	2026-11-07 15:14:07.862965385 +0100
++++ patched/event.ts	2026-11-07 15:21:25.763181732 +0100
+@@ -7,6 +7,7 @@
+   RecordedMessageMetadata,
+   RecordedMessageMetadataWithGlobalPosition,
+   RecordedMessageMetadataWithoutGlobalPosition,
++  SchemaVersionProperty,
+ } from './message';
+ 
+ export type StreamPosition = bigint;
+@@ -16,6 +17,7 @@
+   EventType extends string = string,
+   EventData extends DefaultRecord = DefaultRecord,
+   EventMetaData extends DefaultRecord | undefined = undefined,
++  SchemaVersion extends number | undefined = undefined,
+ > = Readonly<
+   EventMetaData extends undefined
+     ? {
+@@ -27,10 +29,11 @@
+         data: EventData;
+         metadata: EventMetaData;
+       }
+-> & { readonly kind?: 'Event' };
++> & { readonly kind?: 'Event' } & SchemaVersionProperty<EventType, SchemaVersion>;
+ 
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
+-export type AnyEvent = Event<any, any, any>;
++// eslint-disable-next-line @typescript-eslint/no-explicit-any
++export type AnyEvent = Event<any, any, any> & { readonly schemaVersion?: any };
+ 
+ export type EventTypeOf<T extends Event> = T['type'];
+ export type EventDataOf<T extends Event> = T['data'];
+--- original/command.ts	2026-11-07 15:14:07.863086085 +0100
++++ patched/command.ts	2026-11-07 15:21:25.763259374 +0100
+@@ -1,9 +1,11 @@
+ import type { DefaultRecord } from './';
++import type { SchemaVersionProperty } from './message';
+ 
+ export type Command<
+   CommandType extends string = string,
+   CommandData extends DefaultRecord = DefaultRecord,
+   CommandMetaData extends DefaultRecord | undefined = undefined,
++  SchemaVersion extends number | undefined = undefined,
+ > = Readonly<
+   CommandMetaData extends undefined
+     ? {
+@@ -16,10 +18,11 @@
+         data: CommandData;
+         metadata: CommandMetaData;
+       }
+-> & { readonly kind?: 'Command' };
++> & { readonly kind?: 'Command' } & SchemaVersionProperty<CommandType, SchemaVersion>;
+ 
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
+-export type AnyCommand = Command<any, any, any>;
++// eslint-disable-next-line @typescript-eslint/no-explicit-any
++export type AnyCommand = Command<any, any, any> & { readonly schemaVersion?: any };
+ 
+ export type CommandTypeOf<T extends Command> = T['type'];
+ export type CommandDataOf<T extends Command> = T['data'];
+--- original/message.ts	2026-11-07 15:14:07.863060685 +0100
++++ patched/message.ts	2026-11-07 15:21:25.763363140 +0100
+@@ -13,7 +13,17 @@
+   Type extends string = string,
+   Data extends DefaultRecord = DefaultRecord,
+   MetaData extends DefaultRecord | undefined = undefined,
+-> = Command<Type, Data, MetaData> | Event<Type, Data, MetaData>;
++  SchemaVersion extends number | undefined = undefined,
++>=
++  | Command<Type, Data, MetaData, SchemaVersion>
++  | Event<Type, Data, MetaData, SchemaVersion>;
++
++export type SchemaVersionProperty<
++  Type extends string,
++  SchemaVersion extends number | undefined,
++> = SchemaVersion extends number
++  ? { readonly schemaVersion: SchemaVersion }
++  : { readonly schemaVersion?: string extends Type ? number : 1 };
+ 
+ export type AnyMessage = AnyEvent | AnyCommand;
+ 
+@@ -71,6 +81,7 @@
+     AnyRecordedMessageMetadata,
+ > = CombineMetadata<MessageType, MessageMetaDataType> & {
+   kind: NonNullable<MessageKindOf<Message>>;
++  readonly schemaVersion: number;
+ };
+ 
+ export const DefaultMessageSchemaVersion = '1';

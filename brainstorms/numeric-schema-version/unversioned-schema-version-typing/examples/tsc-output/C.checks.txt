@@ -1,0 +1,11 @@
+checks.ts(41,18): error TS2344: Type 'false' does not satisfy the constraint 'true'.
+checks.ts(46,48): error TS2339: Property 'productId' does not exist on type 'D1 | D2'.
+  Property 'productId' does not exist on type 'D2'.
+checks.ts(58,18): error TS2344: Type 'false' does not satisfy the constraint 'true'.
+checks.ts(93,18): error TS2344: Type 'false' does not satisfy the constraint 'true'.
+checks.ts(110,18): error TS2344: Type 'false' does not satisfy the constraint 'true'.
+checks.ts(125,18): error TS2344: Type 'false' does not satisfy the constraint 'true'.
+checks.ts(126,21): error TS2339: Property 'productId' does not exist on type 'D1 | D2 | Readonly<D1> | Readonly<D2>'.
+  Property 'productId' does not exist on type 'D2'.
+checks.ts(202,50): error TS2339: Property 'productId' does not exist on type 'D1 | D2'.
+  Property 'productId' does not exist on type 'D2'.

@@ -1,0 +1,2 @@
+report.ts(26,14): error TS2322: Type 'true' is not assignable to type 'false'.
+report.ts(28,14): error TS2322: Type 'true' is not assignable to type 'false'.
