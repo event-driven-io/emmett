@@ -29,6 +29,7 @@ Each prompt below repeats the short form of these rules. The full form is in `AG
 
 - Work test-first. Write the failing test, run it, see it fail for the expected reason, make it pass, then refactor.
 - Name tests after behaviour that users can see. Assert every field of a recorded message, including `schemaVersion` and the full `metadata`.
+- Write type-level criteria as Vitest `expectTypeOf` checks inside normal `it(...)` tests in the regular `*.unit.spec.ts` files, as `packages/emmett/src/errors/errors.unit.spec.ts` and `eventStore/expectedVersion.unit.spec.ts` do. `npm run build:ts` checks them. Use `// @ts-expect-error` only for calls that must not compile, as `postgresProjection.documentId.unit.spec.ts` does. Do not add separate type test files, configs or scripts.
 - Copy the scenarios that the other drivers already have before you invent new ones.
 - Do not add code comments, except the two "double-check before 0.44.0" comments that step 14 requires.
 - Do not monkey-patch. Do not add abstractions that the step does not ask for.
@@ -94,14 +95,22 @@ Do this
    An explicit version 1 is then the same type as no version.
 3. `Message` passes the parameter to both `Event` and `Command`.
 4. `AnyEvent`, `AnyCommand` and `AnyMessage` pass `any` as the fourth argument as well, for example `Event<any, any, any, any>`.
-5. Leave `CreateEventType` and `CreateCommandType` unchanged. The spec names only `Message`, `Event` and `Command`.
+   The PoC patch writes the default right after a closing `>`, which produces a `>=` token. `tsc` accepts it, but esbuild (and so vitest) fails with `Expected identifier but found ">="`. Write `> =`, as Prettier does.
+5. Give `CreateEventType` and `CreateCommandType` the same fourth parameter and property, so a `switch` over a union that mixes them with `Event` types narrows (Q72). The research probe `type-surface-research/examples/g2.create-types-option.ts` shows the shape.
 6. Add a type helper next to `MessageKindOf`: `MessageSchemaVersionOf<T>`, the declared version literal (`1` for unversioned types, `number` for the bare type). Step 3 needs it.
 
 Tests
-Add type-level tests in the existing typing unit tests (look for `*.unit.spec.ts` under `src/packages/emmett/src/typing`, or `src/packages/emmett/src/testing` for type assertion helpers). Reuse the cases from the PoC `examples/checks.ts`. For 1.1 and 1.4, `case 2` reads a `D2`-only field and `default` reads a `D1`-only field without a cast, and `// @ts-expect-error` lines read the other shape's field. For 1.5, use `// @ts-expect-error` on a `V2` literal without `schemaVersion`. For 1.2, 1.3 and 1.6, the code compiles. Fix every new compile error in the repo, for example test fixtures that build V2 values without `schemaVersion`. Run `npm run build:ts` as part of the test cycle.
+Add `src/packages/emmett/src/typing/messageSchemaVersion.unit.spec.ts`, with `expectTypeOf` checks inside `it(...)` tests. Write one failing check first and see `npm run build:ts` report it. Reuse the cases from the PoC `examples/checks.ts`:
+- 1.1 and 1.4: inside `switch (e.schemaVersion)`, `expectTypeOf(e.data).toEqualTypeOf<D2>()` in `case 2` and `toEqualTypeOf<D1>()` in `default`.
+- 1.2: `expectTypeOf<{ type: 'ProductItemAdded'; data: D1 }>().toExtend<V1>()`.
+- 1.3: the same narrowing checks for commands.
+- 1.5: `expectTypeOf<{ type: 'ProductItemAdded'; data: D2 }>().not.toExtend<V2>()`.
+- 1.6: `expectTypeOf<V1>().toExtend<Event>()`, the same for `V2`, `V1 | V2`, `Command` and `Message`.
+- `CreateEventType` and `CreateCommandType` in a mixed union narrow the same way.
+Fix every new compile error in the repo, for example test fixtures that build V2 values without `schemaVersion`. Run `npm run build:ts` as part of the test cycle.
 
 Done when
-The type tests compile and pass, `npm run build:ts` passes, and `npm run agent:check` and `npm run test:unit` pass.
+The type checks and tests pass, `npm run build:ts` passes, and `npm run agent:check` and `npm run test:unit` pass.
 ```
 
 ---
@@ -113,11 +122,12 @@ Why: a small additive API change built on step 2. It can be merged on its own.
 ```text
 Context
 Emmett repo. Read `AGENTS.md` first and follow it.
-Step 2 added the fourth type parameter and `schemaVersion?` to `Event`, `Command` and `Message`, and added `MessageSchemaVersionOf<T>`.
+Step 2 added the fourth type parameter and `schemaVersion` to `Event`, `Command` and `Message` (optional for unversioned types and version 1, required for any other declared version), and added `MessageSchemaVersionOf<T>`.
+The checked design for this step is in `brainstorms/numeric-schema-version/type-surface-research/bare-number-with-command-metadata/` (`findings.md`, `factory-change-on-top-of-work.diff`, probes `examples/a.forms.ts` and `examples/c.runtime.ts`). Start from it.
 The helpers are in `src/packages/emmett/src/typing/event.ts` (`event`), `command.ts` (`command`) and `message.ts` (`message`). Each takes positional arguments whose tuple depends on whether the type declares metadata.
 
 Goal
-Each helper takes the version as the last positional argument. The argument is required when the type declares a version, and not accepted when it does not. The helper sets `schemaVersion` on the result only when it is given.
+Each helper takes the version as the last positional argument, as a plain number. The argument is required when the type declares a version other than 1, and not accepted otherwise. A versioned command without declared metadata accepts both `[type, data, version]` and `[type, data, metadata | undefined, version]`, so the default `{ now }` metadata can still be passed. The helper sets `schemaVersion` on the result only when it is given, and does not touch metadata.
 
 Acceptance criteria (spec 2)
 2.1 GIVEN an event type with version `2` and no metadata WHEN `event<T>(type, data)` is called without the version THEN it does not compile.
@@ -126,17 +136,20 @@ Acceptance criteria (spec 2)
 2.4 GIVEN an event type without a version WHEN `event<T>(type, data)` is called THEN the result has no `schemaVersion`.
 2.5 GIVEN a command type with version `2` WHEN `command<T>(type, data, 2)` is called THEN the result has `schemaVersion: 2` and `kind: 'Command'`.
 2.6 GIVEN a message type with version `2` WHEN `message<T>(kind, type, data, 2)` is called THEN the result has `schemaVersion: 2`.
+2.7 GIVEN a command type with version `2` and no declared metadata WHEN `command<T>(type, data, { now }, 2)` or `command<T>(type, data, undefined, 2)` is called THEN the result has `schemaVersion: 2`, AND `metadata` is `{ now }` in the first case and missing in the second.
 
 Do this
 1. Extend each helper's rest-argument tuple with a conditional on the type's `schemaVersion`. When `undefined` is assignable to it (unversioned types, version 1, and the bare `number`), keep today's tuples exactly. Otherwise append `schemaVersion: MessageSchemaVersionOf<T>` as the last element. The research in `type-surface-research/` (`1-agreed-types.diff`) has a checked version of this.
-2. `command()` today accepts optional default metadata when the type declares none. For a versioned command without declared metadata, the tuple is `[type, data, schemaVersion]`, as criterion 2.5 shows. Do not add other forms.
-3. Build the result the same way as today and add `schemaVersion` only when the argument is present. Keep `kind`.
+2. `command()` today accepts optional default metadata when the type declares none. For a versioned command without declared metadata, the tuple is a union of `[type, data, schemaVersion]` and `[type, data, metadata: DefaultCommandMetadata | undefined, schemaVersion]`. Events get no extra form, because events without declared metadata have no metadata position today.
+3. At runtime, a number in the last argument is the version, and the argument before it, if any and not `undefined`, is metadata. Build the result as today, with `kind`, and add `metadata` and `schemaVersion` only when present.
+4. Put the helper types (`WithSchemaVersionArgument`) and the runtime split in a module under `src/packages/emmett/src/typing/` that `typing/index.ts` does not re-export, so they stay out of the public API. `MessageSchemaVersionOf` stays public.
 
 Tests
-Unit tests next to the existing helper tests in `src/packages/emmett/src/typing`. Assert the whole result object with deep equality (2.2–2.6). Use `// @ts-expect-error` for 2.1. Check that existing calls without a version still compile.
+Runtime unit tests next to the existing helper tests in `src/packages/emmett/src/typing`: assert the whole result object with deep equality (2.2–2.7).
+Type checks in `src/packages/emmett/src/typing/messageSchemaVersion.unit.spec.ts` (from step 2): `expectTypeOf(event<V2>('ProductItemAdded', data, 2)).toEqualTypeOf<V2>()` and the same for the other forms. For 2.1 and the rejected command forms (no version, `{ now }` without a version, the version before `{ now }`, a wrong literal, a version on an unversioned command), use `// @ts-expect-error` on the call, as the Vitest docs do for calls that must not compile. Check that existing calls without a version still compile.
 
 Done when
-The tests pass, `npm run build:ts` passes, and `npm run agent:check` and `npm run test:unit` pass.
+The tests and type checks pass, `npm run build:ts` passes, and `npm run agent:check` and `npm run test:unit` pass.
 ```
 
 ---
@@ -160,7 +173,7 @@ Append rule: persist the top-level `schemaVersion`, or `1` when missing. No vali
 
 Goal
 1. Core functions that drivers call to apply the read rule.
-2. Upcast and downcast take `schemaVersion` from the function result when it is present.
+2. Upcast and downcast take `schemaVersion` from the function result when it is present, and `1` otherwise.
 3. The in-memory store follows the append and read rules.
 4. New shared features, wired for in-memory now and for each other store in its own step.
 
@@ -174,10 +187,10 @@ Acceptance criteria (in-memory unless noted)
 6.1–6.3 (core unit tests of the read rule) GIVEN no usable stored version and `metadata.schemaVersion` of `'2'`, missing, or `'v2'` THEN the version is 2, 1, or 1, AND `metadata` has no `schemaVersion`.
 7.1 GIVEN an event with `schemaVersion: 0` WHEN it is appended THEN no Emmett validation error is raised.
 8.1 GIVEN a stored event with `schemaVersion: 1` AND an upcaster that returns `schemaVersion: 2` with new data WHEN the stream is read THEN the recorded event has `schemaVersion: 2` and the new data.
-8.2 GIVEN a stored event with `schemaVersion: 1` AND an upcaster that returns only `type` and `data` WHEN read THEN the recorded event keeps `schemaVersion: 1` and has the new data.
+8.2 GIVEN a stored event with `schemaVersion: 1` AND an upcaster that returns only `type` and `data` WHEN read THEN the recorded event has `schemaVersion: 1` and the new data.
 8.3 GIVEN a stored event with `schemaVersion: 2` AND an upcaster that returns the event unchanged WHEN read THEN the recorded event has `schemaVersion: 2`.
 9.1 GIVEN an event with `schemaVersion: 2` AND a downcaster that returns `schemaVersion: 1` with old data WHEN it is appended and read without an upcaster THEN the recorded event has `schemaVersion: 1` and the old data.
-9.2 GIVEN an event with `schemaVersion: 2` AND a downcaster that returns only `data` WHEN it is appended and read THEN the recorded event has `schemaVersion: 2`.
+9.2 GIVEN an event with `schemaVersion: 2` AND a downcaster typed `(e: V2) => V1` that returns only `type` and `data` WHEN it is appended and read without an upcaster THEN the recorded event has `schemaVersion: 1` and the old data.
 10.1 GIVEN a command handler whose decide returns an event with `schemaVersion: 2` WHEN the command is handled and the stream is read THEN the recorded event has `schemaVersion: 2`.
 10.2 GIVEN a command handler with an upcaster that maps version 1 to 2 WHEN existing version 1 events are evolved THEN evolve receives them with `schemaVersion: 2`.
 Consumer criteria 4.4 and 8.4 are not part of this step: the in-memory store has no `consumer()`. Steps 5, 6, 9 and 16 cover them for the stores that have one.
@@ -188,11 +201,12 @@ Do this
    - `resolveSchemaVersion(stored: unknown, metadata: unknown): number`, the read rule.
    - `withoutSchemaVersion(metadata)`, which returns the metadata without the `schemaVersion` key and keeps every other key.
    Drivers call these. Do not add other helpers.
-2. In `upcastRecordedMessage` and `downcastRecordedMessage`, set `schemaVersion` from the result when the result has it, and otherwise keep the original. Keep everything else the same.
+2. In `upcastRecordedMessage` and `downcastRecordedMessage`, set `schemaVersion` from the result when the result has it, and `1` otherwise (Q76). Keep everything else the same. Do not change the `MessageUpcast` or `MessageDowncast` types.
 3. In-memory append: store `schemaVersion: event.schemaVersion ?? 1` at the top level of the stored message (after downcasting, so a downcast version is stored), and build metadata without `schemaVersion`. In-memory read: apply `resolveSchemaVersion` and `withoutSchemaVersion` to each stored message before upcasting.
 4. In `features.ts`, add `testSchemaVersion(eventStoreFactory, options?)`. It holds criteria 4.1, 4.2, 4.3, 4.5, 4.6, 5.1, 7.1, 8.1–8.3, 9.1, 9.2, 10.1 and 10.2 through the public `EventStore` API (`appendToStream`, `readStream`, `aggregateStream`, `CommandHandler` with `schema.versioning`). Add versioned event types to `shoppingCart.domain.ts`, for example `ProductItemAdded` V1 and V2 with the fourth type parameter, and create events with the step 3 helpers. Assert whole recorded events, with metadata fields that the store generates matched by type where the existing features already do so.
 5. Add `testConsumerSchemaVersion(eventStoreFactory, options?)` for criteria 4.4 and 8.4, through `eventStore.consumer()` and a reactor that collects messages. Do not wire it for in-memory.
 6. Wire `testSchemaVersion` in `inMemory/inMemoryEventStore.unit.spec.ts`.
+7. The append builder and the read slice in `inMemoryEventStore.ts` sit behind `as` casts, so `tsc` does not report a missing `schemaVersion` there. Check both by hand.
 
 Tests
 Core unit tests for `schemaVersion.ts` (6.1–6.3, numeric definition cases `'"1"'`, `'2.0'`, `'two'`, `2`, `'2'`). Unit tests for upcast and downcast next to the existing versioning tests. The shared features run on in-memory.
@@ -230,6 +244,7 @@ Do this
 2. `readStream`: map each stored message through `resolveSchemaVersion(message.schemaVersion, message.metadata)` and `withoutSchemaVersion`, then upcast.
 3. Message source: apply the same mapping where it yields messages.
 4. Wire `testSchemaVersion` and `testConsumerSchemaVersion` in `src/packages/emmett-tests/src/eventStore/mongodb/mongoDBEventStore.e2e.spec.ts`.
+5. The append builder in `mongoDBEventStore.ts` and the yielded message in `mongoDBMessageSource.ts` sit behind `as` casts, so `tsc` does not report a missing `schemaVersion` there. The tests must cover both.
 
 Tests
 In the MongoDB package, next to the existing event store integration tests, add 5.3 (read the raw stream document from the collection) and 6.1–6.3 (insert a stream document directly with a message that has no top-level `schemaVersion`, then read it through `readStream` and through a consumer).
@@ -262,6 +277,7 @@ Do this
 1. Append: put `schemaVersion: event.schemaVersion ?? 1` into the serialised metadata, after the user metadata spread so the top-level value wins. Do not pass the top-level `schemaVersion` as an extra `jsonEvent` field.
 2. `mapFromESDBEvent`: set `schemaVersion: resolveSchemaVersion(metadata.schemaVersion, metadata)` and build `metadata` with `withoutSchemaVersion`.
 3. Wire `testSchemaVersion` and `testConsumerSchemaVersion` in `src/packages/emmett-tests/src/eventStore/esdb/eventstoreDBEventStore.e2e.spec.ts`.
+4. `mapFromESDBEvent` builds its result with a type assertion, so `tsc` does not report a missing `schemaVersion` there. The tests must cover it.
 
 Tests
 In the EventStoreDB package, next to the existing event store tests, add 5.4 (read the raw event with the EventStoreDB client) and 6.1–6.3 (append raw events with the client, then read them through the Emmett store).
@@ -295,6 +311,7 @@ Acceptance criteria
 Do this
 1. In both selects, select the column as `message_schema_version::text AS message_schema_version`, so the row type is always a string on both column types. Keep the row type as `string`.
 2. Map rows with `schemaVersion: resolveSchemaVersion(row.message_schema_version, row.message_metadata)` at the top level, and build `metadata` from `withoutSchemaVersion(row.message_metadata)` plus the recorded fields. Remove the `schemaVersion: DefaultMessageSchemaVersion` line from both metadata builders.
+3. `readStream.ts` passes a plain object to `upcastRecordedMessage`, and both builders use casts, so `tsc` does not report a missing `schemaVersion` there. The tests must cover both reads.
 
 Tests
 - `readStream.int.spec.ts` and `readMessagesBatch.int.spec.ts`: update the existing `schemaVersion` cases to the new shape, and add 6.4 by inserting a row directly with SQL.
@@ -380,6 +397,7 @@ Do this
 2. `appentToStreamRaw` passes `e.schemaVersion ?? 1` and writes the stored metadata as `{ ...metadataWithoutSchemaVersionAndMessageId, schemaVersion: String(e.schemaVersion ?? 1) }`.
 3. In `appendToStream`, build `messagesToAppend` with `schemaVersion: e.schemaVersion ?? 1` at the top level and metadata without `schemaVersion`.
 4. Remove the `DefaultMessageSchemaVersion` import if nothing else uses it.
+   The `messagesToAppend` builder sits behind an `as RecordedMessage[]` cast, so `tsc` does not report a missing `schemaVersion` there. The tests must cover it.
 5. Wire `testSchemaVersion` and `testConsumerSchemaVersion` in the PostgreSQL e2e spec in emmett-tests.
 
 Tests
@@ -652,6 +670,7 @@ Do this
 1. Append: bind `message.schemaVersion ?? 1` to the column, store metadata without `schemaVersion`, and give the recorded messages returned to hooks and projections the top-level `schemaVersion` and metadata without `schemaVersion`.
 2. Reads: change the row type of `message_schema_version` to `number`. Set `schemaVersion: Number(row.message_schema_version)` at the top level, and build `metadata` from `withoutSchemaVersion(rowMetadata)` plus the recorded fields. Remove the `DefaultMessageSchemaVersion` usages.
 3. Wire `testSchemaVersion` and `testConsumerSchemaVersion` in the SQLite e2e spec in emmett-tests.
+4. The recorded messages built in `appendToStream.ts` sit behind casts, so `tsc` does not report a missing `schemaVersion` there. The tests must cover them.
 
 Tests
 Update the existing `schemaVersion` cases in `storage/sqlite3/eventStore/schema/appendToStream.int.spec.ts`, `readStream.int.spec.ts` and `readMessagesBatch.int.spec.ts`, and their d1 and durableObject copies where they exist. Add 5.3 and 20.3 there. Add 19.5 and 19.6 to the 0.43.0 migration test from step 15 (set 19.6's column to 3 with a direct `UPDATE` after the migration).
@@ -686,13 +705,13 @@ Do this
 1. Add `schemaVersion: number` to the intersection in `RecordedMessage`, next to `kind`.
 2. Remove `schemaVersion` from `CommonRecordedMessageMetadata`.
 3. Set `DefaultMessageSchemaVersion = 1`. Use it in place of the literal `1` defaults added in steps 4–16, where those defaults live in code that imports from `@event-driven-io/emmett`.
-4. Fix the compile errors this causes in the packages, samples and tests, without casts that hide the type. If a fix needs a behaviour change, stop and ask.
+4. Fix the compile errors this causes in the packages, samples and tests, without casts that hide the type. The type research (`type-surface-research/findings.md`, `2-mechanical-fixes.diff`) found these, all mechanical: recorded messages built without `schemaVersion` in `inMemoryProjectionSpec.ts`, `postgresProjectionSpec.ts`, `sqliteProjectionSpec.ts`, about 60 test fixtures in the emmett package, a few in the PostgreSQL, SQLite and EventStoreDB packages, and `samples/cloudflare/durable-objects/.../projections.unit.spec.ts`. Fixtures get `schemaVersion: 1`; builders take `event.schemaVersion ?? DefaultMessageSchemaVersion`. If a fix needs a behaviour change, stop and ask.
 
 Tests
-Type-level tests next to the step 2 tests: a recorded message's `schemaVersion` is `number` (assign it to `number` and check it is not `number | undefined`), and `// @ts-expect-error` on `recorded.metadata.schemaVersion`.
+Type checks in `messageSchemaVersion.unit.spec.ts` (from step 2): `expectTypeOf<RecordedMessage<Event>['schemaVersion']>().toEqualTypeOf<number>()`, `expectTypeOf<RecordedMessage<V2>['schemaVersion']>().toEqualTypeOf<2>()`, `<V1>` gives `1`, and `expectTypeOf<CommonRecordedMessageMetadata>().not.toHaveProperty('schemaVersion')` for 3.2.
 
 Done when
-`npm run build:ts` passes for the whole repo, the type tests pass, and `npm run agent:check` and `npm run test:unit` pass.
+`npm run build:ts` passes for the whole repo, the type checks pass, and `npm run agent:check` and `npm run test:unit` pass.
 ```
 
 ---
@@ -714,7 +733,7 @@ Acceptance criteria
 
 Do this
 1. Update the two versioning unit tests to declare V1 and V2 with the fourth type parameter, create events with the version argument, and upcast with a `switch` on `schemaVersion`. Keep the snippet regions and adjust them.
-2. Update the docs prose in plain language: what `schemaVersion` is, how to declare it, and how the upcaster narrows it. Follow the existing style of that page.
+2. Update the docs prose in plain language: what `schemaVersion` is, how to declare it, and how the upcaster narrows it. Say once that an upcast or downcast result without `schemaVersion` is version 1. Say that the factories take a single message type, not a union of versions. Follow the existing style of that page.
 3. Check 21.1: find the existing test that registers a PostgreSQL or SQLite projection with a version and asserts the stored version. If none exists, add one next to the projection registration tests, asserting that the stored version is the integer 2.
 4. Run `npm run docs:build`.
 5. Run `npm test`. If it is interrupted, ask before you run it again.

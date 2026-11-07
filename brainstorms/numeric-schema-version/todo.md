@@ -2,17 +2,17 @@
 
 Plan: `plan.md`. Spec: `spec.md`. Tick a step only when its "Done when" checks pass. Nothing is committed unless Oskar asks.
 
-## Waiting for Oskar
+## Settled before implementation
 
 - [x] Typing of unversioned types: settled in Q62 (a declared version other than 1 is required), checked in the `unversioned-schema-version-typing` PoC.
 - [x] Type surface research (`type-surface-research/findings.md`): 88 new errors, all mechanical, 0 after the fixes. `npm run build:ts` equivalent passes.
-- [ ] Six type decisions from the research, listed in spec "Open Questions". Steps 2, 3, 4 and 17 are updated after them.
+- [x] Type decisions from the research, settled in Q64 to Q78: bare-number factories with the extra command `{ now }` form, `CreateEventType` and `CreateCommandType` get the 4th parameter, helper types stay unexported, upcast and downcast results without a version get `1`, `event<V1 | V2>` is a documented limit, `AnyRecordedMessage` unchanged. Steps 2, 3, 4, 17 and 18 and the store steps are updated.
 
 ## Steps
 
 - [ ] 1. Freeze the 0.43.0 PostgreSQL and SQLite APIs for tests (test support for 11–19)
 - [ ] 2. Version type parameter on `Message`, `Event`, `Command` (1.1–1.6)
-- [ ] 3. Version argument on `event()`, `command()`, `message()` (2.1–2.6)
+- [ ] 3. Version argument on `event()`, `command()`, `message()` (2.1–2.7)
 - [ ] 4. Read rule, upcast and downcast, shared features on in-memory (4.1–4.3, 4.5, 4.6, 5.1, 6.1–6.3, 7.1, 8.1–8.3, 9.1, 9.2, 10.1, 10.2)
 - [ ] 5. MongoDB (shared features with 4.4 and 8.4, 5.3, 6.1–6.3)
 - [ ] 6. EventStoreDB (shared features with 4.4 and 8.4, 5.4, 6.1–6.3)

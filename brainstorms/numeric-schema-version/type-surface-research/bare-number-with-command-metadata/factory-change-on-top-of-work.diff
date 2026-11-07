@@ -1,0 +1,209 @@
+diff --git a/src/packages/emmett/src/typing/command.ts b/src/packages/emmett/src/typing/command.ts
+index fb29772..b9181a2 100644
+--- a/src/packages/emmett/src/typing/command.ts
++++ b/src/packages/emmett/src/typing/command.ts
+@@ -1,8 +1,9 @@
+ import type { DefaultRecord } from './';
+-import type {
+-  SchemaVersionProperty,
+-  WithSchemaVersionArgument,
+-} from './message';
++import {
++  splitMetadataAndSchemaVersion,
++  type SchemaVersionProperty,
++  type WithSchemaVersionArgument,
++} from './messageSchemaVersion';
+ 
+ export type Command<
+   CommandType extends string = string,
+@@ -61,10 +62,22 @@ export const command = <CommandType extends Command<string, any, any, any>>(
+           data: CommandDataOf<CommandType>,
+           metadata?: DefaultCommandMetadata | undefined,
+         ]
+-      : WithSchemaVersionArgument<
+-          CommandType,
+-          [type: CommandTypeOf<CommandType>, data: CommandDataOf<CommandType>]
+-        >
++      :
++          | WithSchemaVersionArgument<
++              CommandType,
++              [
++                type: CommandTypeOf<CommandType>,
++                data: CommandDataOf<CommandType>,
++              ]
++            >
++          | WithSchemaVersionArgument<
++              CommandType,
++              [
++                type: CommandTypeOf<CommandType>,
++                data: CommandDataOf<CommandType>,
++                metadata: DefaultCommandMetadata | undefined,
++              ]
++            >
+     : WithSchemaVersionArgument<
+         CommandType,
+         [
+@@ -74,16 +87,13 @@ export const command = <CommandType extends Command<string, any, any, any>>(
+         ]
+       >
+ ): CommandType => {
+-  const [type, data, third, fourth] = args as unknown[];
+-  const metadata = typeof third === 'number' ? undefined : third;
+-  const schemaVersion = typeof third === 'number' ? third : fourth;
++  const [type, data, ...optionalArguments] = args;
+ 
+   return {
+     type,
+     data,
+-    ...(metadata !== undefined ? { metadata } : {}),
+     kind: 'Command',
+-    ...(schemaVersion !== undefined ? { schemaVersion } : {}),
++    ...splitMetadataAndSchemaVersion(optionalArguments),
+   } as CommandType;
+ };
+ 
+diff --git a/src/packages/emmett/src/typing/event.ts b/src/packages/emmett/src/typing/event.ts
+index 67a9c75..d354436 100644
+--- a/src/packages/emmett/src/typing/event.ts
++++ b/src/packages/emmett/src/typing/event.ts
+@@ -7,9 +7,12 @@ import type {
+   RecordedMessageMetadata,
+   RecordedMessageMetadataWithGlobalPosition,
+   RecordedMessageMetadataWithoutGlobalPosition,
+-  SchemaVersionProperty,
+-  WithSchemaVersionArgument,
+ } from './message';
++import {
++  splitMetadataAndSchemaVersion,
++  type SchemaVersionProperty,
++  type WithSchemaVersionArgument,
++} from './messageSchemaVersion';
+ 
+ export type StreamPosition = bigint;
+ export type GlobalPosition = string;
+@@ -74,16 +77,13 @@ export const event = <EventType extends Event<string, any, any, any>>(
+         ]
+       >
+ ): EventType => {
+-  const [type, data, third, fourth] = args as unknown[];
+-  const metadata = typeof third === 'number' ? undefined : third;
+-  const schemaVersion = typeof third === 'number' ? third : fourth;
++  const [type, data, ...optionalArguments] = args;
+ 
+   return {
+     type,
+     data,
+-    ...(metadata !== undefined ? { metadata } : {}),
+     kind: 'Event',
+-    ...(schemaVersion !== undefined ? { schemaVersion } : {}),
++    ...splitMetadataAndSchemaVersion(optionalArguments),
+   } as EventType;
+ };
+ 
+diff --git a/src/packages/emmett/src/typing/message.ts b/src/packages/emmett/src/typing/message.ts
+index 6b7893e..835bc77 100644
+--- a/src/packages/emmett/src/typing/message.ts
++++ b/src/packages/emmett/src/typing/message.ts
+@@ -8,25 +8,20 @@ import type {
+   StreamPosition,
+ } from '.';
+ import type { ProcessorCheckpoint } from '../processors';
++import {
++  splitMetadataAndSchemaVersion,
++  type WithSchemaVersionArgument,
++} from './messageSchemaVersion';
+ 
+ export type Message<
+   Type extends string = string,
+   Data extends DefaultRecord = DefaultRecord,
+   MetaData extends DefaultRecord | undefined = undefined,
+   SchemaVersion extends number = string extends Type ? number : 1,
+->=
++> =
+   | Command<Type, Data, MetaData, SchemaVersion>
+   | Event<Type, Data, MetaData, SchemaVersion>;
+ 
+-export type SchemaVersionProperty<
+-  _Type extends string,
+-  SchemaVersion extends number,
+-> = number extends SchemaVersion
+-  ? { readonly schemaVersion?: SchemaVersion }
+-  : SchemaVersion extends 1
+-    ? { readonly schemaVersion?: SchemaVersion }
+-    : { readonly schemaVersion: SchemaVersion };
+-
+ export type AnyMessage = AnyEvent | AnyCommand;
+ 
+ export type MessageKindOf<T extends Message> = T['kind'];
+@@ -41,13 +36,6 @@ export type MessageSchemaVersionOf<T extends Message> = NonNullable<
+   T['schemaVersion']
+ >;
+ 
+-export type WithSchemaVersionArgument<
+-  MessageType extends Message,
+-  Args extends unknown[],
+-> = undefined extends MessageType['schemaVersion']
+-  ? Args
+-  : [...Args, schemaVersion: MessageSchemaVersionOf<MessageType>];
+-
+ export type CanHandle<T extends Message> = MessageTypeOf<T>[];
+ 
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
+@@ -71,16 +59,13 @@ export const message = <MessageType extends Message<string, any, any, any>>(
+         ]
+       >
+ ): MessageType => {
+-  const [kind, type, data, fourth, fifth] = args as unknown[];
+-  const metadata = typeof fourth === 'number' ? undefined : fourth;
+-  const schemaVersion = typeof fourth === 'number' ? fourth : fifth;
++  const [kind, type, data, ...optionalArguments] = args;
+ 
+   return {
+     type,
+     data,
+-    ...(metadata !== undefined ? { metadata } : {}),
+     kind,
+-    ...(schemaVersion !== undefined ? { schemaVersion } : {}),
++    ...splitMetadataAndSchemaVersion(optionalArguments),
+   } as MessageType;
+ };
+ 
+diff --git a/work4/packages/emmett/src/typing/messageSchemaVersion.ts b/src/packages/emmett/src/typing/messageSchemaVersion.ts
+new file mode 100644
+index 0000000..039390b
+--- /dev/null
++++ b/src/packages/emmett/src/typing/messageSchemaVersion.ts
+@@ -0,0 +1,33 @@
++import type { Message, MessageSchemaVersionOf } from './message';
++
++export type SchemaVersionProperty<
++  _Type extends string,
++  SchemaVersion extends number,
++> = number extends SchemaVersion
++  ? { readonly schemaVersion?: SchemaVersion }
++  : SchemaVersion extends 1
++    ? { readonly schemaVersion?: SchemaVersion }
++    : { readonly schemaVersion: SchemaVersion };
++
++export type WithSchemaVersionArgument<
++  MessageType extends Message,
++  Args extends unknown[],
++> = undefined extends MessageType['schemaVersion']
++  ? Args
++  : [...Args, schemaVersion: MessageSchemaVersionOf<MessageType>];
++
++export const splitMetadataAndSchemaVersion = (
++  optionalArguments: unknown[],
++): { metadata?: unknown; schemaVersion?: number } => {
++  const last = optionalArguments[optionalArguments.length - 1];
++  const schemaVersion = typeof last === 'number' ? last : undefined;
++  const metadata =
++    schemaVersion !== undefined && optionalArguments.length === 1
++      ? undefined
++      : optionalArguments[0];
++
++  return {
++    ...(metadata !== undefined ? { metadata } : {}),
++    ...(schemaVersion !== undefined ? { schemaVersion } : {}),
++  };
++};

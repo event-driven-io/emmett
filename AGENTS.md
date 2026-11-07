@@ -76,6 +76,8 @@ Available test suites:
 - `npm run test:e2e`: run the end-to-end usage scenarios.
 - `npm test`: run the unit, integration, and end-to-end test suites.
 
+Type-level tests use Vitest's `expectTypeOf` inside the regular `*.unit.spec.ts` files (see `packages/emmett/src/errors/errors.unit.spec.ts`). `npm run build:ts` checks them. Use `// @ts-expect-error` only for calls that must not compile. Do not add separate type test files, configs or scripts.
+
 ## Verification
 
 The completion hook runs `npm run agent:check` automatically.
