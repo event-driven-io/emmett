@@ -67,7 +67,7 @@ The prepared 0.44.0 migrations (see Release) drop the old append function, so fr
 
 ### Upcasting and downcasting
 
-`upcast` and `downcast` can change the version. If the function returns a `schemaVersion`, it replaces the original, the same way `data` does. If it returns none, the original stays.
+`upcast` and `downcast` can change the version. If the function returns a `schemaVersion`, it replaces the original, the same way `data` does. If it returns none, the result is version `1`, the same rule as everywhere else: a message without a version is version `1`. So the stored version always matches the function's return type. A downcaster typed `(e: V2) => V1` that returns only `type` and `data` stores version `1`, not `2`.
 
 ### PostgreSQL: new stores and existing stores
 
@@ -117,6 +117,7 @@ Message types and helpers
    2.4. GIVEN an event type without a version WHEN `event<T>(type, data)` is called THEN the result has no `schemaVersion`.
    2.5. GIVEN a command type with version `2` WHEN `command<T>(type, data, 2)` is called THEN the result has `schemaVersion: 2` and `kind: 'Command'`.
    2.6. GIVEN a message type with version `2` WHEN `message<T>(kind, type, data, 2)` is called THEN the result has `schemaVersion: 2`.
+   2.7. GIVEN a command type with version `2` and no declared metadata WHEN `command<T>(type, data, { now }, 2)` or `command<T>(type, data, undefined, 2)` is called THEN the result has `schemaVersion: 2`, AND `metadata` is `{ now }` in the first case and missing in the second.
 3. Developer reads a recorded message, so that the version is always known.
    3.1. GIVEN any recorded message type WHEN its `schemaVersion` is accessed THEN its type is `number`, not optional.
    3.2. GIVEN recorded message metadata types WHEN `metadata.schemaVersion` is accessed THEN it is not part of the Emmett metadata type.
@@ -147,12 +148,12 @@ Upcasting and downcasting
 
 8. User upcasts on read, so that the recorded message carries the version of its new shape.
    8.1. GIVEN a stored event with `schemaVersion: 1` AND an upcaster that returns `schemaVersion: 2` with the new data WHEN the stream is read THEN the recorded event has `schemaVersion: 2` and the new data.
-   8.2. GIVEN a stored event with `schemaVersion: 1` AND an upcaster that returns only `type` and `data` WHEN the stream is read THEN the recorded event keeps `schemaVersion: 1` and has the new data.
+   8.2. GIVEN a stored event with `schemaVersion: 1` AND an upcaster that returns only `type` and `data` WHEN the stream is read THEN the recorded event has `schemaVersion: 1` and the new data.
    8.3. GIVEN a stored event with `schemaVersion: 2` AND an upcaster that returns the event unchanged WHEN the stream is read THEN the recorded event has `schemaVersion: 2`.
    8.4. GIVEN a consumer with an upcaster that returns `schemaVersion: 2` WHEN it receives a version `1` event THEN the message has `schemaVersion: 2`.
 9. User downcasts on append, so that the stored version matches the stored shape.
    9.1. GIVEN an event with `schemaVersion: 2` AND a downcaster that returns `schemaVersion: 1` with the old data WHEN it is appended and read without an upcaster THEN the recorded event has `schemaVersion: 1` and the old data.
-   9.2. GIVEN an event with `schemaVersion: 2` AND a downcaster that returns only `data` WHEN it is appended and read THEN the recorded event has `schemaVersion: 2`.
+   9.2. GIVEN an event with `schemaVersion: 2` AND a downcaster typed `(e: V2) => V1` that returns only `type` and `data` WHEN it is appended and read without an upcaster THEN the recorded event has `schemaVersion: 1` and the old data.
 10. User handles a command whose decider produces versioned events, so that the versions are stored.
    10.1. GIVEN a command handler whose decide returns an event with `schemaVersion: 2` WHEN the command is handled and the stream is read THEN the recorded event has `schemaVersion: 2`.
    10.2. GIVEN a command handler with an upcaster that maps version `1` to `2` WHEN existing version `1` events are evolved THEN evolve receives them with `schemaVersion: 2`.
@@ -265,13 +266,13 @@ Custom database schema
 
 ## Implementation Decisions
 
-- **Message types.** `Message`, `Event` and `Command` get a fourth, last type parameter for the schema version literal. Its default is `number` when the type name is the generic `string` (the bare `Event` used as a constraint), and `1` when the type name is a literal. The read-only `schemaVersion` property sits next to `kind`. It is optional when the version is `number` or `1`, and required for any other declared version. `Message` passes the parameter to both `Event` and `Command`. An explicit version `1` is the same type as no version. The typing was checked in the `unversioned-schema-version-typing` PoC.
+- **Message types.** `Message`, `Event` and `Command` get a fourth, last type parameter for the schema version literal. Its default is `number` when the type name is the generic `string` (the bare `Event` used as a constraint), and `1` when the type name is a literal. The read-only `schemaVersion` property sits next to `kind`. It is optional when the version is `number` or `1`, and required for any other declared version. `Message` passes the parameter to both `Event` and `Command`. An explicit version `1` is the same type as no version. The typing was checked in the `unversioned-schema-version-typing` PoC. `CreateEventType` and `CreateCommandType` get the same fourth parameter and property, so they mix with `Event` and `Command` in versioned unions.
 - **Recorded messages.** `RecordedMessage` makes `schemaVersion` a required `number`. `schemaVersion` is removed from `CommonRecordedMessageMetadata`. The default schema version constant becomes the number `1`.
-- **Helpers.** `event()`, `command()` and `message()` take the version as the last positional argument. It is required when the type declares a version and not accepted otherwise. The helper sets `schemaVersion` on the result only when it is given.
+- **Helpers.** `event()`, `command()` and `message()` take the version as the last positional argument, as a plain number. It is required when the type declares a version other than `1`, and not accepted otherwise. A versioned command without declared metadata accepts both `[type, data, version]` and `[type, data, metadata | undefined, version]`, so the default `{ now }` metadata can still be passed. Events have no extra form. The helper sets `schemaVersion` on the result only when it is given, and does not touch metadata. The helper types behind these signatures are not exported from the package. The typing was checked in `type-surface-research/bare-number-with-command-metadata/`.
 - **Read rule.** PostgreSQL, MongoDB, EventStoreDB and the in-memory store resolve the version as: stored value if numeric, else numeric `metadata.schemaVersion`, else `1`. Any non-numeric value counts as missing. SQLite reads the column only. Every store removes `schemaVersion` from `metadata` on read. The shared parts of this rule live in core code that drivers call.
 - **Append rule.** Every store persists the top-level `schemaVersion` (or `1` when missing). No validation of the value.
 - **Blue/green copy.** Only PostgreSQL appends also write the version as a string into the stored metadata as `schemaVersion`, for 0.43.0 readers. It is temporary.
-- **Upcast and downcast.** The shared versioning helpers take `schemaVersion` from the function's result when it is present, and keep the original otherwise.
+- **Upcast and downcast.** The shared versioning helpers take `schemaVersion` from the function's result when it is present, and set `1` otherwise. The upcast and downcast types do not change beyond the message types. A stricter type rule that required the version in versioned results was checked (`type-surface-research/versioning-result-version/`) and rejected, because it forced `as const` or intersection annotations on downcasters.
 - **PostgreSQL storage.** The `CREATE TABLE` for messages declares `message_schema_version INT NOT NULL`, placed after `created` and before `is_archived`. Existing stores keep `TEXT` until the user runs an on-demand migration. Reads and appends work with both column types.
 - **PostgreSQL append functions.** An automatic migration in the current release adds the append function `emt_append_to_stream_v_0_43_0`, which takes the versions as `int[]`. New code calls it with explicit casts on its arguments. The existing `emt_append_to_stream` keeps its `text[]` signature for 0.43.0 callers. The same migration rewrites its body to convert the values to the column type: unchanged on `TEXT`, integers on `INT`, `1` for non-numeric values. Both functions insert into a column of either type.
 - **PostgreSQL on-demand migrations.** Two migrations ship in the current release but are not part of the automatic list. Each has an exported function in the PostgreSQL package that takes one options object, following the shape of the projection rebuild function. The options hold the connection options, the database schema options (`databaseSchemaName`), the optional user SQL `CASE` fragment as `messageSchemaVersionMapping` (a Dumbo `SQL` value), and the same migration options as other Dumbo migrate calls (dry run, migration timeout, migration lock, transaction options).
@@ -312,17 +313,7 @@ Custom database schema
 - A dedicated upgrade guide. Only the upcasting documentation is updated.
 - Changes to the projection definition version.
 - Keeping 0.43.0 code that uses `metadata.schemaVersion` compiling. It may break.
-
-## Open Questions
-
-Found in the type surface research (`type-surface-research/findings.md`), checked with `tsc`.
-
-- **Versioned command and default metadata.** With `command<C2>(type, data, 2)`, a versioned command without declared metadata cannot also pass `{ now }`. The spec gives only the three-argument form (criterion 2.5).
-- **`CreateEventType` and `CreateCommandType`.** They have no `schemaVersion`, so a `switch` over a union that mixes them with versioned `Event` types does not compile. The spec does not name them.
-- **New exported type names.** The typing adds two helper types (`SchemaVersionProperty`, `WithSchemaVersionArgument`) that become public through the package index. The spec does not say whether new public type names are wanted.
-- **Downcast that leaves out the version.** A `(e: V2) => V1` downcaster may return no `schemaVersion`, because it is optional on V1. Criterion 9.2 then stores `2`, while the result type says `1`.
-- **Union as the helper's type argument.** `event<V1 | V2>(type, data)` compiles without a version, because the V1 part makes it optional.
-- **`AnyRecordedMessage`.** It stays `Message<any, any, any>`, so its `schemaVersion` is optional, while `RecordedMessage` requires it.
+- Factories called with a union of message versions as the type argument (`event<V1 | V2>(...)`). The factories take a single message type, and such a call takes no version, so the result is version `1`. The docs say this.
 
 ## Further Notes
 
@@ -331,3 +322,4 @@ Found in the type surface research (`type-surface-research/findings.md`), checke
 - **Lock waits.** While an on-demand migration waits for its table lock, its queued request also blocks new reads and appends. The migration timeout limits that wait, together with the rest of the run.
 - **Mandatory `ALTER` in 0.44.0.** With the default `autoMigration`, migrations run when an app instance first touches the store. Once the 0.44.0 set is plugged in, the first 0.44.0 instance starts the table rewrite under `ACCESS EXCLUSIVE`, and any 0.43.0 instances still serving stall until it ends. Users with large stores should run the on-demand schema version migration before upgrading, which makes the mandatory one a no-op.
 - **Version-specific types.** With a literal type name, `Event<'ProductItemAdded'>` means version `1`, so `V2` is not assignable to it. Code that needs every version of one message uses the union of its versions.
+- **`AnyRecordedMessage`.** It stays `Message<any, any, any>`, so its `schemaVersion` is optional, while `RecordedMessage` requires a number. It is a catch-all type, like `AnyEvent`.

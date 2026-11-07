@@ -300,3 +300,91 @@ Correction given with the Q60 answer:
 ## Q63. The type surface research (`type-surface-research/findings.md`) found 88 new errors, all mechanical, and six points that need a decision (versioned command with `{ now }`, `CreateEventType`/`CreateCommandType`, two new exported type names, a downcast that leaves out the version, a union as the helper's type argument, `AnyRecordedMessage`). Go back to Q&A for them one at a time, or keep the suggested defaults?
 
 > yes, go to qa
+
+## Q64. A versioned command without declared metadata (`command<C2>(type, data, 2)`) cannot also take the default `{ now }` metadata. Should it, and if yes, in which position relative to the version?
+
+> maybe we could make schema version be part of metadata? would it make it clearer and less weird (both for command and event). Thoughts?
+
+## Q64 (thoughts). "Part of metadata" read two ways: (1) store it on the message as `metadata.schemaVersion` (pushed back: `tsc` shows a `switch` on `e.metadata?.schemaVersion` does not narrow the union, error TS2339, and it reverses Q4, Q17 and Q19), or (2) keep it top-level on the message, and pass it to the helpers through an object instead of a bare number. Which was meant?
+
+> I just meant that this will be for factory methods, the other option is yes, just the schema version, no object
+> continue
+
+## Q65. Factory methods: (A) the version inside the metadata argument (`event<V2>(type, data, { schemaVersion: 2 })`, `command<C2>(type, data, { now, schemaVersion: 2 })`, the factory lifts it to the top level), or (B) a bare number as the last argument, with an extra command form `[type, data, metadata | undefined, version]`?
+
+> I think A, thoughts?
+
+## Q66. Put A into the spec with two rules: `schemaVersion` is a reserved key in the factory's metadata argument, and the factory lifts it to the top level and leaves out `metadata` when nothing else remains?
+
+> So what would you recommend?
+
+Recommendation given: A, with (1) the version inside the factory's metadata argument, required and containing `schemaVersion` for versioned types; (2) `schemaVersion` as a reserved key there, lifted to the top level by the factory, with no `metadata` key when nothing else remains; (3) for unversioned types and version 1 the argument stays as today and does not accept `schemaVersion`; checked with `tsc` before it goes into the spec.
+
+> Yes, please do research and back to qa if any questions are left
+
+Research result (`type-surface-research/factory-metadata-argument/findings.md`): the design from Q65 and Q66 adds 0 new errors across the repo, docs snippets, samples, `tsc -b`, and `tsdown` with attw. The helper types can stay unexported. The remaining open points are listed in spec "Open Questions".
+
+## Q67. How should the factory treat `schemaVersion` in the metadata argument when (a) a variable that carries the key is passed for an unversioned type, and (b) a user metadata type declares its own `schemaVersion` (e.g. `schemaVersion?: string`)?
+
+> Metadata should exclude their schema version and we should take the numeric message schema version, if possible, did you check it?
+
+Checked so far: the typing part ("O1": `Omit<M, 'schemaVersion'>` plus `schemaVersion?: never` for unversioned types, or `schemaVersion: V` for versioned ones) compiles with 0 errors as a local signature, rejects the wide variable and the user string key, and makes a versioned type with a user `schemaVersion` key callable. Not yet checked: O1 in the real factories across the repo, union metadata types, and the runtime rule that lifts only numeric values. Research started for these.
+
+Research result for Q67 ("O1 applied" in `type-surface-research/factory-metadata-argument/progress.md`): O1 in the real factories plus the numeric-only runtime lift adds 0 errors across packages, docs snippets, samples, `tsc -b`, and `tsdown` with attw. The runtime passes 21 checks: numbers lifted, `'2'` lifted as `2`, `'v2'`, `2.5`, `'2.0'` and `undefined` removed and not lifted. Plain `Omit` breaks 4 union-metadata calls that compile today (TS2353). A distributive `Omit` (`M extends unknown ? Omit<M, 'schemaVersion'> : never`) gives 0 errors.
+
+## Q68. Accept the distributive `Omit` for the factory metadata argument, plus three consequences: a user metadata type with a required `schemaVersion` no longer matches the factory result; passing `schemaVersion` for an unversioned type fails with "number is not assignable to undefined"; the factory's numeric check reuses the read rule's `isNumericSchemaVersion`?
+
+> I mean, it's just factory we can have the limit, if it doesn't work people can use regular creation. If this is such a big issue and confusing we can have as initially last param. You said that'd be beter to have it with metadata, now you show more and more isses.
+
+## Q69. Go back to the bare last parameter (criteria 2.1 to 2.6 as written), with the limit that a versioned command without declared metadata cannot take `{ now }` through the factory?
+
+> ok, then let's stick to that why no now?
+
+## Q70. Should `command()` accept `{ now }` before the version for versioned commands without declared metadata, with two forms: `command<C2>(type, data, 2)` and `command<C2>(type, data, { now } | undefined, 2)`?
+
+> yes, if we want to be explicit then let's be fully and not try to make shortcuts.
+
+## Q71. "No shortcuts" read two ways for a versioned command without declared metadata: (1) both `command<C2>(type, data, 2)` and `command<C2>(type, data, { now }, 2)`, or (2) only the full form `command<C2>(type, data, undefined | { now }, 2)`. Events have no optional metadata, so they stay `event<V2>(type, data, 2)` and `event<V2m>(type, data, metadata, 2)`.
+
+> will 1 work? if that works then fine, same for events if that's overcomplicating then just 2
+
+Research result for Q71 (`type-surface-research/bare-number-with-command-metadata/findings.md`): option 1 works in the real factories. `command<C2>(type, data, 2)` and `command<C2>(type, data, { now } | undefined, 2)` both compile, and all wrong forms are rejected. Events keep their forms; `event<V2>(type, data, undefined, 2)` was not added, because events without declared metadata have no metadata position today. The runtime passes 22 checks. The change adds 0 new errors across the repo, docs snippets, samples, `tsc -b`, and `tsdown` with attw. The helper types stay unexported.
+
+## Q72. Should `CreateEventType` and `CreateCommandType` get the same 4th type parameter and `schemaVersion` property as `Event` and `Command` (a `switch` over a union mixing them with versioned `Event` types fails today with TS2339), or stay as they are?
+
+> yes
+
+## Q73. Criterion 9.2 keeps the original version when a downcaster returns none, so a `(e: V2) => V1` downcaster that leaves out `schemaVersion` stores V1 data marked as version 2, and the types cannot force `schemaVersion: 1` because it is optional on V1. Keep 9.2, or change the behaviour?
+
+> downcast should be able to provide also v1 & v2 compatible, but if we go this way, then maybe we could enforce here schemaVersion?
+
+## Q74. Should upcast and downcast results always require `schemaVersion` (with 9.2's keep-the-original rule only as the runtime fallback for untyped code), or only downcast results? A standalone `tsc` check showed a downcast result type that requires the version compiles, accepts a V1-or-V2 downcast, and rejects V1 data marked as version 2.
+
+> That could make sense, what do you think?
+
+Recommendation given: enforce for both, but only when versions are in play. An upcast or downcast result must carry `schemaVersion` when the input type or the result type contains a declared version other than 1. Unversioned upcasters and downcasters are unchanged. 8.2 and 9.2 then hold only for unversioned types, plus as the runtime fallback for untyped code. Check in the real types across the repo first.
+
+> Then check
+
+Research result for Q74 (`type-surface-research/versioning-result-version/findings.md`): the rule works in the real types. Inline upcasters and downcasters still infer their parameter types everywhere. The upcasting docs examples compile unchanged. The full repo has 0 new errors after one mechanical SQLite fix, and the emitted JavaScript is byte-identical. Consequences: an identity upcaster from `V1 | V2` to `V1 | V2` is rejected in the payload form, and a downcaster annotated `(e: V2): V1` is rejected even when it returns `schemaVersion: 1`.
+
+## Q75. Accept two consequences of requiring the version in versioned upcast and downcast results: (1) a downcaster annotated `(e: V2): V1` is rejected even when it returns `schemaVersion: 1`, so users drop the annotation (`1 as const`) or write `V1 & { readonly schemaVersion: 1 }`; (2) a pass-through upcaster from `V1 | V2` to `V1 | V2` is rejected in the payload form?
+
+> I don't like the requirement to have const downcast = (e: V2) => ({ type: 'ProductItemAdded', data: {...}, schemaVersion: 1 as const }); // ok
+> const downcast = (e: V2): V1 & { readonly schemaVersion: 1 } => ({ ... }); // ok
+>
+> What other options do we have?
+
+## Q76. Options for upcast and downcast results without a version: (1) the result gets version `1` at runtime, matching the type, and 9.2 changes from "keeps 2" to "gets 1"; (2) keep the type rule that requires the version (annotation friction); (3) change nothing and document the pitfall. Asked which is the least surprise; answered (1), because the stored version then always matches the function's return type, and only untyped code returning `{ type, data }` from a versioned event can be surprised.
+
+> what's the lease surprise?
+
+> let's go with 1
+
+## Q77. `event<V1 | V2>(type, data)` compiles without a version, because the V1 part makes it optional, so V2-shaped data passed this way is stored as version 1. Accept the limit (factories take a single message type, said in the docs), or make the factories reject union type arguments?
+
+> yes
+
+## Q78. `AnyRecordedMessage` is `Message<any, any, any>`, so its `schemaVersion` stays optional while `RecordedMessage` requires a number. It is used only for `lastSuccessfulMessage` in `typing/messageHandling.ts`. Leave it, or require `schemaVersion: number`?
+
+> leave it as it is
