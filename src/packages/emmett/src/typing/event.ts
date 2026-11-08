@@ -8,6 +8,7 @@ import type {
   RecordedMessageMetadataWithGlobalPosition,
   RecordedMessageMetadataWithoutGlobalPosition,
 } from './message';
+import type { SchemaVersionProperty } from './messageSchemaVersion';
 
 export type StreamPosition = bigint;
 export type GlobalPosition = string;
@@ -16,6 +17,7 @@ export type Event<
   EventType extends string = string,
   EventData extends DefaultRecord = DefaultRecord,
   EventMetaData extends DefaultRecord | undefined = undefined,
+  SchemaVersion extends number = string extends EventType ? number : 1,
 > = Readonly<
   EventMetaData extends undefined
     ? {
@@ -27,10 +29,10 @@ export type Event<
         data: EventData;
         metadata: EventMetaData;
       }
-> & { readonly kind?: 'Event' };
+> & { readonly kind?: 'Event' } & SchemaVersionProperty<SchemaVersion>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyEvent = Event<any, any, any>;
+export type AnyEvent = Event<any, any, any, any>;
 
 export type EventTypeOf<T extends Event> = T['type'];
 export type EventDataOf<T extends Event> = T['data'];
@@ -42,6 +44,7 @@ export type CreateEventType<
   EventType extends string,
   EventData extends DefaultRecord,
   EventMetaData extends DefaultRecord | undefined = undefined,
+  SchemaVersion extends number = string extends EventType ? number : 1,
 > = Readonly<
   EventMetaData extends undefined
     ? {
@@ -53,7 +56,7 @@ export type CreateEventType<
         data: EventData;
         metadata: EventMetaData;
       }
-> & { readonly kind?: 'Event' };
+> & { readonly kind?: 'Event' } & SchemaVersionProperty<SchemaVersion>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const event = <EventType extends Event<string, any, any>>(
