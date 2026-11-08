@@ -14,6 +14,8 @@ import {
 import {
   assertDeepEqual,
   assertThatArray,
+  assertTrue,
+  bigIntProcessorCheckpoint,
   type Event,
 } from '@event-driven-io/emmett';
 import { afterEach, beforeEach, describe, it } from 'vitest';
@@ -22,6 +24,11 @@ import { migrations_0_41_0 } from '../../../../../../eventStore/schema/migration
 import { migrations_0_42_0 } from '../../../../../../eventStore/schema/migrations/0_42_0';
 import { appendToStream } from '../../../../../../eventStore/schema/migrations/0_42_0/legacyApi';
 import { migrations_0_43_0 } from '../../../../../../eventStore/schema/migrations/0_43_0';
+import {
+  appendToStream_0_43_0,
+  readStream_0_43_0,
+  releasedMigrations_0_43_0,
+} from '../../../../../../eventStore/schema/migrations/0_43_0/legacyApi';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -117,6 +124,62 @@ void describe('Schema migrations tests', () => {
 
     // Then
     assertDeepEqual(await streamPartition('tenant-cart-1'), 'tenant-a');
+  });
+
+  void it('0.43.0 API reads the event it appended to a released 0.43.0 store with its metadata schema version', async () => {
+    // Given
+    await runSQLMigrations(pool, [
+      ...migrations_0_41_0,
+      ...migrations_0_42_0,
+      ...releasedMigrations_0_43_0,
+    ]);
+    const streamId = `shopping_cart-${crypto.randomUUID()}`;
+    const messageId = crypto.randomUUID();
+    const event: Event<
+      'ProductItemAdded',
+      ProductItemAdded['data'],
+      { schemaVersion: string }
+    > = {
+      type: 'ProductItemAdded',
+      data: {
+        shoppingCartId: streamId,
+        productItem: { productId: 'product-456', quantity: 2 },
+      },
+      metadata: { schemaVersion: '2' },
+    };
+    const appended = await appendToStream_0_43_0(
+      connection,
+      streamId,
+      'shopping_cart',
+      [event],
+      { messageIdGenerator: () => messageId },
+    );
+    assertTrue(appended.success);
+    const globalPosition = bigIntProcessorCheckpoint(
+      appended.lastGlobalPosition,
+    );
+
+    // When
+    const { events } = await readStream_0_43_0(connection.execute, streamId, {
+      serializer: JSONSerializer,
+    });
+
+    // Then
+    assertDeepEqual(events, [
+      {
+        type: 'ProductItemAdded',
+        kind: 'Event',
+        data: event.data,
+        metadata: {
+          schemaVersion: '2',
+          messageId,
+          streamName: streamId,
+          streamPosition: 1n,
+          globalPosition,
+          checkpoint: globalPosition,
+        },
+      },
+    ]);
   });
 
   const productItemAdded = (shoppingCartId: string): ProductItemAdded => ({
