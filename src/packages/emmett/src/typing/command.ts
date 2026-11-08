@@ -1,9 +1,11 @@
 import type { DefaultRecord } from './';
+import type { SchemaVersionProperty } from './messageSchemaVersion';
 
 export type Command<
   CommandType extends string = string,
   CommandData extends DefaultRecord = DefaultRecord,
   CommandMetaData extends DefaultRecord | undefined = undefined,
+  SchemaVersion extends number = string extends CommandType ? number : 1,
 > = Readonly<
   CommandMetaData extends undefined
     ? {
@@ -16,10 +18,10 @@ export type Command<
         data: CommandData;
         metadata: CommandMetaData;
       }
-> & { readonly kind?: 'Command' };
+> & { readonly kind?: 'Command' } & SchemaVersionProperty<SchemaVersion>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyCommand = Command<any, any, any>;
+export type AnyCommand = Command<any, any, any, any>;
 
 export type CommandTypeOf<T extends Command> = T['type'];
 export type CommandDataOf<T extends Command> = T['data'];
@@ -33,6 +35,7 @@ export type CreateCommandType<
   CommandType extends string,
   CommandData extends DefaultRecord,
   CommandMetaData extends DefaultRecord | undefined = undefined,
+  SchemaVersion extends number = string extends CommandType ? number : 1,
 > = Readonly<
   CommandMetaData extends undefined
     ? {
@@ -45,7 +48,7 @@ export type CreateCommandType<
         data: CommandData;
         metadata: CommandMetaData;
       }
-> & { readonly kind?: 'Command' };
+> & { readonly kind?: 'Command' } & SchemaVersionProperty<SchemaVersion>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const command = <CommandType extends Command<string, any, any>>(

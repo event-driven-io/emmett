@@ -13,11 +13,17 @@ export type Message<
   Type extends string = string,
   Data extends DefaultRecord = DefaultRecord,
   MetaData extends DefaultRecord | undefined = undefined,
-> = Command<Type, Data, MetaData> | Event<Type, Data, MetaData>;
+  SchemaVersion extends number = string extends Type ? number : 1,
+> =
+  | Command<Type, Data, MetaData, SchemaVersion>
+  | Event<Type, Data, MetaData, SchemaVersion>;
 
 export type AnyMessage = AnyEvent | AnyCommand;
 
 export type MessageKindOf<T extends Message> = T['kind'];
+export type MessageSchemaVersionOf<T extends Message> = NonNullable<
+  T['schemaVersion']
+>;
 export type MessageTypeOf<T extends Message> = T['type'];
 export type MessageDataOf<T extends Message> = T['data'];
 export type MessageMetaDataOf<T extends Message> = T extends {
