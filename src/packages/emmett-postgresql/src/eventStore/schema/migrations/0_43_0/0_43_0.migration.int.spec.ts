@@ -60,6 +60,11 @@ import {
   storeProcessorCheckpoint as storeProcessorCheckpointV042,
 } from '../0_42_0/legacyApi';
 import { migrations_0_43_0 } from './';
+import {
+  appendToStream_0_43_0,
+  readStream_0_43_0,
+  releasedMigrations_0_43_0,
+} from './legacyApi';
 import { pgEventStoreDriver } from '../../../../pg';
 
 export type ProductItemAdded = Event<
@@ -403,6 +408,59 @@ void describe('Schema migrations tests', () => {
     // Then
     assertThatArray(applied).isEmpty();
     assertDeepEqual(skipped, migrations_0_43_0);
+  });
+
+  void it('0.43.0 API reads the event it appended to a released 0.43.0 store with its metadata schema version', async () => {
+    // Given
+    await runSQLMigrations(pool, [
+      ...migrations_0_36_0,
+      ...migrations_0_38_7,
+      ...migrations_0_42_0,
+      ...releasedMigrations_0_43_0,
+    ]);
+    const streamId = `shopping_cart-${crypto.randomUUID()}`;
+    const messageId = crypto.randomUUID();
+    const event: Event<
+      'ProductItemAdded',
+      ProductItemAdded['data'],
+      { schemaVersion: string }
+    > = {
+      type: 'ProductItemAdded',
+      data: {
+        shoppingCartId: streamId,
+        productItem: { productId: 'product-123', quantity: 2 },
+      },
+      metadata: { schemaVersion: '2' },
+    };
+    const appended = await pool.withConnection((connection) =>
+      appendToStream_0_43_0(connection, streamId, 'shopping_cart', [event], {
+        messageIdGenerator: () => messageId,
+      }),
+    );
+    assertTrue(appended.success);
+    const globalPosition = PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
+      appended.checkpoints[0]!,
+    );
+
+    // When
+    const { events } = await readStream_0_43_0(pool.execute, streamId);
+
+    // Then
+    assertDeepEqual(events, [
+      {
+        type: 'ProductItemAdded',
+        kind: 'Event',
+        data: event.data,
+        metadata: {
+          schemaVersion: '2',
+          messageId,
+          streamName: streamId,
+          streamPosition: 1n,
+          globalPosition,
+          checkpoint: globalPosition,
+        },
+      },
+    ]);
   });
 
   void it('old storeSubscriptionCheckpoint FAILS with not existing procedure', async () => {
