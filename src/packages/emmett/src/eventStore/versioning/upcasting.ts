@@ -50,6 +50,7 @@ export const upcastRecordedMessage = <
     type: upcasted.type as MessagePayloadType['type'],
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     data: upcasted.data,
+    schemaVersion: (upcasted.schemaVersion as number | undefined) ?? 1,
     ...('metadata' in recordedMessage || 'metadata' in upcasted
       ? {
           metadata: {

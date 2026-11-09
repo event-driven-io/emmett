@@ -1,4 +1,4 @@
-import type { Event, ReadEvent } from '@event-driven-io/emmett';
+import type { Command, Event, ReadEvent } from '@event-driven-io/emmett';
 
 export type PricedProductItem = {
   productId: string;
@@ -14,6 +14,24 @@ export type ShoppingCart = {
 export type ProductItemAdded = Event<
   'ProductItemAdded',
   { productItem: PricedProductItem }
+>;
+export type ProductItemAddedV2 = Event<
+  'ProductItemAdded',
+  { productItem: PricedProductItem; currency: string },
+  undefined,
+  2
+>;
+export type ProductItemAddedV3 = Event<
+  'ProductItemAdded',
+  { productItem: PricedProductItem; currency: string; addedBy: string },
+  undefined,
+  3
+>;
+export type ProductItemAddedV2WithTenant = Event<
+  'ProductItemAdded',
+  { productItem: PricedProductItem; currency: string },
+  { tenantId: string },
+  2
 >;
 export type DiscountApplied = Event<
   'DiscountApplied',
@@ -81,3 +99,10 @@ export const addProductItem = (
     data: { productItem: command.data.productItem },
   };
 };
+
+export type AddProductItemV2 = Command<
+  'AddProductItem',
+  { productItem: PricedProductItem; currency: string },
+  undefined,
+  2
+>;

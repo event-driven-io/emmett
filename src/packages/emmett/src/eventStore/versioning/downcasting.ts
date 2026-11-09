@@ -48,6 +48,7 @@ export const downcastRecordedMessage = <
     ...recordedMessage,
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     data: downcasted.data,
+    schemaVersion: (downcasted.schemaVersion as number | undefined) ?? 1,
     ...('metadata' in recordedMessage || 'metadata' in downcasted
       ? {
           metadata: {
