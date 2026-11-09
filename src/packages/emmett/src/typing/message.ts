@@ -8,6 +8,10 @@ import type {
   StreamPosition,
 } from '.';
 import type { ProcessorCheckpoint } from '../processors';
+import {
+  splitMetadataAndSchemaVersion,
+  type WithSchemaVersionArgument,
+} from './messageSchemaVersion';
 
 export type Message<
   Type extends string = string,
@@ -35,25 +39,34 @@ export type MessageMetaDataOf<T extends Message> = T extends {
 export type CanHandle<T extends Message> = MessageTypeOf<T>[];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const message = <MessageType extends Message<string, any, any>>(
+export const message = <MessageType extends Message<string, any, any, any>>(
   ...args: MessageMetaDataOf<MessageType> extends undefined
-    ? [
-        kind: MessageKindOf<MessageType>,
-        type: MessageTypeOf<MessageType>,
-        data: MessageDataOf<MessageType>,
-      ]
-    : [
-        kind: MessageKindOf<MessageType>,
-        type: MessageTypeOf<MessageType>,
-        data: MessageDataOf<MessageType>,
-        metadata: MessageMetaDataOf<MessageType>,
-      ]
+    ? WithSchemaVersionArgument<
+        MessageType,
+        [
+          kind: MessageKindOf<MessageType>,
+          type: MessageTypeOf<MessageType>,
+          data: MessageDataOf<MessageType>,
+        ]
+      >
+    : WithSchemaVersionArgument<
+        MessageType,
+        [
+          kind: MessageKindOf<MessageType>,
+          type: MessageTypeOf<MessageType>,
+          data: MessageDataOf<MessageType>,
+          metadata: MessageMetaDataOf<MessageType>,
+        ]
+      >
 ): MessageType => {
-  const [kind, type, data, metadata] = args;
+  const [kind, type, data, ...optionalArguments] = args;
 
-  return metadata !== undefined
-    ? ({ type, data, metadata, kind } as MessageType)
-    : ({ type, data, kind } as MessageType);
+  return {
+    type,
+    data,
+    kind,
+    ...splitMetadataAndSchemaVersion(optionalArguments),
+  } as MessageType;
 };
 
 export type CombinedMessageMetadata<

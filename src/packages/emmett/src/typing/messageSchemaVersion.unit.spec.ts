@@ -1,14 +1,18 @@
 import { describe, expectTypeOf, it } from 'vitest';
-import type {
-  AnyCommand,
-  AnyEvent,
-  AnyMessage,
-  Command,
-  CreateCommandType,
-  CreateEventType,
-  Event,
-  Message,
-  MessageSchemaVersionOf,
+import { assertDeepEqual } from '../testing';
+import {
+  command,
+  event,
+  message,
+  type AnyCommand,
+  type AnyEvent,
+  type AnyMessage,
+  type Command,
+  type CreateCommandType,
+  type CreateEventType,
+  type Event,
+  type Message,
+  type MessageSchemaVersionOf,
 } from '.';
 
 type ProductItem = { productId: string; quantity: number };
@@ -20,6 +24,13 @@ type V2 = Event<'ProductItemAdded', D2, undefined, 2>;
 
 type C1 = Command<'AddProductItem', D1>;
 type C3 = Command<'AddProductItem', D2, undefined, 3>;
+
+type Meta = { tenantId: string };
+type V1m = Event<'ProductItemAdded', D1, Meta>;
+type V1x = Event<'ProductItemAdded', D1, undefined, 1>;
+type V2m = Event<'ProductItemAdded', D2, Meta, 2>;
+type C2 = Command<'AddProductItem', D2, undefined, 2>;
+type C2m = Command<'AddProductItem', D2, Meta, 2>;
 
 void describe('Message schema version', () => {
   void it('narrows event data by the declared schema version', () => {
@@ -194,5 +205,215 @@ void describe('Message schema version', () => {
     expectTypeOf<MessageSchemaVersionOf<C3>>().toEqualTypeOf<3>();
     expectTypeOf<MessageSchemaVersionOf<Event>>().toEqualTypeOf<number>();
     expectTypeOf<MessageSchemaVersionOf<Message>>().toEqualTypeOf<number>();
+  });
+});
+
+void describe('Message factories with schema version', () => {
+  const d1: D1 = { productId: 'product-123' };
+  const d2: D2 = { productItem: { productId: 'product-123', quantity: 2 } };
+  const metadata: Meta = { tenantId: 'tenant-a' };
+  const now = new Date();
+
+  void it('creates an event with the given schema version', () => {
+    const result = event<V2>('ProductItemAdded', d2, 2);
+
+    expectTypeOf(result).toEqualTypeOf<V2>();
+    assertDeepEqual(result, {
+      type: 'ProductItemAdded',
+      data: d2,
+      kind: 'Event',
+      schemaVersion: 2,
+    });
+  });
+
+  void it('creates an event with metadata and the given schema version', () => {
+    const result = event<V2m>('ProductItemAdded', d2, metadata, 2);
+
+    expectTypeOf(result).toEqualTypeOf<V2m>();
+    assertDeepEqual(result, {
+      type: 'ProductItemAdded',
+      data: d2,
+      metadata,
+      kind: 'Event',
+      schemaVersion: 2,
+    });
+  });
+
+  void it('creates an unversioned event without schema version', () => {
+    const result = event<V1>('ProductItemAdded', d1);
+    const withMetadata = event<V1m>('ProductItemAdded', d1, metadata);
+
+    expectTypeOf(result).toEqualTypeOf<V1>();
+    assertDeepEqual(result, {
+      type: 'ProductItemAdded',
+      data: d1,
+      kind: 'Event',
+    });
+    assertDeepEqual(withMetadata, {
+      type: 'ProductItemAdded',
+      data: d1,
+      metadata,
+      kind: 'Event',
+    });
+  });
+
+  void it('rejects event calls that do not match the declared schema version', () => {
+    // @ts-expect-error the version is required for a declared version 2
+    event<V2>('ProductItemAdded', d2);
+    // @ts-expect-error the version must match the declared one
+    event<V2>('ProductItemAdded', d2, 3);
+    // @ts-expect-error declared metadata cannot be left out
+    event<V2m>('ProductItemAdded', d2, 2);
+    // @ts-expect-error the version is required with declared metadata
+    event<V2m>('ProductItemAdded', d2, metadata);
+    // @ts-expect-error an unversioned event takes no version
+    event<V1>('ProductItemAdded', d1, 1);
+    // @ts-expect-error an explicit version 1 takes no version
+    event<V1x>('ProductItemAdded', d1, 1);
+    // @ts-expect-error an event without declared metadata has no metadata position
+    event<V2>('ProductItemAdded', d2, undefined, 2);
+  });
+
+  void it('creates a command with the given schema version', () => {
+    const result = command<C2>('AddProductItem', d2, 2);
+
+    expectTypeOf(result).toEqualTypeOf<C2>();
+    assertDeepEqual(result, {
+      type: 'AddProductItem',
+      data: d2,
+      kind: 'Command',
+      schemaVersion: 2,
+    });
+  });
+
+  void it('creates a versioned command with the default metadata', () => {
+    const result = command<C2>('AddProductItem', d2, { now }, 2);
+
+    expectTypeOf(result).toEqualTypeOf<C2>();
+    assertDeepEqual(result, {
+      type: 'AddProductItem',
+      data: d2,
+      metadata: { now },
+      kind: 'Command',
+      schemaVersion: 2,
+    });
+  });
+
+  void it('creates a versioned command without metadata when it is undefined', () => {
+    const result = command<C2>('AddProductItem', d2, undefined, 2);
+
+    assertDeepEqual(result, {
+      type: 'AddProductItem',
+      data: d2,
+      kind: 'Command',
+      schemaVersion: 2,
+    });
+  });
+
+  void it('creates a versioned command with declared metadata', () => {
+    const result = command<C2m>('AddProductItem', d2, metadata, 2);
+
+    expectTypeOf(result).toEqualTypeOf<C2m>();
+    assertDeepEqual(result, {
+      type: 'AddProductItem',
+      data: d2,
+      metadata,
+      kind: 'Command',
+      schemaVersion: 2,
+    });
+  });
+
+  void it('creates an unversioned command without schema version', () => {
+    assertDeepEqual(command<C1>('AddProductItem', d1), {
+      type: 'AddProductItem',
+      data: d1,
+      kind: 'Command',
+    });
+    assertDeepEqual(command<C1>('AddProductItem', d1, { now }), {
+      type: 'AddProductItem',
+      data: d1,
+      metadata: { now },
+      kind: 'Command',
+    });
+    assertDeepEqual(command<C1>('AddProductItem', d1, undefined), {
+      type: 'AddProductItem',
+      data: d1,
+      kind: 'Command',
+    });
+  });
+
+  void it('rejects command calls that do not match the declared schema version', () => {
+    // @ts-expect-error the version is required for a declared version 2
+    command<C2>('AddProductItem', d2);
+    // @ts-expect-error the default metadata needs the version after it
+    command<C2>('AddProductItem', d2, { now });
+    // @ts-expect-error the version goes after the default metadata
+    command<C2>('AddProductItem', d2, 2, { now });
+    // @ts-expect-error the version must match the declared one
+    command<C2>('AddProductItem', d2, 3);
+    // @ts-expect-error the version must match the declared one
+    command<C2>('AddProductItem', d2, { now }, 3);
+    // @ts-expect-error undefined metadata needs the version after it
+    command<C2>('AddProductItem', d2, undefined);
+    // @ts-expect-error the version is required with declared metadata
+    command<C2m>('AddProductItem', d2, metadata);
+    // @ts-expect-error declared metadata cannot be replaced by undefined
+    command<C2m>('AddProductItem', d2, undefined, 2);
+    // @ts-expect-error declared metadata cannot be left out
+    command<C2m>('AddProductItem', d2, 2);
+    // @ts-expect-error an unversioned command takes no version
+    command<C1>('AddProductItem', d1, 1);
+    // @ts-expect-error an unversioned command takes no version
+    command<C1>('AddProductItem', d1, { now }, 1);
+    // @ts-expect-error only the default metadata fits a command without declared metadata
+    command<C2>('AddProductItem', d2, { tenantId: 'tenant-a' }, 2);
+  });
+
+  void it('creates a message with the given schema version', () => {
+    const versionedEvent = message<V2>('Event', 'ProductItemAdded', d2, 2);
+    const versionedCommand = message<C2>('Command', 'AddProductItem', d2, 2);
+    const withMetadata = message<V2m>(
+      'Event',
+      'ProductItemAdded',
+      d2,
+      metadata,
+      2,
+    );
+
+    expectTypeOf(versionedEvent).toEqualTypeOf<V2>();
+    assertDeepEqual(versionedEvent, {
+      type: 'ProductItemAdded',
+      data: d2,
+      kind: 'Event',
+      schemaVersion: 2,
+    });
+    assertDeepEqual(versionedCommand, {
+      type: 'AddProductItem',
+      data: d2,
+      kind: 'Command',
+      schemaVersion: 2,
+    });
+    assertDeepEqual(withMetadata, {
+      type: 'ProductItemAdded',
+      data: d2,
+      metadata,
+      kind: 'Event',
+      schemaVersion: 2,
+    });
+  });
+
+  void it('creates an unversioned message without schema version', () => {
+    assertDeepEqual(message<V1>('Event', 'ProductItemAdded', d1), {
+      type: 'ProductItemAdded',
+      data: d1,
+      kind: 'Event',
+    });
+  });
+
+  void it('rejects message calls that do not match the declared schema version', () => {
+    // @ts-expect-error the version is required for a declared version 2
+    message<V2>('Event', 'ProductItemAdded', d2);
+    // @ts-expect-error an unversioned message takes no version
+    message<V1>('Event', 'ProductItemAdded', d1, 1);
   });
 });
