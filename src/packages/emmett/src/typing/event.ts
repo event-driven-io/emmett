@@ -8,7 +8,11 @@ import type {
   RecordedMessageMetadataWithGlobalPosition,
   RecordedMessageMetadataWithoutGlobalPosition,
 } from './message';
-import type { SchemaVersionProperty } from './messageSchemaVersion';
+import {
+  splitMetadataAndSchemaVersion,
+  type SchemaVersionProperty,
+  type WithSchemaVersionArgument,
+} from './messageSchemaVersion';
 
 export type StreamPosition = bigint;
 export type GlobalPosition = string;
@@ -59,20 +63,29 @@ export type CreateEventType<
 > & { readonly kind?: 'Event' } & SchemaVersionProperty<SchemaVersion>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const event = <EventType extends Event<string, any, any>>(
+export const event = <EventType extends Event<string, any, any, any>>(
   ...args: EventMetaDataOf<EventType> extends undefined
-    ? [type: EventTypeOf<EventType>, data: EventDataOf<EventType>]
-    : [
-        type: EventTypeOf<EventType>,
-        data: EventDataOf<EventType>,
-        metadata: EventMetaDataOf<EventType>,
-      ]
+    ? WithSchemaVersionArgument<
+        EventType,
+        [type: EventTypeOf<EventType>, data: EventDataOf<EventType>]
+      >
+    : WithSchemaVersionArgument<
+        EventType,
+        [
+          type: EventTypeOf<EventType>,
+          data: EventDataOf<EventType>,
+          metadata: EventMetaDataOf<EventType>,
+        ]
+      >
 ): EventType => {
-  const [type, data, metadata] = args;
+  const [type, data, ...optionalArguments] = args;
 
-  return metadata !== undefined
-    ? ({ type, data, metadata, kind: 'Event' } as EventType)
-    : ({ type, data, kind: 'Event' } as EventType);
+  return {
+    type,
+    data,
+    kind: 'Event',
+    ...splitMetadataAndSchemaVersion(optionalArguments),
+  } as EventType;
 };
 
 export type CombinedReadEventMetadata<

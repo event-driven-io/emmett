@@ -1,5 +1,9 @@
 import type { DefaultRecord } from './';
-import type { SchemaVersionProperty } from './messageSchemaVersion';
+import {
+  splitMetadataAndSchemaVersion,
+  type SchemaVersionProperty,
+  type WithSchemaVersionArgument,
+} from './messageSchemaVersion';
 
 export type Command<
   CommandType extends string = string,
@@ -51,24 +55,43 @@ export type CreateCommandType<
 > & { readonly kind?: 'Command' } & SchemaVersionProperty<SchemaVersion>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const command = <CommandType extends Command<string, any, any>>(
+export const command = <CommandType extends Command<string, any, any, any>>(
   ...args: CommandMetaDataOf<CommandType> extends undefined
-    ? [
-        type: CommandTypeOf<CommandType>,
-        data: CommandDataOf<CommandType>,
-        metadata?: DefaultCommandMetadata | undefined,
-      ]
-    : [
-        type: CommandTypeOf<CommandType>,
-        data: CommandDataOf<CommandType>,
-        metadata: CommandMetaDataOf<CommandType>,
-      ]
+    ? undefined extends CommandType['schemaVersion']
+      ? [
+          type: CommandTypeOf<CommandType>,
+          data: CommandDataOf<CommandType>,
+          metadata?: DefaultCommandMetadata | undefined,
+        ]
+      : | WithSchemaVersionArgument<
+            CommandType,
+            [type: CommandTypeOf<CommandType>, data: CommandDataOf<CommandType>]
+          >
+        | WithSchemaVersionArgument<
+            CommandType,
+            [
+              type: CommandTypeOf<CommandType>,
+              data: CommandDataOf<CommandType>,
+              metadata: DefaultCommandMetadata | undefined,
+            ]
+          >
+    : WithSchemaVersionArgument<
+        CommandType,
+        [
+          type: CommandTypeOf<CommandType>,
+          data: CommandDataOf<CommandType>,
+          metadata: CommandMetaDataOf<CommandType>,
+        ]
+      >
 ): CommandType => {
-  const [type, data, metadata] = args;
+  const [type, data, ...optionalArguments] = args;
 
-  return metadata !== undefined
-    ? ({ type, data, metadata, kind: 'Command' } as CommandType)
-    : ({ type, data, kind: 'Command' } as CommandType);
+  return {
+    type,
+    data,
+    kind: 'Command',
+    ...splitMetadataAndSchemaVersion(optionalArguments),
+  } as CommandType;
 };
 
 export type DefaultCommandMetadata = { now: Date };

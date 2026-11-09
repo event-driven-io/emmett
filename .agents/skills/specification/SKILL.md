@@ -1,7 +1,6 @@
 ---
 name: specification
 description: Turn an idea into a detailed specification. Use when the user wants to refine an idea before implementation.
-disable-model-invocation: true
 ---
 
 # Specify an idea
@@ -18,7 +17,9 @@ Check with the user that these seams match their expectations.
 
 3. Write the spec using the template below.
 
-4. If you found something that was missed, store what you have in spec.md and ask if user would like to go back to q&a.
+4. If you found something that was missed or is still open, store what you have in spec.md and ask if user would like to go back to q&a.
+
+5. Spec must not have any open items, unless they're explicitly marked by user as out of scope or follow up items. You must never make such decisions on your own.
 
 Store spec in spec.md, if you're doing it based on qa.md, keep it in the same subfolder.
 
