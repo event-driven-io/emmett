@@ -1,9 +1,11 @@
 import { getMongoDBEventStore } from '@event-driven-io/emmett-mongodb';
 import { randomUUID } from 'crypto';
-import { afterAll, describe, inject } from 'vitest';
+import { afterAll, describe, expect, inject } from 'vitest';
 import {
   testAppendToStream,
   testCommandHandling,
+  testConsumerSchemaVersion,
+  testSchemaVersion,
   type EventStoreFactory,
 } from '../features';
 
@@ -38,5 +40,26 @@ describe.each(['COLLECTION_PER_STREAM_TYPE', 'SINGLE_COLLECTION'] as const)(
     testAppendToStream(eventStoreFactory);
 
     testCommandHandling(eventStoreFactory);
+
+    const streamMetadata = {
+      correlationId: expect.any(String) as unknown,
+      causationId: expect.any(String) as unknown,
+      traceId: expect.any(String) as unknown,
+      spanId: expect.any(String) as unknown,
+    };
+
+    testSchemaVersion(eventStoreFactory, {
+      getInitialIndex: () => 1n,
+      storeMetadata: streamMetadata,
+    });
+
+    testConsumerSchemaVersion(eventStoreFactory, {
+      getInitialIndex: () => 1n,
+      storeMetadata: {
+        ...streamMetadata,
+        checkpoint: expect.any(String) as unknown,
+        globalPosition: expect.any(String) as unknown,
+      },
+    });
   },
 );

@@ -6,9 +6,11 @@ import {
   ExpectedVersionConflictError,
   filterProjections,
   mergeObservability,
+  resolveSchemaVersion,
   tryPublishMessagesAfterCommit,
   upcastRecordedMessages,
   withOperationScope,
+  withoutSchemaVersion,
   type AggregateStreamOptions,
   type AggregateStreamResult,
   type AnyMessage,
@@ -316,7 +318,15 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
         );
 
         const events = upcastRecordedMessages(
-          stream.messages,
+          stream.messages.map((message) => ({
+            ...message,
+            kind: message.kind ?? 'Event',
+            schemaVersion: resolveSchemaVersion(
+              message.schemaVersion,
+              message.metadata,
+            ),
+            metadata: withoutSchemaVersion(message.metadata),
+          })),
           options?.schema?.versioning,
         );
 
@@ -433,9 +443,13 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
             {
               type: event.type,
               data: event.data,
+              kind: event.kind ?? 'Event',
+              schemaVersion: event.schemaVersion ?? 1,
               metadata: {
                 ...metadata,
-                ...('metadata' in event ? (event.metadata ?? {}) : {}),
+                ...withoutSchemaVersion(
+                  'metadata' in event ? (event.metadata ?? {}) : {},
+                ),
               },
             } as ReadEvent<EventType, MongoDBReadEventMetadata>,
             options?.schema?.versioning,

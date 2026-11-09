@@ -2,7 +2,9 @@ import {
   delayOrAbort,
   MessageSourceCaughtUp,
   ProcessorCheckpoint,
+  resolveSchemaVersion,
   subscriptionMessageSource,
+  withoutSchemaVersion,
   type AnyMessage,
   type AsyncRetryOptions,
   type Message,
@@ -95,11 +97,15 @@ export const mongoDBMessageSource = <MessageType extends Message = AnyMessage>({
             lastCheckpoint = toMongoDBCheckpoint(change._id, index);
 
             yield {
-              kind: message.kind,
+              kind: message.kind ?? 'Event',
               type: message.type,
               data: message.data,
+              schemaVersion: resolveSchemaVersion(
+                message.schemaVersion,
+                message.metadata,
+              ),
               metadata: {
-                ...message.metadata,
+                ...withoutSchemaVersion(message.metadata),
                 checkpoint: lastCheckpoint,
                 globalPosition: lastCheckpoint,
               },
