@@ -31,7 +31,12 @@ import {
   type EventStoreObservabilityConfig,
 } from './observability';
 import { handleInMemoryProjections } from './projections/inMemory';
-import { downcastRecordedMessages, upcastRecordedMessages } from './versioning';
+import {
+  downcastRecordedMessages,
+  resolveSchemaVersion,
+  upcastRecordedMessages,
+  withoutSchemaVersion,
+} from './versioning';
 
 export const InMemoryEventStoreDefaultStreamVersion = 0n;
 
@@ -125,7 +130,14 @@ export const getInMemoryEventStore = (
                 EventPayloadType,
                 ReadEventMetadataWithGlobalPosition
               >(
-                events.slice(from, to) as ReadEvent<
+                events.slice(from, to).map((recorded) => ({
+                  ...recorded,
+                  schemaVersion: resolveSchemaVersion(
+                    recorded.schemaVersion,
+                    recorded.metadata,
+                  ),
+                  metadata: withoutSchemaVersion(recorded.metadata),
+                })) as ReadEvent<
                   EventPayloadType,
                   ReadEventMetadataWithGlobalPosition
                 >[],
@@ -241,8 +253,11 @@ export const getInMemoryEventStore = (
             return {
               ...event,
               kind: event.kind ?? 'Event',
+              schemaVersion: event.schemaVersion ?? 1,
               metadata: {
-                ...('metadata' in event ? (event.metadata ?? {}) : {}),
+                ...('metadata' in event
+                  ? withoutSchemaVersion(event.metadata ?? {})
+                  : {}),
                 ...metadata,
               } as CombinedReadEventMetadata<
                 EventType,

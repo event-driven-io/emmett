@@ -13,7 +13,7 @@ Plan: `plan.md`. Spec: `spec.md`. Tick a step only when its "Done when" checks p
 - [x] 1. Freeze the 0.43.0 PostgreSQL and SQLite APIs for tests (test support for 11–19)
 - [x] 2. Version type parameter on `Message`, `Event`, `Command` (1.1–1.6)
 - [x] 3. Version argument on `event()`, `command()`, `message()` (2.1–2.7)
-- [ ] 4. Read rule, upcast and downcast, shared features on in-memory (4.1–4.3, 4.5, 4.6, 5.1, 6.1–6.3, 7.1, 8.1–8.3, 9.1, 9.2, 10.1, 10.2)
+- [x] 4. Read rule, upcast and downcast, shared features on in-memory (4.1–4.3, 4.5, 4.6, 5.1, 6.1–6.3, 7.1, 8.1–8.3, 9.1, 9.2, 10.1, 10.2)
 - [ ] 5. MongoDB (shared features with 4.4 and 8.4, 5.3, 6.1–6.3)
 - [ ] 6. EventStoreDB (shared features with 4.4 and 8.4, 5.4, 6.1–6.3)
 - [ ] 7. PostgreSQL reads (6.4, 15.1, 15.2, 15.4)

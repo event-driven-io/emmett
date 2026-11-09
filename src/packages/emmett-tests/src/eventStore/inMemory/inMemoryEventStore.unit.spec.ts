@@ -1,9 +1,10 @@
 import { getInMemoryEventStore } from '@event-driven-io/emmett';
-import { describe } from 'vitest';
+import { describe, expect } from 'vitest';
 import {
   testAggregateStream,
   testAppendToStream,
   testCommandHandling,
+  testSchemaVersion,
   testStreamExists,
 } from '../features';
 
@@ -19,6 +20,18 @@ describe('InMemoryEventStore', () => {
   testCommandHandling(() => Promise.resolve(getInMemoryEventStore()));
 
   testStreamExists(() => Promise.resolve(getInMemoryEventStore()));
+
+  testSchemaVersion(() => Promise.resolve(getInMemoryEventStore()), {
+    getInitialIndex: () => 1n,
+    storeMetadata: {
+      globalPosition: expect.any(String) as unknown,
+      checkpoint: expect.any(String) as unknown,
+      correlationId: expect.any(String) as unknown,
+      causationId: expect.any(String) as unknown,
+      traceId: expect.any(String) as unknown,
+      spanId: expect.any(String) as unknown,
+    },
+  });
 
   // void it('Successful subscription and processing of events', async () => {
   //   const eventStore = getInMemoryEventStore();
