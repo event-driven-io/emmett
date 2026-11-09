@@ -15,11 +15,13 @@ import {
   releaseSharedEventStoreDBTestContainer,
 } from '@event-driven-io/emmett-testcontainers/esdb';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   testAggregateStream,
   testAppendToStream,
   testCommandHandling,
+  testConsumerSchemaVersion,
+  testSchemaVersion,
   testStreamExists,
   type EventStoreFactory,
 } from '../features';
@@ -57,6 +59,28 @@ describe('EventStoreDBEventStore', () => {
   });
 
   testStreamExists(eventStoreFactory, { teardownHook });
+
+  const storeMetadata = {
+    correlationId: expect.any(String) as unknown,
+    causationId: expect.any(String) as unknown,
+    traceId: expect.any(String) as unknown,
+    spanId: expect.any(String) as unknown,
+    eventId: expect.any(String) as unknown,
+    checkpoint: expect.any(String) as unknown,
+    globalPosition: expect.any(String) as unknown,
+  };
+
+  testSchemaVersion(eventStoreFactory, {
+    teardownHook,
+    getInitialIndex: () => 0n,
+    storeMetadata,
+  });
+
+  testConsumerSchemaVersion(eventStoreFactory, {
+    teardownHook,
+    getInitialIndex: () => 0n,
+    storeMetadata,
+  });
 
   it('records observability spans while appending with ESDB storage', async () => {
     const container = await getSharedEventStoreDBTestContainer();

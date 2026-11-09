@@ -9,7 +9,9 @@ import {
   eventStoreCollector,
   eventStoreObservability,
   mergeObservability,
+  resolveSchemaVersion,
   upcastRecordedMessage,
+  withoutSchemaVersion,
   withOperationScope,
   type AggregateStreamOptions,
   type AggregateStreamResultWithGlobalPosition,
@@ -283,7 +285,8 @@ export const getEventStoreDBEventStore = (
                   : observability.contextGenerator.generateMessageId();
 
               return jsonEvent({
-                ...event,
+                type: event.type,
+                data: event.data,
                 id: messageId,
                 metadata: {
                   messageId,
@@ -292,6 +295,8 @@ export const getEventStoreDBEventStore = (
                   traceId: context.traceId,
                   spanId: context.spanId,
                   ...metadata,
+                  kind: event.kind ?? 'Event',
+                  schemaVersion: event.schemaVersion ?? 1,
                 },
               });
             });
@@ -386,13 +391,21 @@ export const mapFromESDBEvent = <MessageType extends AnyMessage = AnyMessage>(
   const event = resolvedEvent.event!;
   const globalPosition =
     event.position?.commit ?? resolvedEvent.link?.position?.commit;
+  const { kind, ...storedMetadata } = (event.metadata ?? {}) as Record<
+    string,
+    unknown
+  >;
 
   return <RecordedMessage<MessageType, EventStoreDBReadEventMetadata>>{
     type: event.type,
     data: event.data,
+    kind: kind ?? 'Event',
+    schemaVersion: resolveSchemaVersion(
+      storedMetadata.schemaVersion,
+      storedMetadata,
+    ),
     metadata: {
-      ...((event.metadata as EventStoreDBReadEventMetadata) ??
-        ({} as EventStoreDBReadEventMetadata)),
+      ...withoutSchemaVersion(storedMetadata),
       eventId: event.id,
       streamName: event.streamId,
       streamPosition: event.revision,

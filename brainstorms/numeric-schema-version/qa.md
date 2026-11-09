@@ -388,3 +388,11 @@ Research result for Q74 (`type-surface-research/versioning-result-version/findin
 ## Q78. `AnyRecordedMessage` is `Message<any, any, any>`, so its `schemaVersion` stays optional while `RecordedMessage` requires a number. It is used only for `lastSuccessfulMessage` in `typing/messageHandling.ts`. Leave it, or require `schemaVersion: number`?
 
 > leave it as it is
+
+## Q79. Step 5 found that MongoDB never stored `kind`: stream reads return messages without it, and consumers yield `kind: undefined`, so the shared features that assert `kind` fail on MongoDB. Store `kind` on append only, relax the shared features for MongoDB and file an issue, or store `kind` on append and default a missing `kind` to `'Event'` on reads (stream and consumer)?
+
+> Store and default on read
+
+## Q80. Step 6 found that EventStoreDB reads never return `kind`, and an EventStoreDB event has only type, data and metadata. A shared test appends a command and expects `kind: 'Command'` back. Store `kind` in the event metadata and lift it on read (default `'Event'`), default to `'Event'` on read only, or leave `kind` out of step 6 and relax the shared features?
+
+> Store in metadata
