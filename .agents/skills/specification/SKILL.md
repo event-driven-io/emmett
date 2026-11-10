@@ -27,11 +27,17 @@ Check with the user that these seams match their expectations.
 
 8. Spec must not have any open items, unless they're explicitly marked by user as out of scope or follow up items. You must never make such decisions on your own.
 
-9. After each write or update of the spec, run `review-specification` in a fresh-context subagent before showing the spec to the user.
+9. After each write or update of the spec, bump its revision. Check your edits against the briefs in `review-specification`, then run that skill before showing the spec to the user.
+
+10. When you add an answer to `qa.md`, name the spec revision that holds it, for example `## Q12 (spec r3)`.
 
 Store spec in spec.md, if you're doing it based on qa.md, keep it in the same subfolder.
 
 <spec-template>
+
+# <feature>
+
+Revision: <n>
 
 ## Problem Statement
 
