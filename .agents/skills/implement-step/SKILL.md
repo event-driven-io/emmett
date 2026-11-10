@@ -31,7 +31,7 @@ You decide how the code is written. The spec decides behaviour, public API, stor
 
 ## After you implement
 
-1. Run the `review-implementation` skill in a subagent with a fresh context and act on its status. Where it says to ask the user, stop with `planNeedsChange` and put the findings in the details. If you run as a subagent and cannot start another one, skip the review and report `Review: notRun`, so that the caller runs it.
+1. Run the `review-implementation` skill in a subagent with a fresh context and act on its `Review:` line. You are the implementer that fixes `implementation` findings. On `blocked`, stop with `planNeedsChange` and put the findings in the details. If you run as a subagent and cannot start another one, skip the review and report `Review: notRun`, so that the caller runs it.
 2. Write to `progress.md`, under a heading for the step: a short summary on success, or on failure a longer write-up with what you tried, what failed, what is left and what decision is needed.
 3. Return the outcome.
 
@@ -41,7 +41,7 @@ End with the outcome in this format:
 
 ```text
 Outcome: done | doneWithDeviation | notDone | blocker | planNeedsChange
-Review: approved | changesRequested | notRun
+Review: clean | findingsLeft | blocked | notRun
 Summary: <one or two sentences>
 Details: <required for every outcome except done>
 Checks: <each command you ran and whether it passed>

@@ -34,11 +34,13 @@ The spec is in the file called: $ARGUMENTS
 
 Store the plan in plan.md in the folder where spec lives. Also create a todo.md to keep state accordingly. Use the templates below for both.
 
-After each write or update of the plan, run `review-plan` in a fresh-context subagent before showing the plan to the user.
+After each write or update of the plan, bump its revision. Check your edits against the briefs in `review-plan`, then run that skill before showing the plan to the user. When you add an answer to `qa.md`, name the plan revision that holds it, for example `## Q12 (plan r2)`.
 
 <plan-template>
 
 # Plan: <feature>
+
+Revision: <n>. Built from spec r<n>.
 
 Spec: `spec.md`. Q&A: `qa.md`.
 
