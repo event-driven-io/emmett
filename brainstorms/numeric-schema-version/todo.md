@@ -16,7 +16,7 @@ Plan: `plan.md`. Spec: `spec.md`. Tick a step only when its "Done when" checks p
 - [x] 4. Read rule, upcast and downcast, shared features on in-memory (4.1–4.3, 4.5, 4.6, 5.1, 6.1–6.3, 7.1, 8.1–8.3, 9.1, 9.2, 10.1, 10.2)
 - [x] 5. MongoDB (shared features with 4.4 and 8.4, 5.3, 6.1–6.3)
 - [x] 6. EventStoreDB (shared features with 4.4 and 8.4, 5.4, 6.1–6.3)
-- [ ] 7. PostgreSQL reads (6.4, 15.1, 15.2, 15.4)
+- [x] 7. PostgreSQL reads (6.4, 15.1, 15.2, 15.4)
 - [ ] 8. PostgreSQL `emt_append_to_stream_v_0_43_0` and the converting old body (14.2 TEXT, 14.3, 24.1 functions)
 - [ ] 9. PostgreSQL appends through the new function, metadata copy, blue/green (shared features, 5.2, 11.1, 11.2, 12.1–12.3, 14.1 TEXT, 15.3, 24.1)
 - [ ] 10. PostgreSQL fresh layout with `INT` (20.1, 20.3, 14.1 INT, 14.2 INT)
@@ -35,3 +35,4 @@ Plan: `plan.md`. Spec: `spec.md`. Tick a step only when its "Done when" checks p
 - Criteria 6.1–6.3 on in-memory are covered by the core read-rule unit tests, because in-memory data cannot be older than the release.
 - MongoDB never stored `kind`. Step 5 stores it on append and defaults a missing `kind` to `'Event'` on stream reads and in consumers (Q79).
 - EventStoreDB never returned `kind`. Step 6 stores it in the event metadata on append, lifts it to the top level on read and defaults a missing `kind` to `'Event'` (Q80).
+- Released PostgreSQL appends (0.20.2 to 0.42.4) stored `'1'`, not `'"1"'`. Step 7 builds the 15.1 rows with the 0.38.7 legacy append and asserts `'1'`; `spec.md` and `plan.md` are corrected (Q81).

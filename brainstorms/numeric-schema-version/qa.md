@@ -396,3 +396,7 @@ Research result for Q74 (`type-surface-research/versioning-result-version/findin
 ## Q80. Step 6 found that EventStoreDB reads never return `kind`, and an EventStoreDB event has only type, data and metadata. A shared test appends a command and expects `kind: 'Command'` back. Store `kind` in the event metadata and lift it on read (default `'Event'`), default to `'Event'` on read only, or leave `kind` out of step 6 and relax the shared features?
 
 > Store in metadata
+
+## Q81. The spec and plan say 0.42.x PostgreSQL rows hold `'"1"'` (with quotes) in `message_schema_version`. Every released append checked (0.20.2, 0.36.0, 0.38.7, 0.40.0, 0.42.0, 0.42.4) builds `ARRAY['1']`, and the frozen 0.38.7 legacy append stores `'1'` without quotes. How should 15.1 get its 0.42.x rows: the legacy append with `'1'` and a corrected spec, both the legacy append and a direct SQL insert of `'"1"'`, or only a direct SQL insert of `'"1"'`?
+
+> Legacy append, '1'

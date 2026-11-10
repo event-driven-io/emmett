@@ -168,8 +168,12 @@ void describe('readStream', () => {
     );
   });
 
+  const checkpointOf = (checkpoint: PostgreSQLEventStoreCheckpoint) =>
+    PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(checkpoint);
+
   void it('reads the schema version from event metadata', async () => {
     const streamId = uuid();
+    const messageId = uuid();
     const event: Event<
       'ProductItemAdded',
       { productItem: PricedProductItem },
@@ -179,64 +183,159 @@ void describe('readStream', () => {
       data: { productItem: { productId: 'p1', quantity: 2, price: 30 } },
       metadata: { meta: 'data1', schemaVersion: '2' },
     };
-    await pool.withConnection(async (connection) =>
-      appendToStream(connection, streamId, 'shopping_cart', [event]),
+    const appendResult = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', [event], {
+        messageIdGenerator: () => messageId,
+      }),
     );
+    assertTrue(appendResult.success);
+    const globalPosition = checkpointOf(appendResult.checkpoints[0]!);
 
-    const result = await readStream(pool.execute, streamId);
+    const result = await readStream<
+      Event<
+        'ProductItemAdded',
+        { productItem: PricedProductItem },
+        { meta: string },
+        2
+      >
+    >(pool.execute, streamId);
 
-    assertDeepEqual(
-      result.events.map((e) => e.metadata.schemaVersion),
-      ['2'],
-    );
+    assertDeepEqual(result.events, [
+      {
+        type: 'ProductItemAdded',
+        kind: 'Event',
+        data: event.data,
+        schemaVersion: 2,
+        metadata: {
+          meta: 'data1',
+          messageId,
+          streamName: streamId,
+          streamPosition: 1n,
+          globalPosition,
+          checkpoint: globalPosition,
+        },
+      },
+    ]);
   });
 
   void it('reads schema version 1 when event metadata has no schema version', async () => {
     const streamId = uuid();
-    await pool.withConnection(async (connection) =>
-      appendToStream(connection, streamId, 'shopping_cart', events),
+    const messageIds = [uuid(), uuid()];
+    let messageIndex = 0;
+    const appendResult = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', events, {
+        messageIdGenerator: () => messageIds[messageIndex++]!,
+      }),
     );
+    assertTrue(appendResult.success);
 
     const result = await readStream(pool.execute, streamId);
 
     assertDeepEqual(
-      result.events.map((e) => e.metadata.schemaVersion),
-      ['1', '1'],
+      result.events,
+      events.map((event, index) => {
+        const globalPosition = checkpointOf(appendResult.checkpoints[index]!);
+        return {
+          ...event,
+          kind: 'Event',
+          schemaVersion: 1,
+          metadata: {
+            ...event.metadata,
+            messageId: messageIds[index]!,
+            streamName: streamId,
+            streamPosition: BigInt(index + 1),
+            globalPosition,
+            checkpoint: globalPosition,
+          },
+        };
+      }),
     );
   });
 
+  void it('reads the metadata schema version when the stored schema version is not numeric', async () => {
+    const streamId = uuid();
+    const messageId = uuid();
+    const data = { productItem: { productId: 'p1', quantity: 2, price: 30 } };
+    const metadata = { meta: 'data1', schemaVersion: '3' };
+
+    const [inserted] = (
+      await pool.execute.command<{
+        global_position: string;
+        transaction_id: string;
+      }>(
+        SQL`INSERT INTO "emt_messages"
+          (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_kind, message_id, transaction_id)
+        VALUES
+          (${streamId}, 1, ${defaultTag}, ${JSON.stringify(data)}::jsonb, ${JSON.stringify(metadata)}::jsonb, 'v2', 'ProductItemAdded', 'E', ${messageId}, pg_current_xact_id())
+        RETURNING global_position, transaction_id`,
+      )
+    ).rows;
+    const globalPosition = checkpointOf({
+      transactionId: BigInt(inserted!.transaction_id),
+      globalPosition: BigInt(inserted!.global_position),
+    });
+
+    const result = await readStream<
+      Event<
+        'ProductItemAdded',
+        { productItem: PricedProductItem },
+        { meta: string },
+        3
+      >
+    >(pool.execute, streamId);
+
+    assertDeepEqual(result.events, [
+      {
+        type: 'ProductItemAdded',
+        kind: 'Event',
+        data,
+        schemaVersion: 3,
+        metadata: {
+          meta: 'data1',
+          messageId,
+          streamName: streamId,
+          streamPosition: 1n,
+          globalPosition,
+          checkpoint: globalPosition,
+        },
+      },
+    ]);
+  });
+
   void it('upcasts events based on their schema version', async () => {
-    type VersionedMetadata = { meta: string; schemaVersion?: string };
     type ProductItemAddedV1 = Event<
       'ProductItemAdded',
       PricedProductItem,
-      VersionedMetadata
+      { meta: string }
     >;
     type ProductItemAddedV2 = Event<
       'ProductItemAdded',
       { productItem: PricedProductItem },
-      VersionedMetadata
+      { meta: string },
+      2
     >;
     type StoredProductItemAdded = ProductItemAddedV1 | ProductItemAddedV2;
 
-    const upcast = (event: StoredProductItemAdded): ProductItemAddedV2 => {
-      switch (event.metadata.schemaVersion) {
-        case '1':
-          return {
-            ...event,
-            data: { productItem: (event as ProductItemAddedV1).data },
+    const upcast = (event: StoredProductItemAdded): ProductItemAddedV2 =>
+      event.schemaVersion === 2
+        ? event
+        : {
+            type: 'ProductItemAdded',
+            data: { productItem: event.data },
+            metadata: event.metadata,
+            schemaVersion: 2,
           };
-        default:
-          return event as ProductItemAddedV2;
-      }
-    };
 
     const productItem: PricedProductItem = {
       productId: 'p1',
       quantity: 2,
       price: 30,
     };
-    const storedEvents: StoredProductItemAdded[] = [
+    const storedEvents: Event<
+      'ProductItemAdded',
+      PricedProductItem | { productItem: PricedProductItem },
+      { meta: string; schemaVersion?: string }
+    >[] = [
       {
         type: 'ProductItemAdded',
         data: productItem,
@@ -249,9 +348,14 @@ void describe('readStream', () => {
       },
     ];
     const streamId = uuid();
-    await pool.withConnection(async (connection) =>
-      appendToStream(connection, streamId, 'shopping_cart', storedEvents),
+    const messageIds = [uuid(), uuid()];
+    let messageIndex = 0;
+    const appendResult = await pool.withConnection(async (connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', storedEvents, {
+        messageIdGenerator: () => messageIds[messageIndex++]!,
+      }),
     );
+    assertTrue(appendResult.success);
 
     const result = await readStream<ProductItemAddedV2, StoredProductItemAdded>(
       pool.execute,
@@ -260,8 +364,24 @@ void describe('readStream', () => {
     );
 
     assertDeepEqual(
-      result.events.map((e) => e.data),
-      [{ productItem }, { productItem }],
+      result.events,
+      ['data1', 'data2'].map((meta, index) => {
+        const globalPosition = checkpointOf(appendResult.checkpoints[index]!);
+        return {
+          type: 'ProductItemAdded',
+          kind: 'Event',
+          data: { productItem },
+          schemaVersion: 2,
+          metadata: {
+            meta,
+            messageId: messageIds[index]!,
+            streamName: streamId,
+            streamPosition: BigInt(index + 1),
+            globalPosition,
+            checkpoint: globalPosition,
+          },
+        };
+      }),
     );
   });
 });

@@ -1,7 +1,6 @@
 import { mapRows, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import {
   bigIntProcessorCheckpoint,
-  DefaultMessageSchemaVersion,
   type CombinedMessageMetadata,
   type Message,
   type MessageDataOf,
@@ -11,6 +10,8 @@ import {
   type RecordedMessage,
   type RecordedMessageMetadata,
   type RecordedMessageMetadataWithGlobalPosition,
+  resolveSchemaVersion,
+  withoutSchemaVersion,
 } from '@event-driven-io/emmett';
 import { defaultTag, messagesTable, tableReference } from './typing';
 
@@ -104,7 +105,7 @@ export const readMessagesBatchSQL = (
     'batchSize' in options ? SQL`LIMIT ${options.batchSize}` : SQL.EMPTY;
 
   return SQL`
-    SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id, transaction_id
+    SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version::text AS message_schema_version, message_type, message_id, transaction_id
     FROM ${tableReference(options.databaseSchemaName, messagesTable.name)}
     WHERE partition = ${options?.partition ?? defaultTag}
       AND is_archived = FALSE
@@ -152,8 +153,7 @@ export const readMessagesBatch = async <
           });
 
         const metadata: RecordedMessageMetadataWithGlobalPosition = {
-          schemaVersion: DefaultMessageSchemaVersion,
-          ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
+          ...withoutSchemaVersion(row.message_metadata ?? {}),
           messageId: row.message_id,
           streamName: row.stream_id,
           streamPosition: BigInt(row.stream_position),
@@ -164,6 +164,10 @@ export const readMessagesBatch = async <
         return {
           ...rawEvent,
           kind: 'Event',
+          schemaVersion: resolveSchemaVersion(
+            row.message_schema_version,
+            row.message_metadata,
+          ),
           metadata: metadata as CombinedMessageMetadata<
             MessageType,
             RecordedMessageMetadataType

@@ -17,6 +17,7 @@ import {
   assertThatArray,
   assertThrowsAsync,
   assertTrue,
+  asyncRetry,
   bigIntProcessorCheckpoint,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
@@ -38,7 +39,10 @@ import {
   type PostgresEventStore,
 } from '../../../postgreSQLEventStore';
 import { tryAcquireProcessorLock } from '../../../projections/locks/tryAcquireProcessorLock';
-import { PostgreSQLEventStoreCheckpoint } from '../../readMessagesBatch';
+import {
+  PostgreSQLEventStoreCheckpoint,
+  readMessagesBatch,
+} from '../../readMessagesBatch';
 import {
   appendToStream as appendToStreamToCurrentSchema,
   callAppendToStream,
@@ -461,6 +465,190 @@ void describe('Schema migrations tests', () => {
         },
       },
     ]);
+  });
+
+  const readStoredMessage = async (streamId: string) =>
+    single(
+      pool.execute.query<{
+        message_id: string;
+        message_schema_version: string;
+      }>(
+        SQL`SELECT message_id, message_schema_version FROM emt_messages WHERE stream_id = ${streamId}`,
+      ),
+    );
+
+  const readSchemaVersionColumnType = async () =>
+    (
+      await single(
+        pool.execute.query<{ data_type: string }>(
+          SQL`SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'emt_messages' AND column_name = 'message_schema_version'`,
+        ),
+      )
+    ).data_type;
+
+  const appendWith_0_42_0 = async (streamId: string) => {
+    await runSQLMigrations(pool, [
+      ...migrations_0_36_0,
+      ...migrations_0_38_7,
+      ...migrations_0_42_0,
+    ]);
+    const itemAdded: ProductItemAdded = {
+      type: 'ProductItemAdded',
+      data: {
+        shoppingCartId: streamId,
+        productItem: { productId: 'product-123', quantity: 2 },
+      },
+    };
+    const appended = await appendToStream(pool.execute, {
+      streamId,
+      streamType: 'shopping_cart',
+      events: [itemAdded],
+    });
+    return {
+      event: itemAdded,
+      globalPosition: PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+        transactionId: appended.transactionId,
+        globalPosition: appended.globalPositions[0]!,
+      }),
+    };
+  };
+
+  const appendWith_0_43_0 = async (streamId: string, messageId: string) => {
+    await runSQLMigrations(pool, [
+      ...migrations_0_36_0,
+      ...migrations_0_38_7,
+      ...migrations_0_42_0,
+      ...releasedMigrations_0_43_0,
+    ]);
+    const event: Event<
+      'ProductItemAdded',
+      ProductItemAdded['data'],
+      { schemaVersion: string }
+    > = {
+      type: 'ProductItemAdded',
+      data: {
+        shoppingCartId: streamId,
+        productItem: { productId: 'product-123', quantity: 2 },
+      },
+      metadata: { schemaVersion: '2' },
+    };
+    const appended = await pool.withConnection((connection) =>
+      appendToStream_0_43_0(connection, streamId, 'shopping_cart', [event], {
+        messageIdGenerator: () => messageId,
+      }),
+    );
+    assertTrue(appended.success);
+    return {
+      event,
+      globalPosition: PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
+        appended.checkpoints[0]!,
+      ),
+    };
+  };
+
+  void it('reads schema version 1 for 0.42.x events and keeps the text column after the automatic migrations', async () => {
+    // Given
+    const streamId = `shopping_cart-${crypto.randomUUID()}`;
+    const { event, globalPosition } = await appendWith_0_42_0(streamId);
+    const stored = await readStoredMessage(streamId);
+    assertEqual('1', stored.message_schema_version);
+
+    // When
+    await runSQLMigrations(pool, eventStoreSchemaMigrationsFor());
+    const { events } = await readStream(pool.execute, streamId);
+
+    // Then
+    assertEqual('text', await readSchemaVersionColumnType());
+    assertDeepEqual(events, [
+      {
+        type: 'ProductItemAdded',
+        kind: 'Event',
+        data: event.data,
+        schemaVersion: 1,
+        metadata: {
+          messageId: stored.message_id,
+          streamName: streamId,
+          streamPosition: 1n,
+          globalPosition,
+          checkpoint: globalPosition,
+        },
+      },
+    ]);
+  });
+
+  void it('reads the schema version of released 0.43.0 events without it in metadata after the automatic migrations', async () => {
+    // Given
+    const streamId = `shopping_cart-${crypto.randomUUID()}`;
+    const messageId = crypto.randomUUID();
+    const { event, globalPosition } = await appendWith_0_43_0(
+      streamId,
+      messageId,
+    );
+    assertEqual(
+      '2',
+      (await readStoredMessage(streamId)).message_schema_version,
+    );
+
+    // When
+    await runSQLMigrations(pool, eventStoreSchemaMigrationsFor());
+    const { events } = await readStream(pool.execute, streamId);
+
+    // Then
+    assertDeepEqual(events, [
+      {
+        type: 'ProductItemAdded',
+        kind: 'Event',
+        data: event.data,
+        schemaVersion: 2,
+        metadata: {
+          messageId,
+          streamName: streamId,
+          streamPosition: 1n,
+          globalPosition,
+          checkpoint: globalPosition,
+        },
+      },
+    ]);
+  });
+
+  void it('consumers read the same schema versions as readStream after the automatic migrations', async () => {
+    // Given
+    const legacyStreamId = `shopping_cart-${crypto.randomUUID()}`;
+    const releasedStreamId = `shopping_cart-${crypto.randomUUID()}`;
+    await appendWith_0_42_0(legacyStreamId);
+    await appendWith_0_43_0(releasedStreamId, crypto.randomUUID());
+
+    // When
+    await runSQLMigrations(pool, eventStoreSchemaMigrationsFor());
+    const messages = await asyncRetry(
+      async () =>
+        (
+          await readMessagesBatch(pool.execute, {
+            after: PostgreSQLEventStoreCheckpoint.default,
+            batchSize: 100,
+          })
+        ).messages.filter(({ metadata }) =>
+          [legacyStreamId, releasedStreamId].includes(metadata.streamName),
+        ),
+      {
+        retries: 20,
+        minTimeout: 50,
+        factor: 1,
+        shouldRetryResult: (visible) => visible.length < 2,
+      },
+    );
+    const legacy = await readStream(pool.execute, legacyStreamId);
+    const released = await readStream(pool.execute, releasedStreamId);
+
+    // Then
+    assertEqual('text', await readSchemaVersionColumnType());
+    assertDeepEqual(messages, [...legacy.events, ...released.events]);
+    assertDeepEqual(
+      [...legacy.events, ...released.events].map(
+        ({ schemaVersion }) => schemaVersion,
+      ),
+      [1, 2],
+    );
   });
 
   void it('old storeSubscriptionCheckpoint FAILS with not existing procedure', async () => {
