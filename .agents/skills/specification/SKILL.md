@@ -17,9 +17,17 @@ Check with the user that these seams match their expectations.
 
 3. Write the spec using the template below.
 
-4. If you found something that was missed or is still open, store what you have in spec.md and ask if user would like to go back to q&a.
+4. Every decision in the spec comes from an answer in `qa.md` or from the existing code. If a decision has no such source, ask.
 
-5. Spec must not have any open items, unless they're explicitly marked by user as out of scope or follow up items. You must never make such decisions on your own.
+5. A developer can implement each decision without choosing between options. If they would have to choose, ask.
+
+6. If the feature adds work each time an existing operation runs, such as an extra database query, the spec states that work and the answer in `qa.md` that allows it. If no answer allows it, ask.
+
+7. If you found something that was missed or is still open, store what you have in spec.md and ask if user would like to go back to q&a.
+
+8. Spec must not have any open items, unless they're explicitly marked by user as out of scope or follow up items. You must never make such decisions on your own.
+
+9. After each write or update of the spec, run `review-specification` in a fresh-context subagent before showing the spec to the user.
 
 Store spec in spec.md, if you're doing it based on qa.md, keep it in the same subfolder.
 
