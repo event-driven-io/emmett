@@ -7,7 +7,7 @@ Emmett users evolve message schemas over time. They need to know which version o
 - A string cannot discriminate a TypeScript union. `ProductItemAddedV1 | ProductItemAddedV2` cannot be narrowed by a `switch` on the version, so upcasters need casts.
 - The version is mixed with user metadata, although it describes the message shape, the same way `kind` does.
 - It is supported only by PostgreSQL and SQLite. MongoDB, EventStoreDB and the in-memory store ignore it.
-- The `message_schema_version` column in PostgreSQL and SQLite is `TEXT` and holds junk in rows written before 0.43.0. PostgreSQL stored `'"1"'` (with quotes) for every row. SQLite stored the stream's expected version (`0`, `1`, `2`, ...), which looks like a valid number.
+- The `message_schema_version` column in PostgreSQL and SQLite is `TEXT` and holds junk in rows written before 0.43.0. PostgreSQL stored `'1'` for every row, whatever the message's version (Q81). SQLite stored the stream's expected version (`0`, `1`, `2`, ...), which looks like a valid number.
 
 The string type was introduced only in the 0.43.0 release candidates, but some teams already run 0.43.0 in production, mostly on PostgreSQL. Their stored data must keep reading correctly. Their code may break, as long as the upgrade is explained.
 
@@ -73,7 +73,7 @@ The prepared 0.44.0 migrations (see Release) drop the old append function, so fr
 
 New PostgreSQL stores get `message_schema_version` as an `INT` column, placed for alignment ("column tetris") after the 8-byte columns and before the 1-byte ones.
 
-Existing stores keep their `TEXT` column after the automatic migrations of the current release. Reads and appends support both column types. On a `TEXT` column, junk such as `'"1"'` is non-numeric, so the read falls back to metadata and then to `1`.
+Existing stores keep their `TEXT` column after the automatic migrations of the current release. Reads and appends support both column types. On a `TEXT` column, junk such as `'v2'` is non-numeric, so the read falls back to metadata and then to `1`.
 
 Appends go through a database function. 0.43.0 instances call the existing function with versions as strings, and cannot be changed. An overload with the same name would make their calls ambiguous in PostgreSQL. So the current release adds a separately named append function, `emt_append_to_stream_v_0_43_0`, that takes numbers, and new code calls it with explicit casts. The existing function stays for 0.43.0 callers. The automatic migration rewrites its body so it converts the strings it gets to fit the column: unchanged on a `TEXT` column, numbers on an `INT` column, with `1` for non-numeric values.
 
@@ -183,7 +183,7 @@ PostgreSQL append functions
 PostgreSQL existing stores without an on-demand migration
 
 15. User upgrades an existing PostgreSQL store to the current release, so that old data reads correctly without a table rewrite.
-   15.1. GIVEN a store with 0.42.x rows that hold `'"1"'` in the column WHEN the automatic migrations of the current release run THEN the column is still `TEXT` AND reads return `schemaVersion: 1` for those rows.
+   15.1. GIVEN a store with 0.42.x rows that hold `'1'` in the column WHEN the automatic migrations of the current release run THEN the column is still `TEXT` AND reads return `schemaVersion: 1` for those rows.
    15.2. GIVEN a store with 0.43.0 rows that hold `'2'` in the column and `metadata.schemaVersion: '2'` WHEN they are read after the automatic migration THEN `schemaVersion` is `2` and `metadata` has no `schemaVersion`.
    15.3. GIVEN a `TEXT` column after the automatic migration WHEN the new version appends an event with `schemaVersion: 3` THEN the column holds `3` AND reads return `schemaVersion: 3`.
    15.4. GIVEN a `TEXT` column after the automatic migration WHEN consumers read batches of messages THEN each message has the same `schemaVersion` as `readStream` returns.

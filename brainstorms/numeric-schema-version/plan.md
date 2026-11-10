@@ -296,15 +296,15 @@ Why: reads must handle old data before anything writes new data. Appends still g
 Context
 Emmett repo. Read `AGENTS.md` first and follow it.
 PostgreSQL schema code: `src/packages/emmett-postgresql/src/eventStore/schema/`. `readStream.ts` and `readMessagesBatch.ts` select `message_schema_version` but ignore it. They build metadata as `{ schemaVersion: DefaultMessageSchemaVersion, ...rowMetadata, ... }`. Consumers read through `readMessagesBatch`.
-The column is `TEXT` today. 0.42.x rows hold `'"1"'` (with quotes). 0.43.0 rows hold `metadata.schemaVersion ?? '1'` as text, and their metadata JSON has `schemaVersion` as a string when the user set it. Later steps make the column `INT` on fresh and migrated stores, so reads must work with both types.
-Step 4 added `resolveSchemaVersion` and `withoutSchemaVersion` in `@event-driven-io/emmett`. Step 1 added the frozen 0.43.0 API and `releasedMigrations_0_43_0` in `migrations/0_43_0/legacyApi.ts`. The 0.42.x legacy append that writes `'"1"'` is in `migrations/0_38_7/legacyApi.ts`.
+The column is `TEXT` today. 0.42.x rows hold `'1'` (Q81). 0.43.0 rows hold `metadata.schemaVersion ?? '1'` as text, and their metadata JSON has `schemaVersion` as a string when the user set it. Later steps make the column `INT` on fresh and migrated stores, so reads must work with both types.
+Step 4 added `resolveSchemaVersion` and `withoutSchemaVersion` in `@event-driven-io/emmett`. Step 1 added the frozen 0.43.0 API and `releasedMigrations_0_43_0` in `migrations/0_43_0/legacyApi.ts`. The 0.42.x legacy append that writes `'1'` is in `migrations/0_38_7/legacyApi.ts`.
 
 Goal
 Both reads take the version through the read rule (column value, then `metadata.schemaVersion`, then `1`) and remove `schemaVersion` from `metadata`. They work on `TEXT` and `INT` columns.
 
 Acceptance criteria
 6.4 GIVEN a `TEXT` column with a non-numeric value and `metadata.schemaVersion: '3'` WHEN the row is read THEN `schemaVersion` is 3.
-15.1 GIVEN a store with 0.42.x rows that hold `'"1"'` WHEN the automatic migrations of the current release run THEN the column is still `TEXT` AND reads return `schemaVersion: 1` for those rows.
+15.1 GIVEN a store with 0.42.x rows that hold `'1'` WHEN the automatic migrations of the current release run THEN the column is still `TEXT` AND reads return `schemaVersion: 1` for those rows.
 15.2 GIVEN a store with 0.43.0 rows that hold `'2'` and `metadata.schemaVersion: '2'` WHEN they are read after the automatic migrations THEN `schemaVersion` is 2 and `metadata` has no `schemaVersion`.
 15.4 GIVEN a `TEXT` column after the automatic migrations WHEN consumers read batches of messages THEN each message has the same `schemaVersion` as `readStream` returns.
 
