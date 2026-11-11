@@ -1,7 +1,0 @@
-report.ts(14,3): error TS2322: Type '2' is not assignable to type '1'.
-report.ts(17,14): error TS2322: Type 'V2' is not assignable to type 'Event<"ProductItemAdded">'.
-  Type 'V2' is not assignable to type '{ readonly schemaVersion?: 1 | undefined; }'.
-    Types of property 'schemaVersion' are incompatible.
-      Type '2' is not assignable to type '1'.
-report.ts(32,14): error TS2322: Type '{ type: "ProductItemAdded"; data: { productItem: { productId: string; quantity: number; }; }; }' is not assignable to type 'V2'.
-  Property 'schemaVersion' is missing in type '{ type: "ProductItemAdded"; data: { productItem: { productId: string; quantity: number; }; }; }' but required in type '{ readonly schemaVersion: 2; }'.

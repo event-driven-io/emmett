@@ -1,1 +1,0 @@
-explicit1.ts(7,94): error TS2554: Expected 2 arguments, but got 3.
