@@ -21,6 +21,7 @@ type ReadMessagesBatchSqlResult<MessageType extends Message> = {
   message_data: MessageDataOf<MessageType>;
   message_metadata: MessageMetaDataOf<MessageType>;
   message_schema_version: string;
+  message_kind: string;
   message_type: MessageTypeOf<MessageType>;
   message_id: string;
   global_position: string;
@@ -105,7 +106,7 @@ export const readMessagesBatchSQL = (
     'batchSize' in options ? SQL`LIMIT ${options.batchSize}` : SQL.EMPTY;
 
   return SQL`
-    SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version::text AS message_schema_version, message_type, message_id, transaction_id
+    SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version::text AS message_schema_version, message_kind, message_type, message_id, transaction_id
     FROM ${tableReference(options.databaseSchemaName, messagesTable.name)}
     WHERE partition = ${options?.partition ?? defaultTag}
       AND is_archived = FALSE
@@ -163,7 +164,7 @@ export const readMessagesBatch = async <
 
         return {
           ...rawEvent,
-          kind: 'Event',
+          kind: row.message_kind === 'C' ? 'Command' : 'Event',
           schemaVersion: resolveSchemaVersion(
             row.message_schema_version,
             row.message_metadata,

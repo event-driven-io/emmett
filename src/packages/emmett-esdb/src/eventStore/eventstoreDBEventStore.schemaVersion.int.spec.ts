@@ -36,21 +36,21 @@ void describe('EventStoreDBEventStore schema version', () => {
     eventStore = getEventStoreDBEventStore(client);
   });
 
-  const appendLegacyEvent = async (
+  const appendEventAs_0_43_0_rc_2 = async (
     streamName: string,
-    legacyMetadata: Record<string, unknown>,
+    metadata_0_43_0_rc_2: Record<string, unknown>,
   ) => {
     await client.appendToStream(
       streamName,
       jsonEvent({
         type: 'ProductItemAdded',
         data: { productItem },
-        metadata: { messageId: 'legacy-message-1', ...legacyMetadata },
+        metadata: { messageId: 'legacy-message-1', ...metadata_0_43_0_rc_2 },
       }),
     );
   };
 
-  const consumeLegacyEvent = async (
+  const consumeEventAppendedAs_0_43_0_rc_2 = async (
     streamName: string,
     append: () => Promise<void>,
   ): Promise<RecordedMessage<Event>[]> => {
@@ -81,20 +81,20 @@ void describe('EventStoreDBEventStore schema version', () => {
     return received;
   };
 
-  const legacyCases = [
+  const cases_0_43_0_rc_2 = [
     {
-      name: 'reads the version from a string metadata version',
-      legacyMetadata: { schemaVersion: '2', tenantId: 'acme' },
+      name: "reads version 2 for an event 0.43.0-rc.2 appended with metadata schemaVersion '2'",
+      metadata_0_43_0_rc_2: { schemaVersion: '2', tenantId: 'acme' },
       schemaVersion: 2,
     },
     {
-      name: 'reads version 1 for an event stored without any version',
-      legacyMetadata: { tenantId: 'acme' },
+      name: 'reads version 1 for an event 0.43.0-rc.2 appended without a version',
+      metadata_0_43_0_rc_2: { tenantId: 'acme' },
       schemaVersion: 1,
     },
     {
-      name: 'reads version 1 for an event stored with a non-numeric metadata version',
-      legacyMetadata: { schemaVersion: 'v2', tenantId: 'acme' },
+      name: "reads version 1 for an event 0.43.0-rc.2 appended with metadata schemaVersion 'v2'",
+      metadata_0_43_0_rc_2: { schemaVersion: 'v2', tenantId: 'acme' },
       schemaVersion: 1,
     },
   ];
@@ -131,21 +131,21 @@ void describe('EventStoreDBEventStore schema version', () => {
     ]);
   });
 
-  void it('reads kind Event for an event stored without a kind', async () => {
+  void it('reads kind Event for an event 0.43.0-rc.2 appended without a kind', async () => {
     const streamName = `shopping_cart-${uuid()}`;
-    await appendLegacyEvent(streamName, { tenantId: 'acme' });
+    await appendEventAs_0_43_0_rc_2(streamName, { tenantId: 'acme' });
 
     const { events } = await eventStore.readStream(streamName);
 
     expect(events.map((message) => message.kind)).toEqual(['Event']);
   });
 
-  void describe.each(legacyCases)(
+  void describe.each(cases_0_43_0_rc_2)(
     '$name',
-    ({ legacyMetadata, schemaVersion }) => {
+    ({ metadata_0_43_0_rc_2, schemaVersion }) => {
       void it('through readStream', async () => {
         const streamName = `shopping_cart-${uuid()}`;
-        await appendLegacyEvent(streamName, legacyMetadata);
+        await appendEventAs_0_43_0_rc_2(streamName, metadata_0_43_0_rc_2);
 
         const { events } = await eventStore.readStream(streamName);
 
@@ -172,8 +172,9 @@ void describe('EventStoreDBEventStore schema version', () => {
       void it('through a consumer', async () => {
         const streamName = `shopping_cart-${uuid()}`;
 
-        const received = await consumeLegacyEvent(streamName, () =>
-          appendLegacyEvent(streamName, legacyMetadata),
+        const received = await consumeEventAppendedAs_0_43_0_rc_2(
+          streamName,
+          () => appendEventAs_0_43_0_rc_2(streamName, metadata_0_43_0_rc_2),
         );
 
         expect(received).toEqual([

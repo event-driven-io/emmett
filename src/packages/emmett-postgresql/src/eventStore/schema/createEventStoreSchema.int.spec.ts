@@ -29,7 +29,10 @@ import { getPostgreSQLEventStore } from '../postgreSQLEventStore';
 import { createEventStoreSchema } from '../schema';
 import type { EventStoreDatabaseSchemaOptions } from './eventStoreDatabaseSchema';
 import { schemaMigrationFor } from './migrations';
-import { migration_0_43_0_enforceStreamExistenceFor } from './migrations/0_43_0/0_43_0.migration';
+import {
+  migration_0_43_0_addNumericSchemaVersionAppendFor,
+  migration_0_43_0_enforceStreamExistenceFor,
+} from './migrations/0_43_0/0_43_0.migration';
 import { pgEventStoreDriver } from '../../pg';
 
 type ProductItemAdded = Event<
@@ -42,6 +45,37 @@ type ProductItemAdded = Event<
     };
   }
 >;
+
+const readMessagesColumns = async (pool: PgPool, databaseSchemaName: string) =>
+  Object.fromEntries(
+    (
+      await pool.execute.query<{
+        column_name: string;
+        data_type: string;
+        ordinal_position: number;
+      }>(
+        SQL`SELECT column_name, data_type, ordinal_position FROM information_schema.columns WHERE table_schema = ${databaseSchemaName} AND table_name = 'emt_messages'`,
+      )
+    ).rows.map((column) => [column.column_name, column]),
+  );
+
+const assertIntSchemaVersionColumnAfterCreated = async (
+  pool: PgPool,
+  databaseSchemaName: string,
+) => {
+  const columns = await readMessagesColumns(pool, databaseSchemaName);
+  const schemaVersion = columns['message_schema_version']!;
+
+  assertEqual('integer', schemaVersion.data_type);
+  assertEqual(
+    columns['created']!.ordinal_position + 1,
+    schemaVersion.ordinal_position,
+  );
+  assertEqual(
+    columns['is_archived']!.ordinal_position - 1,
+    schemaVersion.ordinal_position,
+  );
+};
 
 void describe('createEventStoreSchema', () => {
   let database: PostgreSQLTestDatabase;
@@ -99,9 +133,19 @@ void describe('createEventStoreSchema', () => {
     });
   });
 
+  void it('a new store has an INT schema version column after created and before is_archived', async () => {
+    await assertIntSchemaVersionColumnAfterCreated(pool, 'public');
+  });
+
   void describe('creates functions', () => {
     void it('creates the append_event function', async () => {
       assertTrue(await functionExists(pool.execute, 'emt_append_to_stream'));
+    });
+
+    void it('creates the append function with numeric schema versions', async () => {
+      assertTrue(
+        await functionExists(pool.execute, 'emt_append_to_stream_v_0_43_0'),
+      );
     });
 
     void it('creates the emt_add_partition function', async () => {
@@ -273,6 +317,23 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     );
   });
 
+  void it('a new store has an INT schema version column after created and before is_archived in the schema configured by the user', async () => {
+    const databaseSchemaName = 'numeric_schema_version';
+    await createEventStoreSchema({
+      pool,
+      schema: { databaseSchemaName },
+    });
+
+    await assertIntSchemaVersionColumnAfterCreated(pool, databaseSchemaName);
+    assertTrue(
+      await functionExists(
+        pool.execute,
+        'emt_append_to_stream_v_0_43_0',
+        databaseSchemaName,
+      ),
+    );
+  });
+
   void it('uses the migration table schema and name configured by the user', async () => {
     await createEventStoreSchema({
       pool,
@@ -319,6 +380,7 @@ void describe('createEventStoreSchema with configured database schemas', () => {
 
         assertDeepEqual(dryRunResult.applied, [
           migration_0_43_0_enforceStreamExistenceFor(schemaOptions),
+          migration_0_43_0_addNumericSchemaVersionAppendFor(schemaOptions),
           schemaMigrationFor(schemaOptions),
         ]);
         assertFalse(
@@ -335,6 +397,7 @@ void describe('createEventStoreSchema with configured database schemas', () => {
 
         assertDeepEqual(actualMigration.applied, [
           migration_0_43_0_enforceStreamExistenceFor(schemaOptions),
+          migration_0_43_0_addNumericSchemaVersionAppendFor(schemaOptions),
           schemaMigrationFor(schemaOptions),
         ]);
         assertTrue(

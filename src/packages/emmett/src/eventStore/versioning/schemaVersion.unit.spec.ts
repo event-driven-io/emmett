@@ -3,6 +3,7 @@ import { assertDeepEqual, assertEqual } from '../../testing';
 import {
   isNumericSchemaVersion,
   resolveSchemaVersion,
+  schemaVersionToAppend,
   withoutSchemaVersion,
 } from './schemaVersion';
 
@@ -18,6 +19,7 @@ describe('Numeric schema version', () => {
     { value: 'v2', numeric: false },
     { value: '', numeric: false },
     { value: 2.5, numeric: false },
+    { value: -1, numeric: false },
     { value: null, numeric: false },
     { value: undefined, numeric: false },
   ])('treats $value as numeric: $numeric', ({ value, numeric }) => {
@@ -52,6 +54,66 @@ describe('Schema version read rule', () => {
 
   it('uses version 1 when there is no stored version and no metadata', () => {
     assertEqual(resolveSchemaVersion(undefined, undefined), 1);
+  });
+
+  it('uses version 1 when there is no usable stored version and the metadata is not given', () => {
+    assertEqual(resolveSchemaVersion('v3'), 1);
+  });
+
+  it('uses version 1 when the stored version is a negative number', () => {
+    assertEqual(resolveSchemaVersion(-1), 1);
+  });
+
+  it('uses the metadata version when the stored version is a negative number', () => {
+    assertEqual(resolveSchemaVersion(-1, { schemaVersion: '2' }), 2);
+  });
+
+  it('uses version 1 when the metadata version is a negative number', () => {
+    assertEqual(resolveSchemaVersion(undefined, { schemaVersion: -1 }), 1);
+  });
+
+  it('uses the stored version when the metadata is not given', () => {
+    assertEqual(resolveSchemaVersion(3), 3);
+  });
+
+  it.each([
+    { metadataSchemaVersion: '02', expected: 2 },
+    { metadataSchemaVersion: '2.0', expected: 1 },
+    { metadataSchemaVersion: '-1', expected: 1 },
+    { metadataSchemaVersion: ' 2', expected: 1 },
+    { metadataSchemaVersion: 2, expected: 2 },
+  ])(
+    'reads the metadata version $metadataSchemaVersion by the numeric value rule as $expected',
+    ({ metadataSchemaVersion, expected }) => {
+      assertEqual(
+        resolveSchemaVersion(undefined, {
+          schemaVersion: metadataSchemaVersion,
+        }),
+        expected,
+      );
+    },
+  );
+});
+
+describe('Schema version append rule', () => {
+  it('appends the top-level version', () => {
+    assertEqual(schemaVersionToAppend(3, { schemaVersion: '2' }), 3);
+  });
+
+  it('appends the top-level version without validating it', () => {
+    assertEqual(schemaVersionToAppend(-1, { schemaVersion: '2' }), -1);
+  });
+
+  it('appends the numeric metadata version when the top-level one is missing', () => {
+    assertEqual(schemaVersionToAppend(undefined, { schemaVersion: '2' }), 2);
+  });
+
+  it('appends version 1 when the top-level one is missing and the metadata version is not numeric', () => {
+    assertEqual(schemaVersionToAppend(undefined, { schemaVersion: 'v2' }), 1);
+  });
+
+  it('appends version 1 when there is no version and no metadata', () => {
+    assertEqual(schemaVersionToAppend(undefined, undefined), 1);
   });
 });
 

@@ -41,7 +41,10 @@ import { migrations_0_38_7 } from '../0_38_7';
 import { migrations_0_42_0 } from '../0_42_0';
 import { migrations_0_43_0 } from '../0_43_0';
 import { pgEventStoreDriver } from '../../../../pg';
-import { migration_0_43_0_enforceStreamExistenceFor } from '../0_43_0/0_43_0.migration';
+import {
+  migration_0_43_0_addNumericSchemaVersionAppendFor,
+  migration_0_43_0_enforceStreamExistenceFor,
+} from '../0_43_0/0_43_0.migration';
 
 export type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -145,6 +148,7 @@ void describe('Schema migrations tests', () => {
     // Then
     assertDeepEqual(applied, [
       migration_0_43_0_enforceStreamExistenceFor(schemaOptions),
+      migration_0_43_0_addNumericSchemaVersionAppendFor(schemaOptions),
       schemaMigrationFor(schemaOptions),
     ]);
     assertThatArray(skipped).isEmpty();

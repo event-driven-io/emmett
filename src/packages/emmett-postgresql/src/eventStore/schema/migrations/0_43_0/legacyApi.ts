@@ -51,7 +51,7 @@ export {
   type StoreProcessorCheckpointResult,
 } from '../0_42_0/legacyApi';
 
-export const releasedMigrations_0_43_0: SQLMigration[] = [
+export const migrations_0_43_0_rc_2: SQLMigration[] = [
   migration_0_43_0_cleanupLegacySubscription,
   migration_0_43_0_updateStoreProcessorCheckpoint,
   migration_0_43_0_storeFirstCheckpointOverLockPlaceholder,
@@ -74,7 +74,7 @@ type CallAppendToStreamParams = {
   partition: string;
 };
 
-const callAppendToStream = (params: CallAppendToStreamParams) =>
+export const callAppendToStream = (params: CallAppendToStreamParams) =>
   SQL`SELECT * FROM ${postgreSQLFunctionName(params.databaseSchemaName, 'emt_append_to_stream')}(
       ${params.messageIds},
       ${params.messagesData},
@@ -104,7 +104,7 @@ type AppendToStreamBeforeCommitHook = (
   },
 ) => Promise<void>;
 
-export const appendToStream_0_43_0 = (
+export const appendToStream_0_43_0_rc_2 = (
   connection: PgConnection,
   streamName: string,
   streamType: string,
@@ -292,7 +292,7 @@ type ReadStreamSqlResult<EventType extends Event> = {
   created: string;
 };
 
-export const readStream_0_43_0 = async <
+export const readStream_0_43_0_rc_2 = async <
   EventType extends Event,
   EventPayloadType extends Event = EventType,
 >(

@@ -35,6 +35,7 @@ import {
   downcastRecordedMessages,
   resolveSchemaVersion,
   upcastRecordedMessages,
+  schemaVersionToAppend,
   withoutSchemaVersion,
 } from './versioning';
 
@@ -132,10 +133,7 @@ export const getInMemoryEventStore = (
               >(
                 events.slice(from, to).map((recorded) => ({
                   ...recorded,
-                  schemaVersion: resolveSchemaVersion(
-                    recorded.schemaVersion,
-                    recorded.metadata,
-                  ),
+                  schemaVersion: resolveSchemaVersion(recorded.schemaVersion),
                   metadata: withoutSchemaVersion(recorded.metadata),
                 })) as ReadEvent<
                   EventPayloadType,
@@ -253,7 +251,10 @@ export const getInMemoryEventStore = (
             return {
               ...event,
               kind: event.kind ?? 'Event',
-              schemaVersion: event.schemaVersion ?? 1,
+              schemaVersion: schemaVersionToAppend(
+                event.schemaVersion,
+                'metadata' in event ? event.metadata : undefined,
+              ),
               metadata: {
                 ...('metadata' in event
                   ? withoutSchemaVersion(event.metadata ?? {})

@@ -22,6 +22,7 @@ type ReadStreamSqlResult<EventType extends Event> = {
   message_data: EventDataOf<EventType>;
   message_metadata: EventMetaDataOf<EventType>;
   message_schema_version: string;
+  message_kind: string;
   message_type: EventTypeOf<EventType>;
   message_id: string;
   global_position: string;
@@ -56,7 +57,7 @@ export const readStream = async <
   const events: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[] =
     await mapRows(
       execute.query<ReadStreamSqlResult<EventPayloadType>>(
-        SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version::text AS message_schema_version, message_type, message_id, transaction_id
+        SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version::text AS message_schema_version, message_kind, message_type, message_id, transaction_id
            FROM ${tableReference(options?.databaseSchemaName, messagesTable.name)}
            WHERE stream_id = ${streamId} AND partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE ${SQL.plain(fromCondition)} ${SQL.plain(toCondition)}
            ORDER BY stream_position ASC`,
@@ -85,7 +86,7 @@ export const readStream = async <
 
         const event = {
           ...rawEvent,
-          kind: 'Event',
+          kind: row.message_kind === 'C' ? 'Command' : 'Event',
           schemaVersion: resolveSchemaVersion(
             row.message_schema_version,
             row.message_metadata,

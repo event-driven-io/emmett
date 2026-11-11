@@ -11,6 +11,7 @@ import {
   mergeObservability,
   resolveSchemaVersion,
   upcastRecordedMessage,
+  schemaVersionToAppend,
   withoutSchemaVersion,
   withOperationScope,
   type AggregateStreamOptions,
@@ -296,7 +297,10 @@ export const getEventStoreDBEventStore = (
                   spanId: context.spanId,
                   ...metadata,
                   kind: event.kind ?? 'Event',
-                  schemaVersion: event.schemaVersion ?? 1,
+                  schemaVersion: schemaVersionToAppend(
+                    event.schemaVersion,
+                    metadata,
+                  ),
                 },
               });
             });
@@ -400,10 +404,7 @@ export const mapFromESDBEvent = <MessageType extends AnyMessage = AnyMessage>(
     type: event.type,
     data: event.data,
     kind: kind ?? 'Event',
-    schemaVersion: resolveSchemaVersion(
-      storedMetadata.schemaVersion,
-      storedMetadata,
-    ),
+    schemaVersion: resolveSchemaVersion(storedMetadata.schemaVersion),
     metadata: {
       ...withoutSchemaVersion(storedMetadata),
       eventId: event.id,

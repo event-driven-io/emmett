@@ -25,9 +25,9 @@ import { migrations_0_42_0 } from '../../../../../../eventStore/schema/migration
 import { appendToStream } from '../../../../../../eventStore/schema/migrations/0_42_0/legacyApi';
 import { migrations_0_43_0 } from '../../../../../../eventStore/schema/migrations/0_43_0';
 import {
-  appendToStream_0_43_0,
-  readStream_0_43_0,
-  releasedMigrations_0_43_0,
+  appendToStream_0_43_0_rc_2,
+  readStream_0_43_0_rc_2,
+  migrations_0_43_0_rc_2,
 } from '../../../../../../eventStore/schema/migrations/0_43_0/legacyApi';
 
 export type ProductItemAdded = Event<
@@ -126,12 +126,12 @@ void describe('Schema migrations tests', () => {
     assertDeepEqual(await streamPartition('tenant-cart-1'), 'tenant-a');
   });
 
-  void it('0.43.0 API reads the event it appended to a released 0.43.0 store with its metadata schema version', async () => {
+  void it('0.43.0-rc.2 reads the metadata schema version of the event it appended to a 0.43.0-rc.2 store', async () => {
     // Given
     await runSQLMigrations(pool, [
       ...migrations_0_41_0,
       ...migrations_0_42_0,
-      ...releasedMigrations_0_43_0,
+      ...migrations_0_43_0_rc_2,
     ]);
     const streamId = `shopping_cart-${crypto.randomUUID()}`;
     const messageId = crypto.randomUUID();
@@ -147,7 +147,7 @@ void describe('Schema migrations tests', () => {
       },
       metadata: { schemaVersion: '2' },
     };
-    const appended = await appendToStream_0_43_0(
+    const appended = await appendToStream_0_43_0_rc_2(
       connection,
       streamId,
       'shopping_cart',
@@ -160,9 +160,13 @@ void describe('Schema migrations tests', () => {
     );
 
     // When
-    const { events } = await readStream_0_43_0(connection.execute, streamId, {
-      serializer: JSONSerializer,
-    });
+    const { events } = await readStream_0_43_0_rc_2(
+      connection.execute,
+      streamId,
+      {
+        serializer: JSONSerializer,
+      },
+    );
 
     // Then
     assertDeepEqual(events, [

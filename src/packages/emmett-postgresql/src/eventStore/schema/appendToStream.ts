@@ -7,7 +7,6 @@ import {
 } from '@event-driven-io/dumbo';
 import type { PgConnection, PgTransaction } from '@event-driven-io/dumbo/pg';
 import {
-  DefaultMessageSchemaVersion,
   NO_CONCURRENCY_CHECK,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
@@ -17,6 +16,8 @@ import {
   type Message,
   type ObservabilityContext,
   type RecordedMessage,
+  schemaVersionToAppend,
+  withoutSchemaVersion,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { createFunctionIfDoesNotExistSQL } from './createFunctionIfDoesNotExist';
@@ -29,14 +30,29 @@ import {
   tableReference,
 } from './typing';
 
-export const appendToStreamSQLFor = (databaseSchemaName?: string) =>
-  createFunctionIfDoesNotExistSQL(
-    'emt_append_to_stream',
-    SQL`CREATE OR REPLACE FUNCTION ${postgreSQLFunctionName(databaseSchemaName, 'emt_append_to_stream')}(
+const appendToStreamFunctionName = 'emt_append_to_stream';
+const appendToStreamWithNumericSchemaVersionFunctionName =
+  'emt_append_to_stream_v_0_43_0';
+
+const rejectNonNumericSchemaVersionsSQL = SQL`
+      IF EXISTS (
+          SELECT 1
+          FROM unnest(v_message_schema_versions) AS message(schema_version)
+          WHERE schema_version !~ '^[0-9]+$'
+      ) THEN
+          RAISE EXCEPTION 'Message schema versions must be numeric, got: %', v_message_schema_versions;
+      END IF;
+`;
+
+const appendToStreamFunctionSQLFor = (
+  databaseSchemaName: string | undefined,
+  functionName: string,
+  schemaVersionsType: 'text' | 'int',
+) => SQL`CREATE OR REPLACE FUNCTION ${postgreSQLFunctionName(databaseSchemaName, functionName)}(
       v_message_ids text[],
       v_messages_data jsonb[],
       v_messages_metadata jsonb[],
-      v_message_schema_versions text[],
+      v_message_schema_versions ${SQL.plain(schemaVersionsType)}[],
       v_message_types text[],
       v_message_kinds text[],
       v_stream_id text,
@@ -56,6 +72,7 @@ export const appendToStreamSQLFor = (databaseSchemaName?: string) =>
       v_transaction_id xid8;
       v_global_positions bigint[];
   BEGIN
+      ${schemaVersionsType === 'text' ? rejectNonNumericSchemaVersionsSQL : SQL``}
       v_transaction_id := pg_current_xact_id();
 
       IF v_expected_stream_position IS NULL THEN
@@ -121,7 +138,7 @@ export const appendToStreamSQLFor = (databaseSchemaName?: string) =>
           INSERT INTO ${tableReference(databaseSchemaName, messagesTable.name)}
               (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_kind, message_id, transaction_id)
           SELECT 
-              v_stream_id, ev.stream_position, v_partition, ev.message_data, ev.message_metadata, ev.schema_version, ev.message_type, ev.message_kind, ev.message_id, v_transaction_id
+              v_stream_id, ev.stream_position, v_partition, ev.message_data, ev.message_metadata, ev.schema_version${SQL.plain(schemaVersionsType === 'text' ? '::int' : '')}, ev.message_type, ev.message_kind, ev.message_id, v_transaction_id
           FROM ev
           RETURNING global_position
       )
@@ -133,18 +150,40 @@ export const appendToStreamSQLFor = (databaseSchemaName?: string) =>
       RETURN QUERY SELECT TRUE, v_next_stream_position, v_global_positions, v_transaction_id;
   END;
   $emt_append_to_stream$;
-  `,
+  `;
+
+export const appendToStreamSQLFor = (databaseSchemaName?: string) =>
+  createFunctionIfDoesNotExistSQL(
+    appendToStreamFunctionName,
+    appendToStreamFunctionSQLFor(
+      databaseSchemaName,
+      appendToStreamFunctionName,
+      'text',
+    ),
     databaseSchemaName,
   );
 
 export const appendToStreamSQL = appendToStreamSQLFor();
+
+export const appendToStreamWithNumericSchemaVersionSQLFor = (
+  databaseSchemaName?: string,
+) =>
+  createFunctionIfDoesNotExistSQL(
+    appendToStreamWithNumericSchemaVersionFunctionName,
+    appendToStreamFunctionSQLFor(
+      databaseSchemaName,
+      appendToStreamWithNumericSchemaVersionFunctionName,
+      'int',
+    ),
+    databaseSchemaName,
+  );
 
 type CallAppendToStreamParams = {
   databaseSchemaName?: string;
   messageIds: string[];
   messagesData: DefaultRecord[];
   messagesMetadata: DefaultRecord[];
-  schemaVersions: string[];
+  schemaVersions: number[];
   messageTypes: string[];
   messageKinds: string[];
   streamId: string;
@@ -155,16 +194,16 @@ type CallAppendToStreamParams = {
 
 // TODO: check if we need all those casts
 export const callAppendToStream = (params: CallAppendToStreamParams) =>
-  SQL`SELECT * FROM ${postgreSQLFunctionName(params.databaseSchemaName, 'emt_append_to_stream')}(
-      ${params.messageIds},
-      ${params.messagesData},
-      ${params.messagesMetadata},
-      ${params.schemaVersions},
-      ${params.messageTypes},
-      ${params.messageKinds},
+  SQL`SELECT * FROM ${postgreSQLFunctionName(params.databaseSchemaName, appendToStreamWithNumericSchemaVersionFunctionName)}(
+      ${params.messageIds}::text[],
+      ${params.messagesData}::jsonb[],
+      ${params.messagesMetadata}::jsonb[],
+      ${params.schemaVersions}::int[],
+      ${params.messageTypes}::text[],
+      ${params.messageKinds}::text[],
       ${params.streamId}::text,
       ${params.streamType}::text,
-      ${params.expectedStreamPosition},
+      ${params.expectedStreamPosition}::bigint,
       ${params.partition}::text
     )`;
 
@@ -213,13 +252,17 @@ export const appendToStream = (
         return {
           ...e,
           kind: e.kind ?? 'Event',
+          schemaVersion: schemaVersionToAppend(
+            e.schemaVersion,
+            'metadata' in e ? e.metadata : undefined,
+          ),
           metadata: {
             messageId,
             correlationId: options?.context?.correlationId,
             causationId: options?.context?.causationId,
             traceId: options?.context?.traceId,
             spanId: options?.context?.spanId,
-            ...('metadata' in e ? (e.metadata ?? {}) : {}),
+            ...withoutSchemaVersion('metadata' in e ? (e.metadata ?? {}) : {}),
           },
         };
       }) as RecordedMessage[];
@@ -347,10 +390,15 @@ export const appentToStreamRaw = (
         messagesData: messages.map((e) => e.data),
         messagesMetadata: messages.map((e) => {
           const { messageId: _messageId, ...rawMetadata } = e.metadata;
-          return rawMetadata;
+          return {
+            ...rawMetadata,
+            schemaVersion: String(
+              schemaVersionToAppend(e.schemaVersion, e.metadata),
+            ),
+          };
         }),
-        schemaVersions: messages.map(
-          (e) => e.metadata.schemaVersion ?? DefaultMessageSchemaVersion,
+        schemaVersions: messages.map((e) =>
+          schemaVersionToAppend(e.schemaVersion, e.metadata),
         ),
         messageTypes: messages.map((e) => e.type),
         messageKinds: messages.map((e) => (e.kind === 'Event' ? 'E' : 'C')),

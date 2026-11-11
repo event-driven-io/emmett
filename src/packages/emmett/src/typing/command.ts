@@ -57,24 +57,18 @@ export type CreateCommandType<
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const command = <CommandType extends Command<string, any, any, any>>(
   ...args: CommandMetaDataOf<CommandType> extends undefined
-    ? undefined extends CommandType['schemaVersion']
-      ? [
-          type: CommandTypeOf<CommandType>,
-          data: CommandDataOf<CommandType>,
-          metadata?: DefaultCommandMetadata | undefined,
-        ]
-      : | WithSchemaVersionArgument<
-            CommandType,
-            [type: CommandTypeOf<CommandType>, data: CommandDataOf<CommandType>]
-          >
-        | WithSchemaVersionArgument<
-            CommandType,
-            [
-              type: CommandTypeOf<CommandType>,
-              data: CommandDataOf<CommandType>,
-              metadata: DefaultCommandMetadata | undefined,
-            ]
-          >
+    ? | WithSchemaVersionArgument<
+          CommandType,
+          [type: CommandTypeOf<CommandType>, data: CommandDataOf<CommandType>]
+        >
+      | WithSchemaVersionArgument<
+          CommandType,
+          [
+            type: CommandTypeOf<CommandType>,
+            data: CommandDataOf<CommandType>,
+            metadata: DefaultCommandMetadata | undefined,
+          ]
+        >
     : WithSchemaVersionArgument<
         CommandType,
         [

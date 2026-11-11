@@ -25,9 +25,6 @@ export type Message<
 export type AnyMessage = AnyEvent | AnyCommand;
 
 export type MessageKindOf<T extends Message> = T['kind'];
-export type MessageSchemaVersionOf<T extends Message> = NonNullable<
-  T['schemaVersion']
->;
 export type MessageTypeOf<T extends Message> = T['type'];
 export type MessageDataOf<T extends Message> = T['data'];
 export type MessageMetaDataOf<T extends Message> = T extends {
