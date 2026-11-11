@@ -1,4 +1,4 @@
-import { dumbo, SQL } from '@event-driven-io/dumbo';
+import { dumbo, runSQLMigrations, SQL } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
@@ -12,7 +12,14 @@ import {
   type Event,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  it,
+} from 'vitest';
 import { createEventStoreSchema, PostgreSQLEventStoreCheckpoint } from '.';
 import {
   sharedPostgreSQLDatabase,
@@ -20,6 +27,10 @@ import {
 } from '../../testing/postgreSQLTestDatabase';
 import { PostgreSQLEventStoreDefaultStreamVersion } from '../postgreSQLEventStore';
 import { appendToStream } from './appendToStream';
+import { migrations_0_36_0 } from './migrations/0_36_0';
+import { migrations_0_38_7 } from './migrations/0_38_7';
+import { migrations_0_42_0 } from './migrations/0_42_0';
+import { migrations_0_43_0_rc_2 } from './migrations/0_43_0/legacyApi';
 import { readStream } from './readStream';
 
 export type PricedProductItem = {
@@ -171,135 +182,183 @@ void describe('readStream', () => {
   const checkpointOf = (checkpoint: PostgreSQLEventStoreCheckpoint) =>
     PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(checkpoint);
 
-  void it('reads the schema version from event metadata', async () => {
-    const streamId = uuid();
-    const messageId = uuid();
-    const event: Event<
+  void describe('on a 0.43.0-rc.2 store', () => {
+    type StoredProductItemAdded = Event<
       'ProductItemAdded',
       { productItem: PricedProductItem },
-      { meta: string; schemaVersion: string }
-    > = {
-      type: 'ProductItemAdded',
-      data: { productItem: { productId: 'p1', quantity: 2, price: 30 } },
-      metadata: { meta: 'data1', schemaVersion: '2' },
-    };
-    const appendResult = await pool.withConnection(async (connection) =>
-      appendToStream(connection, streamId, 'shopping_cart', [event], {
-        messageIdGenerator: () => messageId,
-      }),
-    );
-    assertTrue(appendResult.success);
-    const globalPosition = checkpointOf(appendResult.checkpoints[0]!);
+      { meta: string },
+      number
+    >;
 
-    const result = await readStream<
-      Event<
-        'ProductItemAdded',
-        { productItem: PricedProductItem },
-        { meta: string },
-        2
-      >
-    >(pool.execute, streamId);
-
-    assertDeepEqual(result.events, [
-      {
-        type: 'ProductItemAdded',
-        kind: 'Event',
-        data: event.data,
-        schemaVersion: 2,
-        metadata: {
-          meta: 'data1',
-          messageId,
-          streamName: streamId,
-          streamPosition: 1n,
-          globalPosition,
-          checkpoint: globalPosition,
-        },
-      },
-    ]);
-  });
-
-  void it('reads schema version 1 when event metadata has no schema version', async () => {
-    const streamId = uuid();
-    const messageIds = [uuid(), uuid()];
-    let messageIndex = 0;
-    const appendResult = await pool.withConnection(async (connection) =>
-      appendToStream(connection, streamId, 'shopping_cart', events, {
-        messageIdGenerator: () => messageIds[messageIndex++]!,
-      }),
-    );
-    assertTrue(appendResult.success);
-
-    const result = await readStream(pool.execute, streamId);
-
-    assertDeepEqual(
-      result.events,
-      events.map((event, index) => {
-        const globalPosition = checkpointOf(appendResult.checkpoints[index]!);
-        return {
-          ...event,
-          kind: 'Event',
-          schemaVersion: 1,
-          metadata: {
-            ...event.metadata,
-            messageId: messageIds[index]!,
-            streamName: streamId,
-            streamPosition: BigInt(index + 1),
-            globalPosition,
-            checkpoint: globalPosition,
-          },
-        };
-      }),
-    );
-  });
-
-  void it('reads the metadata schema version when the stored schema version is not numeric', async () => {
-    const streamId = uuid();
-    const messageId = uuid();
+    let database_0_43_0_rc_2: PostgreSQLTestDatabase;
+    let pool_0_43_0_rc_2: PgPool;
     const data = { productItem: { productId: 'p1', quantity: 2, price: 30 } };
-    const metadata = { meta: 'data1', schemaVersion: '3' };
 
-    const [inserted] = (
-      await pool.execute.command<{
-        global_position: string;
-        transaction_id: string;
-      }>(
-        SQL`INSERT INTO "emt_messages"
-          (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_kind, message_id, transaction_id)
-        VALUES
-          (${streamId}, 1, ${defaultTag}, ${JSON.stringify(data)}::jsonb, ${JSON.stringify(metadata)}::jsonb, 'v2', 'ProductItemAdded', 'E', ${messageId}, pg_current_xact_id())
-        RETURNING global_position, transaction_id`,
-      )
-    ).rows;
-    const globalPosition = checkpointOf({
-      transactionId: BigInt(inserted!.transaction_id),
-      globalPosition: BigInt(inserted!.global_position),
+    beforeEach(async () => {
+      database_0_43_0_rc_2 = await sharedPostgreSQLDatabase();
+      pool_0_43_0_rc_2 = dumbo({
+        driver: pgDumboDriver,
+        connectionString: database_0_43_0_rc_2.connectionString,
+      });
+      await runSQLMigrations(pool_0_43_0_rc_2, [
+        ...migrations_0_36_0,
+        ...migrations_0_38_7,
+        ...migrations_0_42_0,
+        ...migrations_0_43_0_rc_2,
+      ]);
     });
 
-    const result = await readStream<
-      Event<
-        'ProductItemAdded',
-        { productItem: PricedProductItem },
-        { meta: string },
-        3
-      >
-    >(pool.execute, streamId);
+    afterEach(async () => {
+      await pool_0_43_0_rc_2?.close();
+      await database_0_43_0_rc_2?.close();
+    });
 
-    assertDeepEqual(result.events, [
-      {
+    const insertRow = async ({
+      streamId,
+      streamPosition,
+      metadata,
+      schemaVersion,
+    }: {
+      streamId: string;
+      streamPosition: number;
+      metadata: Record<string, unknown>;
+      schemaVersion: string;
+    }) => {
+      const messageId = uuid();
+      const [inserted] = (
+        await pool_0_43_0_rc_2.execute.command<{
+          global_position: string;
+          transaction_id: string;
+        }>(
+          SQL`INSERT INTO "emt_messages"
+            (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_kind, message_id, transaction_id)
+          VALUES
+            (${streamId}, ${streamPosition}, ${defaultTag}, ${JSON.stringify(data)}::jsonb, ${JSON.stringify(metadata)}::jsonb, ${schemaVersion}, 'ProductItemAdded', 'E', ${messageId}, pg_current_xact_id())
+          RETURNING global_position, transaction_id`,
+        )
+      ).rows;
+      const globalPosition = checkpointOf({
+        transactionId: BigInt(inserted!.transaction_id),
+        globalPosition: BigInt(inserted!.global_position),
+      });
+
+      return {
         type: 'ProductItemAdded',
         kind: 'Event',
         data,
-        schemaVersion: 3,
         metadata: {
           meta: 'data1',
           messageId,
           streamName: streamId,
-          streamPosition: 1n,
+          streamPosition: BigInt(streamPosition),
           globalPosition,
           checkpoint: globalPosition,
         },
-      },
-    ]);
+      } as const;
+    };
+
+    const readVersions = (streamId: string) =>
+      readStream<StoredProductItemAdded>(pool_0_43_0_rc_2.execute, streamId);
+
+    void it('reads the schema version from event metadata', async () => {
+      const streamId = uuid();
+      const expected = await insertRow({
+        streamId,
+        streamPosition: 1,
+        metadata: { meta: 'data1', schemaVersion: '2' },
+        schemaVersion: 'v1',
+      });
+
+      const result = await readVersions(streamId);
+
+      assertDeepEqual(result.events, [{ ...expected, schemaVersion: 2 }]);
+    });
+
+    void it('reads schema version 1 when event metadata has no schema version', async () => {
+      const streamId = uuid();
+      const expected = await insertRow({
+        streamId,
+        streamPosition: 1,
+        metadata: { meta: 'data1' },
+        schemaVersion: 'v1',
+      });
+
+      const result = await readVersions(streamId);
+
+      assertDeepEqual(result.events, [{ ...expected, schemaVersion: 1 }]);
+    });
+
+    void it('reads version 1 when the metadata version is not numeric', async () => {
+      const streamId = uuid();
+      const expected = await insertRow({
+        streamId,
+        streamPosition: 1,
+        metadata: { meta: 'data1', schemaVersion: 'v2' },
+        schemaVersion: 'v1',
+      });
+
+      const result = await readVersions(streamId);
+
+      assertDeepEqual(result.events, [{ ...expected, schemaVersion: 1 }]);
+    });
+
+    void it('reads the metadata schema version when the stored schema version is not numeric', async () => {
+      const streamId = uuid();
+      const expected = await insertRow({
+        streamId,
+        streamPosition: 1,
+        metadata: { meta: 'data1', schemaVersion: '3' },
+        schemaVersion: 'v2',
+      });
+
+      const result = await readVersions(streamId);
+
+      assertDeepEqual(result.events, [{ ...expected, schemaVersion: 3 }]);
+    });
+
+    void it('reads the metadata version by the numeric value rule', async () => {
+      const streamId = uuid();
+      const metadataVersions = [
+        { metadataSchemaVersion: '02', schemaVersion: 2 },
+        { metadataSchemaVersion: '2.0', schemaVersion: 1 },
+        { metadataSchemaVersion: '-1', schemaVersion: 1 },
+        { metadataSchemaVersion: ' 2', schemaVersion: 1 },
+        { metadataSchemaVersion: 2, schemaVersion: 2 },
+      ];
+      const expected = [];
+      for (const [
+        index,
+        { metadataSchemaVersion, schemaVersion },
+      ] of metadataVersions.entries()) {
+        const inserted = await insertRow({
+          streamId,
+          streamPosition: index + 1,
+          metadata: { meta: 'data1', schemaVersion: metadataSchemaVersion },
+          schemaVersion: 'v1',
+        });
+        expected.push({ ...inserted, schemaVersion });
+      }
+
+      const result = await readVersions(streamId);
+
+      assertDeepEqual(result.events, expected);
+    });
+
+    void it('reads a too large digits-only column value as that number', async () => {
+      const streamId = uuid();
+      const expected = await insertRow({
+        streamId,
+        streamPosition: 1,
+        metadata: { meta: 'data1' },
+        schemaVersion: '99999999999',
+      });
+
+      const result = await readVersions(streamId);
+
+      assertDeepEqual(result.events, [
+        { ...expected, schemaVersion: 99999999999 },
+      ]);
+    });
   });
 
   void it('upcasts events based on their schema version', async () => {
@@ -331,11 +390,7 @@ void describe('readStream', () => {
       quantity: 2,
       price: 30,
     };
-    const storedEvents: Event<
-      'ProductItemAdded',
-      PricedProductItem | { productItem: PricedProductItem },
-      { meta: string; schemaVersion?: string }
-    >[] = [
+    const storedEvents: StoredProductItemAdded[] = [
       {
         type: 'ProductItemAdded',
         data: productItem,
@@ -344,7 +399,8 @@ void describe('readStream', () => {
       {
         type: 'ProductItemAdded',
         data: { productItem },
-        metadata: { meta: 'data2', schemaVersion: '2' },
+        metadata: { meta: 'data2' },
+        schemaVersion: 2,
       },
     ];
     const streamId = uuid();

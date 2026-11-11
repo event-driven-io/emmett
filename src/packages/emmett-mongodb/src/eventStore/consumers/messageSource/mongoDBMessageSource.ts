@@ -100,10 +100,7 @@ export const mongoDBMessageSource = <MessageType extends Message = AnyMessage>({
               kind: message.kind ?? 'Event',
               type: message.type,
               data: message.data,
-              schemaVersion: resolveSchemaVersion(
-                message.schemaVersion,
-                message.metadata,
-              ),
+              schemaVersion: resolveSchemaVersion(message.schemaVersion),
               metadata: {
                 ...withoutSchemaVersion(message.metadata),
                 checkpoint: lastCheckpoint,

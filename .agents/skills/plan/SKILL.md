@@ -6,9 +6,9 @@ disable-model-invocation: true
 
 The spec is in the file called: $ARGUMENTS
 
-1. Draft a detailed, step-by-step blueprint for building the provided specification. Then, once you have a solid plan, break it down into small, iterative chunks that build on each other. Look at these chunks and then go another round to break it into small steps. Review the results and make sure that the steps are small enough to be implemented safely with strong testing, but big enough to move the project forward. Iterate until you feel that the steps are right sized for this project. Don't create artificial phases or steps if they don't bring much value.
+1. Draft a step-by-step blueprint for building the provided specification. Then cut it into steps. Each step is one focused increment that one review can check and that can be merged and deployed on its own. Lower bound: after the step, all tests pass and product code uses everything it adds. Never split a behaviour into its function, its wiring and its tests, never split a criteria group of the spec (a numbered heading with its criteria) across steps, and do not add phases. Upper bound: a step changes one area, such as one event store, one migration or one public API. If it would change more, split it, as long as each part still meets the lower bound.
 
-2. Build the plan in a way prioritising features and quick wins and being able to deliver safe improvement that could be pushed and merged. Follow make the change easy, make the easy change.
+2. Order the steps by value and risk: features and quick wins first, so each merged step is a safe improvement. Follow make the change easy, make the easy change: a step that only prepares the code is allowed when it can be merged and deployed on its own and the next step needs it.
 
 3. From here you should have the foundation to provide a series of prompts for a code-generation LLM that will implement each step in a test-driven manner. Prioritize best practices, incremental progress, and early testing, ensuring no big jumps in complexity at any stage. Make sure that each prompt builds on the previous prompts, and ends with wiring things together. There should be no hanging or orphaned code that isn't integrated into a previous step.
 
@@ -24,7 +24,7 @@ The spec is in the file called: $ARGUMENTS
 
 9. A prompt points to the existing code the step changes and to similar code and tests to follow. It does not decide anything the spec did not decide. If the step needs such a decision, ask the user.
 
-10. Each step adds only behaviour that its own tests run. If code can only be tested once a later step exists, it goes into that later step.
+10. Each step adds only behaviour that its own tests run. If code can only be tested once a later step exists, it goes into that later step. Each step lists the existing tests it breaks and how it updates them.
 
 11. If you see that it'd be worth to do PoC before planning, double check with user and do it through subagent with a fresh context and store all findings in the subfolder of the spec named by the research topic. This subagent should continuously update progress.md in their research subfolder.
 

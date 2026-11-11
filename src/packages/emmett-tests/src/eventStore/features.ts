@@ -627,6 +627,68 @@ export function testSchemaVersion(
       ]);
     });
 
+    const withMetadataSchemaVersion = (
+      metadataSchemaVersion: string,
+      schemaVersion?: number,
+    ): Event<
+      'ProductItemAdded',
+      { productItem: PricedProductItem },
+      { schemaVersion: string },
+      number
+    > => ({
+      type: 'ProductItemAdded',
+      data: { productItem },
+      metadata: { schemaVersion: metadataSchemaVersion },
+      ...(schemaVersion === undefined ? {} : { schemaVersion }),
+    });
+
+    for (const {
+      criterion,
+      metadataSchemaVersion,
+      schemaVersion,
+      recorded,
+    } of [
+      {
+        criterion:
+          'Takes the metadata version when the top-level one is missing',
+        metadataSchemaVersion: '2',
+        schemaVersion: undefined,
+        recorded: 2,
+      },
+      {
+        criterion: 'Falls back to version 1 for a non-numeric metadata version',
+        metadataSchemaVersion: 'v2',
+        schemaVersion: undefined,
+        recorded: 1,
+      },
+      {
+        criterion: 'Keeps the top-level version over the metadata one',
+        metadataSchemaVersion: '2',
+        schemaVersion: 3,
+        recorded: 3,
+      },
+    ]) {
+      it(criterion, async () => {
+        const streamName = randomUUID();
+
+        await eventStore.appendToStream(streamName, [
+          withMetadataSchemaVersion(metadataSchemaVersion, schemaVersion),
+        ]);
+
+        const { events } = await eventStore.readStream(streamName);
+        expect(events).toEqual([
+          {
+            type: 'ProductItemAdded',
+            data: { productItem },
+            kind: 'Event',
+            schemaVersion: recorded,
+            metadata: recordedMetadata(streamName, 0n),
+          },
+        ]);
+        expect(events[0]!.metadata).not.toHaveProperty('schemaVersion');
+      });
+    }
+
     it('Passes the recorded schema version to evolve when aggregating', async () => {
       const streamName = randomUUID();
       await eventStore.appendToStream(streamName, [productItemAddedV2]);
@@ -718,6 +780,31 @@ export function testSchemaVersion(
           data: { productItem },
           kind: 'Event',
           schemaVersion: 0,
+          metadata: recordedMetadata(streamName, 0n),
+        },
+      ]);
+    });
+
+    it('Appends an event with schema version -1 without validating it', async () => {
+      const streamName = randomUUID();
+      const versionMinusOne = event<
+        Event<
+          'ProductItemAdded',
+          { productItem: PricedProductItem },
+          undefined,
+          -1
+        >
+      >('ProductItemAdded', { productItem }, -1);
+
+      await eventStore.appendToStream(streamName, [versionMinusOne]);
+
+      const { events } = await eventStore.readStream(streamName);
+      expect(events).toEqual([
+        {
+          type: 'ProductItemAdded',
+          data: { productItem },
+          kind: 'Event',
+          schemaVersion: 1,
           metadata: recordedMetadata(streamName, 0n),
         },
       ]);
@@ -871,6 +958,52 @@ export function testSchemaVersion(
           kind: 'Event',
           schemaVersion: 1,
           metadata: recordedMetadata(streamName, 0n),
+        },
+      ]);
+    });
+
+    it('Records the schema version of each result of a downcaster that returns either version', async () => {
+      const streamName = randomUUID();
+      const productItemAddedV2InEuro = event<ProductItemAddedV2>(
+        'ProductItemAdded',
+        { productItem, currency: 'EUR' },
+        2,
+      );
+
+      await eventStore.appendToStream<
+        ProductItemAddedV2,
+        ProductItemAdded | ProductItemAddedV2
+      >(streamName, [productItemAddedV2, productItemAddedV2InEuro], {
+        schema: {
+          versioning: {
+            downcast: (
+              current: ProductItemAddedV2,
+            ): ProductItemAdded | ProductItemAddedV2 =>
+              current.data.currency === 'USD'
+                ? {
+                    type: 'ProductItemAdded',
+                    data: { productItem: current.data.productItem },
+                  }
+                : current,
+          },
+        },
+      });
+
+      const { events } = await eventStore.readStream(streamName);
+      expect(events).toEqual([
+        {
+          type: 'ProductItemAdded',
+          data: { productItem },
+          kind: 'Event',
+          schemaVersion: 1,
+          metadata: recordedMetadata(streamName, 0n),
+        },
+        {
+          type: 'ProductItemAdded',
+          data: { productItem, currency: 'EUR' },
+          kind: 'Event',
+          schemaVersion: 2,
+          metadata: recordedMetadata(streamName, 1n),
         },
       ]);
     });

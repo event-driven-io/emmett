@@ -48,7 +48,7 @@ import { migration_0_43_0_FixStreamPartition } from './0_43_0.migration';
 
 const { merge } = SQL;
 
-export const releasedMigrations_0_43_0: SQLMigration[] = [
+export const migrations_0_43_0_rc_2: SQLMigration[] = [
   migration_0_43_0_FixStreamPartition,
 ];
 
@@ -60,7 +60,7 @@ type AppendEventResult =
     }
   | { success: false };
 
-export const appendToStream_0_43_0 = async <MessageType extends Message>(
+export const appendToStream_0_43_0_rc_2 = async <MessageType extends Message>(
   connection: AnySQLiteConnection,
   streamName: string,
   streamType: string,
@@ -335,7 +335,7 @@ type ReadStreamSqlResult = {
   created: string;
 };
 
-export const readStream_0_43_0 = async <
+export const readStream_0_43_0_rc_2 = async <
   EventType extends Event,
   EventPayloadType extends Event = EventType,
 >(

@@ -1,10 +1,10 @@
 export const isNumericSchemaVersion = (value: unknown): boolean =>
-  (typeof value === 'number' && Number.isInteger(value)) ||
+  (typeof value === 'number' && Number.isInteger(value) && value >= 0) ||
   (typeof value === 'string' && /^[0-9]+$/.test(value));
 
 export const resolveSchemaVersion = (
   stored: unknown,
-  metadata: unknown,
+  metadata?: unknown,
 ): number => {
   if (isNumericSchemaVersion(stored)) return Number(stored);
 
@@ -19,6 +19,11 @@ export const resolveSchemaVersion = (
     ? Number(metadataSchemaVersion)
     : 1;
 };
+
+export const schemaVersionToAppend = (
+  schemaVersion: number | undefined,
+  metadata: unknown,
+): number => schemaVersion ?? resolveSchemaVersion(undefined, metadata);
 
 export const withoutSchemaVersion = <Metadata extends object>(
   metadata: Metadata,

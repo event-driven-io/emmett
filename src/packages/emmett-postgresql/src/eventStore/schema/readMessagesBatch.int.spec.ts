@@ -1,21 +1,35 @@
-import { dumbo, SQL } from '@event-driven-io/dumbo';
+import { dumbo, runSQLMigrations, SQL } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
   assertEqual,
+  assertTrue,
+  asyncRetry,
   defaultTag,
   type AnyRecordedMessageMetadata,
   type Event,
   type RecordedMessage,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  it,
+} from 'vitest';
 import { createEventStoreSchema } from '.';
 import {
   isolatedPostgreSQLDatabase,
+  sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
 } from '../../testing/postgreSQLTestDatabase';
-import { appentToStreamRaw } from './appendToStream';
+import { appendToStream, appentToStreamRaw } from './appendToStream';
+import { migrations_0_36_0 } from './migrations/0_36_0';
+import { migrations_0_38_7 } from './migrations/0_38_7';
+import { migrations_0_42_0 } from './migrations/0_42_0';
+import { migrations_0_43_0_rc_2 } from './migrations/0_43_0/legacyApi';
 import {
   PostgreSQLEventStoreCheckpoint,
   readMessagesBatch,
@@ -572,132 +586,98 @@ void describe('reading messages in batches', () => {
       globalPosition: BigInt(row.global_position),
     });
 
-  const insertMessage = async (
-    streamId: string,
-    messageId: string,
-    metadata: Record<string, unknown>,
-    schemaVersion: string,
-  ) => {
-    const [inserted] = (
-      await pool.execute.command<{
-        global_position: string;
-        transaction_id: string;
-      }>(
-        SQL`INSERT INTO "emt_messages"
-          (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_kind, message_id, transaction_id)
-        VALUES
-          (${streamId}, 1, ${defaultTag}, ${JSON.stringify({ meta: 'evt1' })}::jsonb, ${JSON.stringify(metadata)}::jsonb, ${schemaVersion}, 'TestEvent', 'E', ${messageId}, pg_current_xact_id())
-        RETURNING global_position, transaction_id`,
-      )
-    ).rows;
-    return checkpointOf(inserted!);
-  };
-
-  const appendRaw = async (streamId: string, message: RecordedMessage) => {
-    const { global_positions, transaction_id } = await appentToStreamRaw(
-      pool.execute,
-      streamId,
-      'shopping_cart',
-      [message],
-    );
-    return checkpointOf({
-      global_position: global_positions![0]!,
-      transaction_id: transaction_id!,
-    });
-  };
-
-  void it('reads the schema version from message metadata', async () => {
+  void it('reads the kind of appended commands and events', async () => {
     const streamId = uuid();
-    const messageId = uuid();
-
-    const globalPosition = await appendRaw(streamId, {
+    const command = {
+      kind: 'Command' as const,
+      type: 'AddProductItem',
+      data: { meta: 'command' },
+    };
+    const event = {
+      kind: 'Event' as const,
       type: 'TestEvent',
-      kind: 'Event',
-      data: { meta: 'evt1' },
-      metadata: {
-        messageId,
-        streamName: streamId,
-        streamPosition: '1' as unknown as bigint,
-        schemaVersion: '2',
-      } satisfies AnyRecordedMessageMetadata,
-    });
-
-    const poll = await readMessagesBatch<
-      Event<'TestEvent', { meta: string }, undefined, 2>
-    >(pool.execute, {
-      after: PostgreSQLEventStoreCheckpoint.default,
-      batchSize: 10,
-    });
-
-    assertDeepEqual(poll.messages, [
-      {
-        type: 'TestEvent',
-        kind: 'Event',
-        data: { meta: 'evt1' },
-        schemaVersion: 2,
-        metadata: {
-          messageId,
-          streamName: streamId,
-          streamPosition: 1n,
-          globalPosition,
-          checkpoint: globalPosition,
-        },
-      },
-    ]);
-  });
-
-  void it('reads schema version 1 when message metadata has no schema version', async () => {
-    const streamId = uuid();
-    const message = createTestEvent(streamId, 'evt1', 1n);
-
-    const globalPosition = await appendRaw(streamId, message);
-
-    const poll = await readMessagesBatch<TestEvent>(pool.execute, {
-      after: PostgreSQLEventStoreCheckpoint.default,
-      batchSize: 10,
-    });
-
-    assertDeepEqual(poll.messages, [
-      {
-        type: 'TestEvent',
-        kind: 'Event',
-        data: { meta: 'evt1' },
-        schemaVersion: 1,
-        metadata: {
-          messageId: message.metadata.messageId,
-          streamName: streamId,
-          streamPosition: 1n,
-          globalPosition,
-          checkpoint: globalPosition,
-        },
-      },
-    ]);
-  });
-
-  void it('reads the metadata schema version when the stored schema version is not numeric', async () => {
-    const streamId = uuid();
-    const messageId = uuid();
-
-    const globalPosition = await insertMessage(
-      streamId,
-      messageId,
-      { tenantId: 'acme', schemaVersion: '3' },
-      'v2',
+      data: { meta: 'event' },
+    };
+    const messageIds = [uuid(), uuid()];
+    let next = 0;
+    const appended = await pool.withConnection((connection) =>
+      appendToStream(connection, streamId, 'shopping_cart', [command, event], {
+        messageIdGenerator: () => messageIds[next++]!,
+      }),
     );
+    assertTrue(appended.success);
 
-    const poll = await readMessagesBatch<
-      Event<'TestEvent', { meta: string }, { tenantId: string }, 3>
-    >(pool.execute, {
+    const { messages: read } = await readMessagesBatch(pool.execute, {
       after: PostgreSQLEventStoreCheckpoint.default,
       batchSize: 10,
     });
 
-    assertDeepEqual(poll.messages, [
-      {
+    const recordedMetadata = (index: number) => {
+      const globalPosition =
+        PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
+          appended.checkpoints[index]!,
+        );
+      return {
+        messageId: messageIds[index]!,
+        streamName: streamId,
+        streamPosition: BigInt(index + 1),
+        globalPosition,
+        checkpoint: globalPosition,
+      };
+    };
+    assertDeepEqual<unknown[]>(read, [
+      { ...command, schemaVersion: 1, metadata: recordedMetadata(0) },
+      { ...event, schemaVersion: 1, metadata: recordedMetadata(1) },
+    ]);
+  });
+
+  void describe('on a 0.43.0-rc.2 store', () => {
+    let database_0_43_0_rc_2: PostgreSQLTestDatabase;
+    let pool_0_43_0_rc_2: PgPool;
+
+    beforeEach(async () => {
+      database_0_43_0_rc_2 = await sharedPostgreSQLDatabase();
+      pool_0_43_0_rc_2 = dumbo({
+        driver: pgDumboDriver,
+        connectionString: database_0_43_0_rc_2.connectionString,
+      });
+      await runSQLMigrations(pool_0_43_0_rc_2, [
+        ...migrations_0_36_0,
+        ...migrations_0_38_7,
+        ...migrations_0_42_0,
+        ...migrations_0_43_0_rc_2,
+      ]);
+    });
+
+    afterEach(async () => {
+      await pool_0_43_0_rc_2?.close();
+      await database_0_43_0_rc_2?.close();
+    });
+
+    const insertMessage = async (
+      metadata: Record<string, unknown>,
+      schemaVersion: string,
+    ) => {
+      const streamId = uuid();
+      const messageId = uuid();
+      const [inserted] = (
+        await pool_0_43_0_rc_2.execute.command<{
+          global_position: string;
+          transaction_id: string;
+        }>(
+          SQL`INSERT INTO "emt_messages"
+            (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_kind, message_id, transaction_id)
+          VALUES
+            (${streamId}, 1, ${defaultTag}, ${JSON.stringify({ meta: 'evt1' })}::jsonb, ${JSON.stringify(metadata)}::jsonb, ${schemaVersion}, 'TestEvent', 'E', ${messageId}, pg_current_xact_id())
+          RETURNING global_position, transaction_id`,
+        )
+      ).rows;
+      const globalPosition = checkpointOf(inserted!);
+
+      return {
         type: 'TestEvent',
         kind: 'Event',
         data: { meta: 'evt1' },
-        schemaVersion: 3,
         metadata: {
           tenantId: 'acme',
           messageId,
@@ -706,7 +686,67 @@ void describe('reading messages in batches', () => {
           globalPosition,
           checkpoint: globalPosition,
         },
-      },
-    ]);
+      } as const;
+    };
+
+    const readMessages = () =>
+      asyncRetry(
+        async () =>
+          (
+            await readMessagesBatch<
+              Event<'TestEvent', { meta: string }, { tenantId: string }, number>
+            >(pool_0_43_0_rc_2.execute, {
+              after: PostgreSQLEventStoreCheckpoint.default,
+              batchSize: 10,
+            })
+          ).messages,
+        {
+          retries: 20,
+          minTimeout: 50,
+          factor: 1,
+          shouldRetryResult: (messages) => messages.length < 1,
+        },
+      );
+
+    void it('reads the schema version from message metadata', async () => {
+      const expected = await insertMessage(
+        { tenantId: 'acme', schemaVersion: '2' },
+        'v1',
+      );
+
+      const messages = await readMessages();
+
+      assertDeepEqual(messages, [{ ...expected, schemaVersion: 2 }]);
+    });
+
+    void it('reads schema version 1 when message metadata has no schema version', async () => {
+      const expected = await insertMessage({ tenantId: 'acme' }, 'v1');
+
+      const messages = await readMessages();
+
+      assertDeepEqual(messages, [{ ...expected, schemaVersion: 1 }]);
+    });
+
+    void it('reads version 1 when the metadata version is not numeric', async () => {
+      const expected = await insertMessage(
+        { tenantId: 'acme', schemaVersion: 'v2' },
+        'v1',
+      );
+
+      const messages = await readMessages();
+
+      assertDeepEqual(messages, [{ ...expected, schemaVersion: 1 }]);
+    });
+
+    void it('reads the metadata schema version when the stored schema version is not numeric', async () => {
+      const expected = await insertMessage(
+        { tenantId: 'acme', schemaVersion: '3' },
+        'v2',
+      );
+
+      const messages = await readMessages();
+
+      assertDeepEqual(messages, [{ ...expected, schemaVersion: 3 }]);
+    });
   });
 });

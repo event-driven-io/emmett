@@ -13,11 +13,13 @@ import {
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
 import { pgDriver } from '@event-driven-io/pongo/pg';
 import { v4 as uuid } from 'uuid';
-import { afterAll, describe, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import {
   testAggregateStream,
   testAppendToStream,
   testCommandHandling,
+  testConsumerSchemaVersion,
+  testSchemaVersion,
   testStreamExists,
   type EventStoreFactory,
 } from '../features';
@@ -89,6 +91,25 @@ describe('PostgreSQLEventStore', () => {
   testAppendToStream(eventStoreFactory);
 
   testStreamExists(eventStoreFactory);
+
+  const storeMetadata = {
+    correlationId: expect.any(String) as unknown,
+    causationId: expect.any(String) as unknown,
+    traceId: expect.any(String) as unknown,
+    spanId: expect.any(String) as unknown,
+    checkpoint: expect.any(String) as unknown,
+    globalPosition: expect.any(String) as unknown,
+  };
+
+  testSchemaVersion(eventStoreFactory, {
+    getInitialIndex: () => 1n,
+    storeMetadata,
+  });
+
+  testConsumerSchemaVersion(eventStoreFactory, {
+    getInitialIndex: () => 1n,
+    storeMetadata,
+  });
 
   void it('should append events correctly using appendEvent function', async () => {
     const productItem: PricedProductItem = {

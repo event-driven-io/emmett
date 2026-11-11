@@ -3,7 +3,10 @@ import {
   SQLCreateSchema,
   type SQL as SQLStatement,
 } from '@event-driven-io/dumbo';
-import { appendToStreamSQLFor } from './appendToStream';
+import {
+  appendToStreamSQLFor,
+  appendToStreamWithNumericSchemaVersionSQLFor,
+} from './appendToStream';
 import {
   releaseProcessorLockSQLFor,
   tryAcquireProcessorLockSQLFor,
@@ -46,6 +49,7 @@ export const eventStoreSchemaSQL = (
     addTablePartitionsFor(databaseSchemaName),
     addPartitionSQLFor(databaseSchemaName),
     appendToStreamSQLFor(databaseSchemaName),
+    appendToStreamWithNumericSchemaVersionSQLFor(databaseSchemaName),
     addDefaultPartitionSQLFor(databaseSchemaName),
     storeSubscriptionCheckpointSQLFor(databaseSchemaName),
     tryAcquireProcessorLockSQLFor(databaseSchemaName),

@@ -1,4 +1,8 @@
-import type { Message, MessageSchemaVersionOf } from './message';
+import type { Message } from './message';
+
+export type MessageSchemaVersionOf<T extends Message> = NonNullable<
+  T['schemaVersion']
+>;
 
 export type SchemaVersionProperty<SchemaVersion extends number> =
   number extends SchemaVersion
@@ -11,7 +15,7 @@ export type WithSchemaVersionArgument<
   MessageType extends Message,
   Args extends unknown[],
 > = undefined extends MessageType['schemaVersion']
-  ? Args
+  ? Args | [...Args, schemaVersion: 1]
   : [...Args, schemaVersion: MessageSchemaVersionOf<MessageType>];
 
 export const splitMetadataAndSchemaVersion = (

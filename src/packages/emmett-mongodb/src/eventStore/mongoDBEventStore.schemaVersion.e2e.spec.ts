@@ -64,10 +64,10 @@ void describe('MongoDBEventStore schema version', () => {
     }
   });
 
-  const insertLegacyStream = async (
+  const insertStreamAs_0_43_0_rc_2 = async (
     streamName: string,
     streamId: string,
-    legacyMetadata: Record<string, unknown>,
+    metadata_0_43_0_rc_2: Record<string, unknown>,
   ) => {
     const now = new Date();
     await collection.insertOne({
@@ -80,7 +80,7 @@ void describe('MongoDBEventStore schema version', () => {
             messageId: 'legacy-message-1',
             streamName,
             streamPosition: 1n,
-            ...legacyMetadata,
+            ...metadata_0_43_0_rc_2,
           },
         } as unknown as EventStream['messages'][number],
       ],
@@ -126,20 +126,20 @@ void describe('MongoDBEventStore schema version', () => {
     return received;
   };
 
-  const legacyCases = [
+  const cases_0_43_0_rc_2 = [
     {
-      name: 'reads the version from the metadata of a message stored without a version',
-      legacyMetadata: { schemaVersion: '2', tenantId: 'acme' },
-      schemaVersion: 2,
-    },
-    {
-      name: 'reads version 1 for a message stored without any version',
-      legacyMetadata: { tenantId: 'acme' },
+      name: "reads version 1 for a message 0.43.0-rc.2 stored with metadata schemaVersion '2'",
+      metadata_0_43_0_rc_2: { schemaVersion: '2', tenantId: 'acme' },
       schemaVersion: 1,
     },
     {
-      name: 'reads version 1 for a message stored with a non-numeric metadata version',
-      legacyMetadata: { schemaVersion: 'v2', tenantId: 'acme' },
+      name: 'reads version 1 for a message 0.43.0-rc.2 stored without a version',
+      metadata_0_43_0_rc_2: { tenantId: 'acme' },
+      schemaVersion: 1,
+    },
+    {
+      name: "reads version 1 for a message 0.43.0-rc.2 stored with metadata schemaVersion 'v2'",
+      metadata_0_43_0_rc_2: { schemaVersion: 'v2', tenantId: 'acme' },
       schemaVersion: 1,
     },
   ];
@@ -181,23 +181,29 @@ void describe('MongoDBEventStore schema version', () => {
     expect(stream.messages[0]!.metadata).not.toHaveProperty('schemaVersion');
   });
 
-  void it('reads kind Event for a message stored without a kind', async () => {
+  void it('reads kind Event for a message 0.43.0-rc.2 stored without a kind', async () => {
     const streamId = uuid();
     const streamName = toStreamName(streamType, streamId);
-    await insertLegacyStream(streamName, streamId, { tenantId: 'acme' });
+    await insertStreamAs_0_43_0_rc_2(streamName, streamId, {
+      tenantId: 'acme',
+    });
 
     const { events } = await eventStore.readStream(streamName);
 
     expect(events.map((message) => message.kind)).toEqual(['Event']);
   });
 
-  void describe.each(legacyCases)(
+  void describe.each(cases_0_43_0_rc_2)(
     '$name',
-    ({ legacyMetadata, schemaVersion }) => {
+    ({ metadata_0_43_0_rc_2, schemaVersion }) => {
       void it('through readStream', async () => {
         const streamId = uuid();
         const streamName = toStreamName(streamType, streamId);
-        await insertLegacyStream(streamName, streamId, legacyMetadata);
+        await insertStreamAs_0_43_0_rc_2(
+          streamName,
+          streamId,
+          metadata_0_43_0_rc_2,
+        );
 
         const { events } = await eventStore.readStream(streamName);
 
@@ -223,7 +229,11 @@ void describe('MongoDBEventStore schema version', () => {
         const streamName = toStreamName(streamType, streamId);
 
         const received = await consumeLegacyStream(streamName, () =>
-          insertLegacyStream(streamName, streamId, legacyMetadata),
+          insertStreamAs_0_43_0_rc_2(
+            streamName,
+            streamId,
+            metadata_0_43_0_rc_2,
+          ),
         );
 
         expect(received).toEqual([

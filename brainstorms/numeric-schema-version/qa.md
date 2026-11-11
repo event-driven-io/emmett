@@ -192,7 +192,7 @@
 
 ## Q41. Should the automatic 0.44.0 migration rewrite the old `emt_append_to_stream` body so it converts strings to fit the column (unchanged on `TEXT`; numbers with `1` for non-numeric on `INT`), or is it acceptable that 0.43.0 instances can't append after an on-demand migration?
 
-> Also kinda good practice in general for the future, thoughts? to  your question, yes.
+> Also kinda good practice in general for the future, thoughts? to your question, yes.
 
 ## Q42. EventStoreDB: one key (`metadata.schemaVersion: '2'` is both the stored value and the blue/green copy) or two keys (separate numeric key plus the string copy)? If two, which name?
 
@@ -289,7 +289,7 @@ Correction given with the Q60 answer:
 
 ## Q61. Two gaps found while planning: (1) the spec does not name the user `CASE` input on the on-demand functions or the migration options field the prepared 0.44.0 migration reads it from; (2) the spec does not say whether stores with a custom `databaseSchemaName` get the new automatic migrations (PostgreSQL append functions, SQLite rebuild) and the on-demand PostgreSQL migrations. Go back to Q&A for them?
 
-> Name of the user CASE input.  - find something matching, it should be optional and part of options. We should allow passing schema or whatever is needed accordingly
+> Name of the user CASE input. - find something matching, it should be optional and part of options. We should allow passing schema or whatever is needed accordingly
 
 ## Q62. PoC (`unversioned-schema-version-typing/findings.md`): a plain `switch (event.schemaVersion)` narrows both branches only when a type declared with a version other than 1 requires `schemaVersion` on its values (the 4th parameter defaults to `number` for the bare `Event` and to `1` when the type name is a literal). Should a declared version other than 1 be required on the type, or stay optional so only `case 2` narrows? Asked for honest thoughts, the answer was: required, because an optional V2 version lets V2 data be stored as version 1 without a compile error, and the helper already requires it (criterion 2.1).
 
@@ -400,3 +400,274 @@ Research result for Q74 (`type-surface-research/versioning-result-version/findin
 ## Q81. The spec and plan say 0.42.x PostgreSQL rows hold `'"1"'` (with quotes) in `message_schema_version`. Every released append checked (0.20.2, 0.36.0, 0.38.7, 0.40.0, 0.42.0, 0.42.4) builds `ARRAY['1']`, and the frozen 0.38.7 legacy append stores `'1'` without quotes. How should 15.1 get its 0.42.x rows: the legacy append with `'1'` and a corrected spec, both the legacy append and a direct SQL insert of `'"1"'`, or only a direct SQL insert of `'"1"'`?
 
 > Legacy append, '1'
+
+## Q82. Spec 4.4 and 8.4 (a consumer receives the message with its schema version) apply to every store, but the in-memory event store has no `consumer()`. `inMemoryMessageSource` exists in core, but it is not connected to the in-memory event store, and messages are pushed into it by hand. Drop 4.4 and 8.4 for in-memory in the spec, or cover them another way?
+
+> We should have the same coverage
+
+## Q83. The in-memory event store has no `consumer()`. Add one in this feature, push the events into `inMemoryMessageSource` by hand in the test, or use inline projections or the after-commit hook instead?
+
+> We don't have in memory consumer? o_O
+
+> ok, then if we don't have it, please add GH issue for that
+
+Filed as https://github.com/event-driven-io/emmett/issues/427.
+
+## Q84. Until #427 is done, exclude in-memory from 4.4 and 8.4 in the spec with #427 as the follow-up, or implement #427 in this feature?
+
+> 1. and add to GH issue the information to add such test for schema version accordingly
+
+## Q85. Spec 5.4 says the raw EventStoreDB metadata "contains `schemaVersion` with the version", and step 6 decided it is a number. Change 5.4 to "contains `schemaVersion: 2` as a number", based on the Q42 answer ("the new maps to schemaVersion and numeric")?
+
+> Fine, same for other event stores that didn't store the version before (if there are such)
+
+The stores that did not store the version before are MongoDB, EventStoreDB and the in-memory store. The spec now says the stored value is numeric for all three, and adds 5.5 for the raw MongoDB message. The in-memory store keeps the message object, so it has no raw form to inspect.
+
+## Q86. Step 2 added `MessageSchemaVersionOf<T>` to `typing/message.ts` and exports it, next to the public `MessageKindOf`. The spec only says the helper types behind the `event()`, `command()` and `message()` signatures are not exported. Keep it public or make it internal?
+
+> I'm fine for now if it's used in other packages
+
+`MessageSchemaVersionOf` is used only in core (`typing/message.ts`, `typing/messageSchemaVersion.ts` and its unit spec), not in other packages.
+
+## Q87. Record `MessageSchemaVersionOf` as internal in the spec, and move it out of `typing/message.ts` in the re-plan?
+
+> Fine
+
+## Q88. The plan decides the migration names, a `DO` block that does nothing on an `integer` column, `ignoreHashMismatch: true` on the on-demand migrations, and SQLite's `CREATE TABLE IF NOT EXISTS` before the rebuild. The spec says only "Both are idempotent". A user runs the on-demand schema version migration, then runs it again with a different `messageSchemaVersionMapping`: should it do nothing (`ignoreHashMismatch: true`) or fail with a hash mismatch?
+
+> Migration should be always idempotent checking if they should be run, migration hash check and ignore is the additional check it shouldn't depend on if it's able to check if it should be run or not.
+
+## Q89. For the on-demand migrations, keep Dumbo's hash check (a second run with a different mapping fails with a hash mismatch), or set `ignoreHashMismatch` so the run goes through and the migration's own check makes it a no-op?
+
+> It should go through regular migrations run same as others ignoreHasMismatch should only be set when I explicitly say so, and I didn't say anything about it
+
+## Q90. Step 7 reads `message_schema_version::text` in `readStream` and `readMessagesBatch`, so one parser handles both `TEXT` and `INT` columns. This adds a cast of every row on an `INT` column. Keep the cast, or drop it and handle both string and number in TypeScript?
+
+> is the cast in sql so costly?
+
+Answered: no. It adds no query, round trip or catalog lookup. It formats one small integer per row inside the running query, which is small next to parsing the JSONB data and metadata of the same row. On a `TEXT` column it does nothing. It can go when `TEXT` support is removed. Recommended keeping it, and asked to record that in the spec.
+
+> yes
+
+## Spec review after Q90
+
+The review found eight points the Q&A has not settled: the conversion in the old append function, the version argument on a type declared with version `1` (Q35), the Q77 answer, the metadata fallback on MongoDB, EventStoreDB and in-memory (Q45), a separate lock timeout, a CLI for the on-demand migrations, what counts as numeric, and a re-run with a different mapping.
+
+## Q91. On an `INT` column the old `emt_append_to_stream` has to convert the strings it gets. Check the column type on every append, or have the migration that changes the column also replace the function with a body built for `INT`?
+
+> it shouldn't check any column, dude!
+
+## Q92. When the on-demand migrations change the column to `INT`, should they also recreate `emt_append_to_stream` with the converting `INSERT`?
+
+> No, the old function should be able to append to the new schema, but that happens when it's migrated, if it's not migrated then new function should be able to append to either new and old schema, I was stating that since the beginning, but it's not acceptable to check column as this is hot path. Dude, we were discussing that and you didn't raise any concern
+
+## Q93. The append functions must not check the column type. Tested in Docker (PostgreSQL 17): changing the column and replacing the old `emt_append_to_stream` in one transaction makes a concurrent 0.43.0 append fail with "column is of type integer but expression is of type text", because it picked up the old body before the commit. Replacing the old function first with a converting body, which also works on `TEXT`, and then changing the column in a second transaction lets a concurrent append wait and succeed. Between the two steps, 0.43.0 appends of `'v2'` on the `TEXT` column store `'1'`, and the user's `CASE` cannot remap them. Acceptable? And should the old function stay in 0.44.0, given the Q53 answer to drop it?
+
+> Between step 1 and step 2, 0.43.0 appends on the TEXT column store 'v2' as '1', where today they store 'v2'. The user's CASE in step 2 can't remap those rows. For numbers like '2' nothing changes. That's your decision. Is it acceptable? - I think that we should reject that when we update the odl procedure. In 0.44.0 we can again adjust old and v0.43.0 procedure, right? Or even in the column type migrations to be backward compatible?
+
+## Q94. (1) When the old procedure gets the converting body, should a non-numeric version make the append fail with an error, replacing 13.2 and the "`1` for non-numeric" from Q41? (2) Should 0.44.0 keep the old function with the converting body instead of dropping it, reversing Q53?
+
+> 1. Yes
+> 2. let's keep it for now
+
+## Q95. Which stored or passed values count as numeric versions: `'2'`, `'02'`, `'2.0'`, `'0'`, `'-1'`, `' 2'`? Only positive integer strings without leading zeros, or something else?
+
+> only regular numbers like 0, 1, 2, etc
+
+## Q96. Should `'02'` (leading zeros) and values over 2147483647 (PostgreSQL `INT` maximum) count as non-numeric?
+
+> no, just regular
+
+Read as: only regular numbers count, so `'02'` and values over 2147483647 are non-numeric.
+
+> (follow-up to Q96) I mean, whatever is the easiest to parse and ends up as regular number. If it appears that supporting only regular numbers add additional work, then do what's easier, eventually we need regular numbers.
+
+## Q97. For a type without a version or with version `1`, should the version argument be optional (`event<V1>(type, data, 1)` compiles, as in Q35), or not accepted, as the spec and the step 3 code do now?
+
+> Yes, it should be optional. I think that we agreeed to that.
+
+## Q98. In 0.43.0, MongoDB, EventStoreDB and the in-memory store never stored a schema version (the recorded metadata built on append has no `schemaVersion`; only a user could put it into their own event metadata). Drop the metadata fallback there and read only the store's own field, with `1` when it is missing?
+
+> Were those stores storing anything than 1?
+
+> Then we don't need to have fallback to metadata, right? We can always fall back to 1, right?
+
+Confirmed: yes. Emmett's own data in these stores has no metadata version, so `1` is the only fallback they need. PostgreSQL keeps the metadata fallback.
+
+## Q99. (Q77 again) `event<V1 | V2>(type, data)` compiles without a version, so V2-shaped data can be stored as version 1. Accept the limit (factories take a single message type, the docs say so), or make the factories reject a union as the type argument?
+
+> 2. Is it possible? I think that 1 for now is fine
+
+## Q100. Out of Scope says "A separate lock timeout option. The migration timeout covers the lock wait." Should the on-demand migrations take Dumbo's migrate options only, with no separate lock timeout?
+
+> We can log this to Dumbo to consider adding lock timeout or reusing the passed statement timeout if that's possible. If not just put it out of scope
+
+Dumbo 0.13.0-rc.2 already applies `migrationTimeoutMS` as PostgreSQL `statement_timeout`, which also counts lock waits, but cannot tell a lock wait from a long rewrite. Filed https://github.com/event-driven-io/Pongo/issues/233 for a separate lock timeout option. Here it stays out of scope.
+
+## Q101. The projection rebuild has no CLI command, only the exported `rebuildPostgreSQLProjections`. The PostgreSQL `migrate` CLI (`run`, `sql`) runs only the automatic migrations. Keep a CLI for the on-demand migrations out of scope, or add a `migrate` command for them?
+
+> no cli
+
+## Q102. A second run of the on-demand migration with a different `CASE` fails with Dumbo's hash mismatch error before any SQL runs, and the data stays unchanged. Add 16.13 for that?
+
+> Yes, it's fine if they did it with their custom way, then we good, right?
+
+## Q103. A second run with a different user `CASE` fails under Dumbo's default hash check, because the `CASE` is part of the hashed SQL. Set `ignoreHashMismatch` on the on-demand migrations, put a hash of the `CASE` into the migration name, or something else?
+
+> I mean, it shouldn't fail if user had their own case.
+
+> You can store original hash in on demand migration
+
+## Q104. Dumbo 0.13.0-rc.2 has no option to give a migration its hash: the runner always hashes the SQL it runs (`getMigrationHash(sqls, formatter)`). Add a hash source option to Dumbo's `sqlMigration`, or have Emmett write the migration record itself?
+
+> (if it's possible) if not then put ingorehashmismatch on this migration
+
+Not possible with the current Dumbo, so the on-demand migrations (and the 0.44.0 mandatory one that reuses the schema version migration) set `ignoreHashMismatch: true`.
+
+> (both odemand and regular)
+
+## Q105 (spec r2). In Q104 you wrote "(both odemand and regular)" about `ignoreHashMismatch`. Did "regular" mean the mandatory 0.44.0 migration, or the automatic migrations of the current release (the new append function and the SQLite rebuild)?
+
+> The one in 0.44.0
+
+## Q106 (spec r3). Q93 asked: "In 0.44.0 we can again adjust old and v0.43.0 procedure, right? Or even in the column type migrations to be backward compatible?" Yes: a later migration can replace either body with `CREATE OR REPLACE` while keeping the signature, as the column type migrations already do for the old function. The spec's "its body never changes" only means it does not need to change when the column type changes. Reword it that way, so 0.44.0 can still adjust either function?
+
+> Yes
+
+## Q107 (spec r4). Q73 said "downcast should be able to provide also v1 & v2 compatible". Q76 already answers it: the stored version is the returned `schemaVersion`, or `1` when none, so a `(e: V2) => V1 | V2` downcaster stores `2` for a V2 result and `1` for a V1 result. Add criterion 9.3 for both cases?
+
+> could you not go so wild and nitpicking on the questions? yes
+
+## Q108 (spec r5). Settle the remaining spec-r1 review findings as follows. Fix in the spec: a JSON number `2` in PostgreSQL metadata reads as `2` (metadata read as text); the tetris migration always runs the same `COALESCE`, so a given `CASE` applies also on an `INT` column, and 18.4 holds without a `CASE`; 24.1 names 14.1, 14.2 and 15.1 to 15.3; 5.3 for MongoDB protects existing behaviour; 18.5 reads while the migration holds its lock; new criteria for the digits rule (6.6), a second tetris run (18.11), a mandatory migration rerun with a different `CASE` (23.5), the in-memory top-level field (5.5) and a fresh store's old function rejecting `'v2'` (20.4). Reject: test durations and overlap setup (plan), and a criterion for `AnyRecordedMessage`. Ask separately: overflow above `INT`, the tetris self-check, EventStoreDB `kind` in metadata, the 0.44.0 stall risk.
+
+> ok
+
+## Q109 (spec r6). What should happen to a digits-only value too big for `INT`, such as `'99999999999'`? (1) Let it fail: the migration stops with a cast error and the user maps it with their `CASE`, and a 0.43.0 append that sends it fails. (2) Treat it as non-numeric, falling back to metadata and then `1`.
+
+> 1
+
+## Q110 (spec r7). How should the tetris migration check whether it has to run? (1) Compare the whole layout: run unless the column order and types match a fresh store. (2) Check one column: run unless `message_schema_version` is `INT` and sits right after `created`, where a fresh store puts it.
+
+> check one column
+
+## Q111 (spec r8). The 0.44.0 stall risk in Further Notes (the first 0.44.0 instance runs the mandatory `ALTER`, and 0.43.0 instances wait until it ends) has no decision: accept it with the advice to run the on-demand migration first, or do something about it in 0.44.0?
+
+> I don't understand what are you saking
+
+> I thill don't understand why are you asking
+
+No decision needed: the Further Notes already give the advice, and the risk stays as described.
+
+## Q112 (spec r9). Dumbo runs all pending migrations in one transaction, and Emmett wraps the run in another, so a migration cannot replace the old append function in its own transaction and then change the column in a second one. On-demand migrations could call Dumbo twice, but the 0.44.0 mandatory migration sits in the automatic list, a single run. (a) Give the old function the converting body now, in the automatic migration of the current release, so later column changes need no swap and fit one transaction; 0.43.0 appends of `'v2'` then fail right after the upgrade and 14.3 expects an error. (b) Keep the swap with the column change and run the mandatory migration in its own Dumbo run after the regular one.
+
+> I don't understand the issue, explain
+
+> ok, let's do a
+
+## Q113 (spec r10). Settle the rest of the spec r8 review: the read rule follows the committed code (whole numbers stored as numbers are taken as they are, the digits rule is only for strings, `-1` on a PostgreSQL `TEXT` column reads as `1` as a known shortcoming), and the `->>` sentence goes; reads never fail on too-large values (precision loss above 2^53 accepted), with criteria for a 0.43.0 append of `'99999999999'` and the tetris migration meeting one; a criterion for old EventStoreDB events reading as `1`, `2` and `1`; a criterion that a tetris run with a `CASE` on an `INT` column applies it?
+
+> yes
+
+## Q114 (spec r11, plan r3). 5.5 asks to inspect the raw stored message for MongoDB and the in-memory store. The in-memory store keeps its messages in a private `Map`, and no public API shows them. Drop in-memory from 5.5?
+
+> What does it mean "inspect the raw stored message" in this context?
+
+Reading what the database holds without Emmett's read code, for example the MongoDB stream document through the driver. The in-memory store has no database, so only a read shows its messages, and 4.1 covers that.
+
+> Are other stores doing such ccheck?
+
+Yes: PostgreSQL (5.2 and the column checks), SQLite (5.3 and the column checks), MongoDB (5.3, 5.5) and EventStoreDB (5.4). No in-memory test looks past the public API.
+
+> ok, then for in memory don't do that.
+
+## Q115 (plan r4). Plan r3 review Spec-5: PostgreSQL appends store a `'2'` copy in the metadata. Do the recorded messages handed to hooks and inline projections carry that copy, or the top-level number only?
+
+> Spec-5, hooks. … - why? Just all message types and recorded message types should get the schema version and not in metadata.
+
+## Q116 (plan r4). Plan r3 review Steps-7: when user metadata already has `schemaVersion` and the top-level one is missing, which value goes into the stored metadata copy? Option A: the append rule stays (top-level `schemaVersion ?? 1`, as Q7), and the copy is written after the user metadata, so it always matches the column.
+
+> I mean if people didn't migrate and were setting schema version then what you suggest would end up with wrong value, right? Fine, but why do we need still 12?
+
+## Q117 (plan r4). Plan r3 review Steps-2: test 3.3 put `// @ts-expect-error` on a top-level import of the helper types.
+
+> No ts-expect-error.
+
+> Unless that's in vitest type test
+
+## Q118 (plan r5). Plan r4 review. Four proposals: (1) Spec-3, Steps-12, Steps-13: Q116's "why do we need still 12?" is read as the step count. Step 8 splits into the types (2.8, 2.9, 3.3) and the read rule per store; steps 9 and 10 merge, so criteria groups 14, 20 and 24.1 are no longer split; the plan keeps 7 open steps, 8 to 14. (2) Spec-1, Steps-3: the mandatory migration gets its own name, `emt:postgresql:eventstore:0.44.0:numeric-message-schema-version`, with the same SQL, so 23.3 tests its own check and 17.1 checks all three names. (3) Spec-2: unversioned commands accept `command<C1>(type, data, { now }, 1)` and `undefined` metadata, as versioned commands do. (4) Steps-2: the public `CallAppendToStreamParams.schemaVersions` becomes `number[]`.
+
+> I meant 12 steps, go ahead
+
+## Q119 (plan r6, step 10). PostgreSQL (and SQLite) reads hard-code `kind: 'Event'` and never read `message_kind`, so the shared 4.6 feature reads a command back as an event. Map `message_kind` in the reads, or leave PostgreSQL out of the `kind` check?
+
+> 1. Yes we need to fix it.
+
+## Q120 (plan r6, step 10). Spec 7.2 says `-1` on an `INT` column reads as `-1`, but reads select `message_schema_version::text` (Q90) and `'-1'` is not a digits-only string. Drop the cast, or change 7.2? Proposed after the answer below: keep the cast, treat a negative number as non-numeric in every store so `-1` reads as `1`, merge 7.3 into 7.2.
+
+> 2. I said we should not store values below 1. who would store -1? Also why would you drop the cast, the intention is to be backward and forward compatible, we discussed that. What did change?
+
+> 2. yes
+
+## Q121 (plan r6, step 10). The new 0.43.0 migration builds its SQL by calling the builder that also creates the current schema, so a later change to the current schema would change the released migration's hash.
+
+> 3. I don't understand why would it get migration hash error, we should add new migration always and hash is calculated on migration, not the procedure in db.
+
+> 3. I don't understand what do you mean.
+
+> Then it's obviously wrong, and I don't think that this is how we did it in past
+
+## Q122 (plan r7, step 10). When the current release's append gets no top-level `schemaVersion` but `metadata.schemaVersion: '2'`, store version 1 (Q7, Q116 Option A) or take the numeric metadata version, as the PostgreSQL read does, in every store?
+
+> 2 but it should also fallback to 1, right?
+
+Answered: yes. Top-level `schemaVersion`, else numeric `metadata.schemaVersion`, else `1`. This reverses Q116 Option A.
+
+## Q123 (plan r7, step 10). No test is named for the difference between a fresh store (`INT` column) and an upgraded one (`TEXT` until the schema version migration runs); both are only side assertions. Add "a fresh store gets an INT schema version column" and "an upgraded 0.43.0 store keeps the TEXT schema version column" next to each other in step 10, and rename step 11's 17.1 test to "an upgraded store keeps the TEXT column until the schema version migration runs"?
+
+> Still, you didn't answer me on a test explaining that the fresh schema have INT and not fresh TEXT
+
+> yes
+
+> what's released migrations tho?
+
+> they should be explicit on the version
+
+Answered: yes. Both tests are added to step 10, and step 11's 17.1 test is renamed.
+
+> It's not 0.43.0-rc.2, dude this is the same for older, right?
+
+> or we have explicit tests for them?
+
+> this is not 0.43.0 schema, it's the 0.43.0-rc.2 or older
+
+> and coming from migration of older schema, not fresh
+
+> fresh 0.43.0 has int
+
+> Dude, again, reread what I wrote in last messages in terms of tests, their naming and phrase "upgradeReleasedStore" - dude, what if there's another migration in 0.43.0?
+
+> yes
+
+Names say the exact version, because another 0.43.0 migration would change what "released" means. `releasedMigrations_0_43_0` (PostgreSQL and SQLite) is renamed `migrations_0_43_0_rc_2`, `buildReleasedStore` `build_0_43_0_rc_2_store`, `upgradeReleasedStore` `upgradeFrom_0_43_0_rc_2`, and "released 0.43.0 store" in test names and the plan "0.43.0-rc.2 store". Tests: "a fresh 0.43.0 store gets an INT schema version column", "a store migrated from 0.43.0-rc.2 keeps the TEXT schema version column", "a store migrated from 0.42.0 keeps the TEXT schema version column". Step 11's 17.1: "a store migrated from 0.43.0-rc.2 keeps the TEXT column until the schema version migration runs".
+
+> what does it mean a 0.43.0 instance appends to a new store?
+
+> Check also other tests
+
+> They must be precise
+
+> Dude, createvetnstoreschema and appendtostream doesn't care about the version, they're latest, that's why we have migration tests for
+
+> If we have it then fine, but please fix tests names to be proper and clear and precise
+
+> and not made up
+
+Test and helper names in migration and compatibility tests name the exact version and where the store comes from: `0.43.0-rc.2` for the frozen API (`appendToStream_0_43_0_rc_2`, `readStream_0_43_0_rc_2`) and its stores, `0.43.0` for the code being built. "released", "legacy", "current release", "0.43.0 instance", "new" and "upgraded" are not used in names. `createEventStoreSchema`, `appendToStream` and `readStream` tests keep no version. 20.4 stays.
+
+## Q124 (plan r8, step 10 review). (1) Remove "0.43.0 appends version 2 to the TEXT column, after migrating from 0.43.0-rc.2", since "0.43.0 stores version 3 in the TEXT column and in metadata" checks the same and also the stored row? (2) Step 11's extra test converts a metadata JSON `-1` to `-1`; change it to `1` per Q120? (3) Align the plan's append rule text (Terms, steps 4 and 9 summaries, step 10, step 13) with Q122?
+
+> 1. Ok
+> 2. Yes.
+> 3. ok
+
+Answered: yes to all three. The 15.3 test now covers 14.1 (TEXT). The on-demand migration takes a metadata JSON number only when it is a whole number of 0 or more. The plan's append rule text uses `schemaVersionToAppend`.

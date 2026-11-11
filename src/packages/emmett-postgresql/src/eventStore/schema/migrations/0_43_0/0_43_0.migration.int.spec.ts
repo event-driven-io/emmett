@@ -43,10 +43,7 @@ import {
   PostgreSQLEventStoreCheckpoint,
   readMessagesBatch,
 } from '../../readMessagesBatch';
-import {
-  appendToStream as appendToStreamToCurrentSchema,
-  callAppendToStream,
-} from '../../appendToStream';
+import { appendToStream as appendToStreamToCurrentSchema } from '../../appendToStream';
 import { readStream } from '../../readStream';
 import { eventStoreSchemaMigrationsFor, schemaMigrationFor } from '..';
 import { readProcessorCheckpoint } from '../../readProcessorCheckpoint';
@@ -54,7 +51,10 @@ import { storeProcessorCheckpoint } from '../../storeProcessorCheckpoint';
 import { defaultTag } from '../../typing';
 import { migrations_0_36_0 } from '../0_36_0';
 import { migrations_0_38_7 } from '../0_38_7';
-import { storeSubscriptionCheckpoint } from '../0_38_7/legacyApi';
+import {
+  appendToStream as appendToStream_0_38_7,
+  storeSubscriptionCheckpoint,
+} from '../0_38_7/legacyApi';
 import { migrations_0_42_0 } from '../0_42_0';
 import { schema_0_42_0 } from '../0_42_0/0_42_0.snapshot';
 import {
@@ -65,9 +65,10 @@ import {
 } from '../0_42_0/legacyApi';
 import { migrations_0_43_0 } from './';
 import {
-  appendToStream_0_43_0,
-  readStream_0_43_0,
-  releasedMigrations_0_43_0,
+  appendToStream_0_43_0_rc_2,
+  callAppendToStream,
+  readStream_0_43_0_rc_2,
+  migrations_0_43_0_rc_2,
 } from './legacyApi';
 import { pgEventStoreDriver } from '../../../../pg';
 
@@ -414,13 +415,13 @@ void describe('Schema migrations tests', () => {
     assertDeepEqual(skipped, migrations_0_43_0);
   });
 
-  void it('0.43.0 API reads the event it appended to a released 0.43.0 store with its metadata schema version', async () => {
+  void it('0.43.0-rc.2 reads the metadata schema version of the event it appended to a 0.43.0-rc.2 store', async () => {
     // Given
     await runSQLMigrations(pool, [
       ...migrations_0_36_0,
       ...migrations_0_38_7,
       ...migrations_0_42_0,
-      ...releasedMigrations_0_43_0,
+      ...migrations_0_43_0_rc_2,
     ]);
     const streamId = `shopping_cart-${crypto.randomUUID()}`;
     const messageId = crypto.randomUUID();
@@ -437,9 +438,15 @@ void describe('Schema migrations tests', () => {
       metadata: { schemaVersion: '2' },
     };
     const appended = await pool.withConnection((connection) =>
-      appendToStream_0_43_0(connection, streamId, 'shopping_cart', [event], {
-        messageIdGenerator: () => messageId,
-      }),
+      appendToStream_0_43_0_rc_2(
+        connection,
+        streamId,
+        'shopping_cart',
+        [event],
+        {
+          messageIdGenerator: () => messageId,
+        },
+      ),
     );
     assertTrue(appended.success);
     const globalPosition = PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
@@ -447,7 +454,7 @@ void describe('Schema migrations tests', () => {
     );
 
     // When
-    const { events } = await readStream_0_43_0(pool.execute, streamId);
+    const { events } = await readStream_0_43_0_rc_2(pool.execute, streamId);
 
     // Then
     assertDeepEqual(events, [
@@ -477,11 +484,11 @@ void describe('Schema migrations tests', () => {
       ),
     );
 
-  const readSchemaVersionColumnType = async () =>
+  const readSchemaVersionColumnType = async (databaseSchemaName = 'public') =>
     (
       await single(
         pool.execute.query<{ data_type: string }>(
-          SQL`SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'emt_messages' AND column_name = 'message_schema_version'`,
+          SQL`SELECT data_type FROM information_schema.columns WHERE table_schema = ${databaseSchemaName} AND table_name = 'emt_messages' AND column_name = 'message_schema_version'`,
         ),
       )
     ).data_type;
@@ -513,12 +520,15 @@ void describe('Schema migrations tests', () => {
     };
   };
 
-  const appendWith_0_43_0 = async (streamId: string, messageId: string) => {
+  const appendWith_0_43_0_rc_2 = async (
+    streamId: string,
+    messageId: string,
+  ) => {
     await runSQLMigrations(pool, [
       ...migrations_0_36_0,
       ...migrations_0_38_7,
       ...migrations_0_42_0,
-      ...releasedMigrations_0_43_0,
+      ...migrations_0_43_0_rc_2,
     ]);
     const event: Event<
       'ProductItemAdded',
@@ -533,9 +543,15 @@ void describe('Schema migrations tests', () => {
       metadata: { schemaVersion: '2' },
     };
     const appended = await pool.withConnection((connection) =>
-      appendToStream_0_43_0(connection, streamId, 'shopping_cart', [event], {
-        messageIdGenerator: () => messageId,
-      }),
+      appendToStream_0_43_0_rc_2(
+        connection,
+        streamId,
+        'shopping_cart',
+        [event],
+        {
+          messageIdGenerator: () => messageId,
+        },
+      ),
     );
     assertTrue(appended.success);
     return {
@@ -546,7 +562,7 @@ void describe('Schema migrations tests', () => {
     };
   };
 
-  void it('reads schema version 1 for 0.42.x events and keeps the text column after the automatic migrations', async () => {
+  void it('0.43.0 reads schema version 1 for an event 0.42.0 appended, after migrating from 0.42.0', async () => {
     // Given
     const streamId = `shopping_cart-${crypto.randomUUID()}`;
     const { event, globalPosition } = await appendWith_0_42_0(streamId);
@@ -576,11 +592,11 @@ void describe('Schema migrations tests', () => {
     ]);
   });
 
-  void it('reads the schema version of released 0.43.0 events without it in metadata after the automatic migrations', async () => {
+  void it("0.43.0 reads schema version 2 without metadata schemaVersion for an event 0.43.0-rc.2 appended with metadata schemaVersion '2', after migrating from 0.43.0-rc.2", async () => {
     // Given
     const streamId = `shopping_cart-${crypto.randomUUID()}`;
     const messageId = crypto.randomUUID();
-    const { event, globalPosition } = await appendWith_0_43_0(
+    const { event, globalPosition } = await appendWith_0_43_0_rc_2(
       streamId,
       messageId,
     );
@@ -611,12 +627,12 @@ void describe('Schema migrations tests', () => {
     ]);
   });
 
-  void it('consumers read the same schema versions as readStream after the automatic migrations', async () => {
+  void it('0.43.0 consumers read the same schema versions as readStream for events 0.42.0 and 0.43.0-rc.2 appended, after migrating from them', async () => {
     // Given
-    const legacyStreamId = `shopping_cart-${crypto.randomUUID()}`;
-    const releasedStreamId = `shopping_cart-${crypto.randomUUID()}`;
-    await appendWith_0_42_0(legacyStreamId);
-    await appendWith_0_43_0(releasedStreamId, crypto.randomUUID());
+    const streamId_0_42_0 = `shopping_cart-${crypto.randomUUID()}`;
+    const streamId_0_43_0_rc_2 = `shopping_cart-${crypto.randomUUID()}`;
+    await appendWith_0_42_0(streamId_0_42_0);
+    await appendWith_0_43_0_rc_2(streamId_0_43_0_rc_2, crypto.randomUUID());
 
     // When
     await runSQLMigrations(pool, eventStoreSchemaMigrationsFor());
@@ -628,7 +644,7 @@ void describe('Schema migrations tests', () => {
             batchSize: 100,
           })
         ).messages.filter(({ metadata }) =>
-          [legacyStreamId, releasedStreamId].includes(metadata.streamName),
+          [streamId_0_42_0, streamId_0_43_0_rc_2].includes(metadata.streamName),
         ),
       {
         retries: 20,
@@ -637,18 +653,650 @@ void describe('Schema migrations tests', () => {
         shouldRetryResult: (visible) => visible.length < 2,
       },
     );
-    const legacy = await readStream(pool.execute, legacyStreamId);
-    const released = await readStream(pool.execute, releasedStreamId);
+    const events_0_42_0 = await readStream(pool.execute, streamId_0_42_0);
+    const events_0_43_0_rc_2 = await readStream(
+      pool.execute,
+      streamId_0_43_0_rc_2,
+    );
 
     // Then
     assertEqual('text', await readSchemaVersionColumnType());
-    assertDeepEqual(messages, [...legacy.events, ...released.events]);
+    assertDeepEqual(messages, [
+      ...events_0_42_0.events,
+      ...events_0_43_0_rc_2.events,
+    ]);
     assertDeepEqual(
-      [...legacy.events, ...released.events].map(
+      [...events_0_42_0.events, ...events_0_43_0_rc_2.events].map(
         ({ schemaVersion }) => schemaVersion,
       ),
       [1, 2],
     );
+  });
+
+  void describe('numeric schema version appends', () => {
+    const productItemData = (streamId: string): ProductItemAdded['data'] => ({
+      shoppingCartId: streamId,
+      productItem: { productId: 'product-123', quantity: 2 },
+    });
+
+    const versionedEvent = (
+      streamId: string,
+      schemaVersion: number,
+    ): Event<
+      'ProductItemAdded',
+      ProductItemAdded['data'],
+      undefined,
+      number
+    > => ({
+      type: 'ProductItemAdded',
+      data: productItemData(streamId),
+      schemaVersion,
+    });
+
+    const unversionedEvent = (streamId: string): ProductItemAdded => ({
+      type: 'ProductItemAdded',
+      data: productItemData(streamId),
+    });
+
+    const event_0_43_0_rc_2 = (
+      streamId: string,
+      metadataSchemaVersion?: string,
+    ): Event<
+      'ProductItemAdded',
+      ProductItemAdded['data'],
+      { schemaVersion?: string }
+    > => ({
+      type: 'ProductItemAdded',
+      data: productItemData(streamId),
+      metadata:
+        metadataSchemaVersion === undefined
+          ? {}
+          : { schemaVersion: metadataSchemaVersion },
+    });
+
+    const build_0_43_0_rc_2_store = () =>
+      runSQLMigrations(pool, [
+        ...migrations_0_36_0,
+        ...migrations_0_38_7,
+        ...migrations_0_42_0,
+        ...migrations_0_43_0_rc_2,
+        sqlMigration(schemaMigrationFor().name, [SQL`SELECT 1`], {
+          ignoreHashMismatch: true,
+        }),
+      ]);
+
+    const upgradeFrom_0_43_0_rc_2 = async () => {
+      await build_0_43_0_rc_2_store();
+      await runSQLMigrations(pool, eventStoreSchemaMigrationsFor());
+    };
+
+    const append_0_43_0 = async (
+      streamId: string,
+      events: Event[],
+      messageIds: string[] = events.map(() => crypto.randomUUID()),
+      databaseSchemaName?: string,
+    ) => {
+      let next = 0;
+      const appended = await pool.withConnection((connection) =>
+        appendToStreamToCurrentSchema(
+          connection,
+          streamId,
+          'shopping_cart',
+          events,
+          {
+            messageIdGenerator: () => messageIds[next++]!,
+            databaseSchemaName,
+          },
+        ),
+      );
+      assertTrue(appended.success);
+      return appended.checkpoints.map((checkpoint) =>
+        PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(checkpoint),
+      );
+    };
+
+    const append_0_43_0_rc_2 = async (
+      streamId: string,
+      metadataSchemaVersion?: string,
+      messageId: string = crypto.randomUUID(),
+    ) => {
+      const appended = await pool.withConnection((connection) =>
+        appendToStream_0_43_0_rc_2(
+          connection,
+          streamId,
+          'shopping_cart',
+          [event_0_43_0_rc_2(streamId, metadataSchemaVersion)],
+          { messageIdGenerator: () => messageId },
+        ),
+      );
+      assertTrue(appended.success);
+      return PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint(
+        appended.checkpoints[0]!,
+      );
+    };
+
+    const readStoredRows = async (
+      streamId: string,
+      databaseSchemaName = 'public',
+    ) =>
+      (
+        await pool.execute.query<{
+          message_schema_version: string | number;
+          message_metadata: Record<string, unknown>;
+        }>(
+          SQL`SELECT message_schema_version, message_metadata FROM ${SQL.identifier(databaseSchemaName)}.emt_messages WHERE stream_id = ${streamId} ORDER BY stream_position`,
+        )
+      ).rows;
+
+    const recordedMetadata = (
+      streamId: string,
+      messageId: string,
+      streamPosition: bigint,
+      globalPosition: ProcessorCheckpoint,
+    ) => ({
+      messageId,
+      streamName: streamId,
+      streamPosition,
+      globalPosition,
+      checkpoint: globalPosition,
+    });
+
+    const recordedEvent = (
+      streamId: string,
+      schemaVersion: number,
+      messageId: string,
+      streamPosition: bigint,
+      globalPosition: ProcessorCheckpoint,
+    ) => ({
+      type: 'ProductItemAdded',
+      kind: 'Event' as const,
+      data: productItemData(streamId),
+      schemaVersion,
+      metadata: recordedMetadata(
+        streamId,
+        messageId,
+        streamPosition,
+        globalPosition,
+      ),
+    });
+
+    void it('0.43.0 reads version 1 for version -1 it appended, after migrating from 0.43.0-rc.2', async () => {
+      await upgradeFrom_0_43_0_rc_2();
+      const streamId = `shopping_cart-${crypto.randomUUID()}`;
+      const messageId = crypto.randomUUID();
+      const [globalPosition] = await append_0_43_0(
+        streamId,
+        [versionedEvent(streamId, -1)],
+        [messageId],
+      );
+
+      const { events } = await readStream(pool.execute, streamId);
+
+      assertEqual('text', await readSchemaVersionColumnType());
+      assertDeepEqual(events, [
+        recordedEvent(streamId, 1, messageId, 1n, globalPosition!),
+      ]);
+    });
+
+    void it('0.43.0-rc.2 reads metadata schema versions of events 0.43.0 appended, after migrating from 0.43.0-rc.2', async () => {
+      await upgradeFrom_0_43_0_rc_2();
+      const streamId = `shopping_cart-${crypto.randomUUID()}`;
+      const messageIds = [crypto.randomUUID(), crypto.randomUUID()];
+      const globalPositions = await append_0_43_0(
+        streamId,
+        [versionedEvent(streamId, 2), unversionedEvent(streamId)],
+        messageIds,
+      );
+
+      const { events } = await readStream_0_43_0_rc_2(pool.execute, streamId);
+
+      assertDeepEqual(
+        events,
+        ['2', '1'].map((schemaVersion, index) => ({
+          type: 'ProductItemAdded',
+          kind: 'Event',
+          data: productItemData(streamId),
+          metadata: {
+            schemaVersion,
+            ...recordedMetadata(
+              streamId,
+              messageIds[index]!,
+              BigInt(index + 1),
+              globalPositions[index]!,
+            ),
+          },
+        })),
+      );
+    });
+
+    void it('0.43.0 reads schema versions of events 0.43.0-rc.2 appended, after migrating from 0.43.0-rc.2', async () => {
+      await upgradeFrom_0_43_0_rc_2();
+      const streamId = `shopping_cart-${crypto.randomUUID()}`;
+      const messageIds = [crypto.randomUUID(), crypto.randomUUID()];
+      const globalPositions = [
+        await append_0_43_0_rc_2(streamId, '2', messageIds[0]),
+        await append_0_43_0_rc_2(streamId, undefined, messageIds[1]),
+      ];
+
+      const { events } = await readStream(pool.execute, streamId);
+
+      assertDeepEqual(
+        events,
+        [2, 1].map((schemaVersion, index) =>
+          recordedEvent(
+            streamId,
+            schemaVersion,
+            messageIds[index]!,
+            BigInt(index + 1),
+            globalPositions[index]!,
+          ),
+        ),
+      );
+    });
+
+    void it('0.43.0-rc.2 and 0.43.0 append to one stream in turn, after migrating from 0.43.0-rc.2', async () => {
+      await upgradeFrom_0_43_0_rc_2();
+      const streamId = `shopping_cart-${crypto.randomUUID()}`;
+
+      const messageIds = [
+        crypto.randomUUID(),
+        crypto.randomUUID(),
+        crypto.randomUUID(),
+        crypto.randomUUID(),
+      ];
+
+      const globalPositions = [
+        await append_0_43_0_rc_2(streamId, '2', messageIds[0]),
+        ...(await append_0_43_0(
+          streamId,
+          [versionedEvent(streamId, 3)],
+          [messageIds[1]!],
+        )),
+        await append_0_43_0_rc_2(streamId, undefined, messageIds[2]),
+        ...(await append_0_43_0(
+          streamId,
+          [unversionedEvent(streamId)],
+          [messageIds[3]!],
+        )),
+      ];
+
+      const { events } = await readStream(pool.execute, streamId);
+      assertDeepEqual(
+        events,
+        [2, 3, 1, 1].map((schemaVersion, index) =>
+          recordedEvent(
+            streamId,
+            schemaVersion,
+            messageIds[index]!,
+            BigInt(index + 1),
+            globalPositions[index]!,
+          ),
+        ),
+      );
+    });
+
+    void it("0.43.0-rc.2 appends metadata schemaVersion '2' to the TEXT column, after migrating from 0.43.0-rc.2", async () => {
+      await upgradeFrom_0_43_0_rc_2();
+      const streamId = `shopping_cart-${crypto.randomUUID()}`;
+
+      await append_0_43_0_rc_2(streamId, '2');
+
+      assertDeepEqual(await readStoredRows(streamId), [
+        {
+          message_schema_version: '2',
+          message_metadata: { schemaVersion: '2' },
+        },
+      ]);
+    });
+
+    for (const { criterion, schemaVersion } of [
+      {
+        criterion:
+          "0.43.0-rc.2 append fails for metadata schemaVersion 'v2', after migrating from 0.43.0-rc.2",
+        schemaVersion: 'v2',
+      },
+      {
+        criterion:
+          '0.43.0-rc.2 append fails for a metadata schemaVersion too large for INT, after migrating from 0.43.0-rc.2',
+        schemaVersion: '99999999999',
+      },
+    ]) {
+      void it(criterion, async () => {
+        await upgradeFrom_0_43_0_rc_2();
+        const streamId = `shopping_cart-${crypto.randomUUID()}`;
+        const messageId = crypto.randomUUID();
+        const globalPosition = await append_0_43_0_rc_2(
+          streamId,
+          '2',
+          messageId,
+        );
+
+        await assertThrowsAsync(() =>
+          append_0_43_0_rc_2(streamId, schemaVersion),
+        );
+
+        const { events } = await readStream_0_43_0_rc_2(pool.execute, streamId);
+        assertDeepEqual(events, [
+          {
+            type: 'ProductItemAdded',
+            kind: 'Event',
+            data: productItemData(streamId),
+            metadata: {
+              schemaVersion: '2',
+              ...recordedMetadata(streamId, messageId, 1n, globalPosition),
+            },
+          },
+        ]);
+      });
+    }
+
+    void it('0.43.0 appends after emt_append_to_stream is dropped, after migrating from 0.43.0-rc.2', async () => {
+      await upgradeFrom_0_43_0_rc_2();
+      await pool.execute.command(
+        SQL`DROP FUNCTION emt_append_to_stream(text[], jsonb[], jsonb[], text[], text[], text[], text, text, bigint, text)`,
+      );
+      const streamId = `shopping_cart-${crypto.randomUUID()}`;
+      const messageId = crypto.randomUUID();
+
+      const [globalPosition] = await append_0_43_0(
+        streamId,
+        [versionedEvent(streamId, 2)],
+        [messageId],
+      );
+
+      const { events } = await readStream(pool.execute, streamId);
+      assertDeepEqual(events, [
+        recordedEvent(streamId, 2, messageId, 1n, globalPosition!),
+      ]);
+    });
+
+    void it('0.43.0 appends when an emt_append_to_stream_v_0_43_0 with text[] versions also exists, after migrating from 0.43.0-rc.2', async () => {
+      await upgradeFrom_0_43_0_rc_2();
+      await pool.execute.command(
+        SQL`CREATE FUNCTION emt_append_to_stream_v_0_43_0(text[], jsonb[], jsonb[], text[], text[], text[], text, text, bigint, text) RETURNS void LANGUAGE sql AS $$ SELECT $$`,
+      );
+      const streamId = `shopping_cart-${crypto.randomUUID()}`;
+      const messageId = crypto.randomUUID();
+
+      const [globalPosition] = await append_0_43_0(
+        streamId,
+        [versionedEvent(streamId, 2)],
+        [messageId],
+      );
+
+      const { events } = await readStream(pool.execute, streamId);
+      assertDeepEqual(events, [
+        recordedEvent(streamId, 2, messageId, 1n, globalPosition!),
+      ]);
+    });
+
+    void it('0.43.0 stores version 3 in the TEXT column and in metadata, after migrating from 0.43.0-rc.2', async () => {
+      await upgradeFrom_0_43_0_rc_2();
+      const streamId = `shopping_cart-${crypto.randomUUID()}`;
+      const messageId = crypto.randomUUID();
+
+      const [globalPosition] = await append_0_43_0(
+        streamId,
+        [versionedEvent(streamId, 3)],
+        [messageId],
+      );
+
+      const { events } = await readStream(pool.execute, streamId);
+      assertDeepEqual(await readStoredRows(streamId), [
+        {
+          message_schema_version: '3',
+          message_metadata: { schemaVersion: '3' },
+        },
+      ]);
+      assertDeepEqual(events, [
+        recordedEvent(streamId, 3, messageId, 1n, globalPosition!),
+      ]);
+    });
+
+    void it('a fresh 0.43.0 store gets an INT schema version column', async () => {
+      await runSQLMigrations(pool, eventStoreSchemaMigrationsFor());
+
+      assertEqual('integer', await readSchemaVersionColumnType());
+    });
+
+    void it('a store migrated from 0.43.0-rc.2 keeps the TEXT schema version column', async () => {
+      await upgradeFrom_0_43_0_rc_2();
+
+      assertEqual('text', await readSchemaVersionColumnType());
+    });
+
+    void it('a store migrated from 0.42.0 keeps the TEXT schema version column', async () => {
+      await runSQLMigrations(pool, [
+        ...migrations_0_36_0,
+        ...migrations_0_38_7,
+        ...migrations_0_42_0,
+      ]);
+      await runSQLMigrations(pool, eventStoreSchemaMigrationsFor());
+
+      assertEqual('text', await readSchemaVersionColumnType());
+    });
+
+    void it("0.43.0-rc.2 appends metadata schemaVersion '2' as INT and fails for 'v2' on a store 0.43.0 created", async () => {
+      await runSQLMigrations(pool, eventStoreSchemaMigrationsFor());
+      const streamId = `shopping_cart-${crypto.randomUUID()}`;
+      const messageId = crypto.randomUUID();
+
+      await append_0_43_0_rc_2(streamId, '2', messageId);
+      await assertThrowsAsync(() => append_0_43_0_rc_2(streamId, 'v2'));
+
+      assertEqual('integer', await readSchemaVersionColumnType());
+      assertDeepEqual(await readStoredRows(streamId), [
+        {
+          message_schema_version: 2,
+          message_metadata: { schemaVersion: '2' },
+        },
+      ]);
+    });
+
+    void it('running the 0.43.0 automatic migrations twice after migrating from 0.43.0-rc.2 applies nothing and keeps both append functions', async () => {
+      await upgradeFrom_0_43_0_rc_2();
+
+      const repeated = await runSQLMigrations(
+        pool,
+        eventStoreSchemaMigrationsFor(),
+      );
+
+      assertThatArray(repeated.applied).isEmpty();
+      assertTrue(await functionExists(pool.execute, 'emt_append_to_stream'));
+      assertTrue(
+        await functionExists(pool.execute, 'emt_append_to_stream_v_0_43_0'),
+      );
+    });
+
+    void it('the 0.43.0 automatic migrations add both append functions to a custom schema with 0.42.0 and 0.43.0-rc.2 events', async () => {
+      const databaseSchemaName = 'events';
+      const migrationOptions = {
+        migrationTable: { schemaName: 'infrastructure' },
+      };
+      const streamId_0_42_0 = `shopping_cart-${crypto.randomUUID()}`;
+      const streamId_0_43_0_rc_2 = `shopping_cart-${crypto.randomUUID()}`;
+      const messageId_0_43_0_rc_2 = crypto.randomUUID();
+      await pool.withTransaction(async ({ execute }) => {
+        await execute.command(
+          SQL`CREATE SCHEMA IF NOT EXISTS ${SQL.identifier(databaseSchemaName)}`,
+        );
+        await execute.command(
+          SQL`SET LOCAL search_path TO ${SQL.identifier(databaseSchemaName)}`,
+        );
+        await runSQLMigrations(
+          pool,
+          [
+            sqlMigration(
+              schemaMigrationFor({ databaseSchemaName }).name,
+              [schema_0_42_0],
+              { ignoreHashMismatch: true },
+            ),
+          ],
+          { execute, ...migrationOptions },
+        );
+        await appendToStream_0_38_7(execute, {
+          streamId: streamId_0_42_0,
+          streamType: 'shopping_cart',
+          events: [unversionedEvent(streamId_0_42_0)],
+        });
+        await execute.command(
+          SQL`INSERT INTO emt_streams (stream_id, stream_position, partition, stream_type, stream_metadata, is_archived)
+              VALUES (${streamId_0_43_0_rc_2}, 1, ${defaultTag}, 'shopping_cart', '{}', FALSE)`,
+        );
+        await execute.command(
+          SQL`INSERT INTO emt_messages (stream_id, stream_position, partition, message_data, message_metadata, message_schema_version, message_type, message_kind, message_id, transaction_id)
+              VALUES (${streamId_0_43_0_rc_2}, 1, ${defaultTag}, ${JSON.stringify(productItemData(streamId_0_43_0_rc_2))}::jsonb, '{"schemaVersion":"2"}'::jsonb, '2', 'ProductItemAdded', 'E', ${messageId_0_43_0_rc_2}, pg_current_xact_id())`,
+        );
+      });
+
+      await runSQLMigrations(
+        pool,
+        eventStoreSchemaMigrationsFor({ databaseSchemaName }),
+        migrationOptions,
+      );
+
+      assertTrue(
+        await functionExists(
+          pool.execute,
+          'emt_append_to_stream',
+          databaseSchemaName,
+        ),
+      );
+      assertTrue(
+        await functionExists(
+          pool.execute,
+          'emt_append_to_stream_v_0_43_0',
+          databaseSchemaName,
+        ),
+      );
+      assertEqual(
+        'text',
+        await readSchemaVersionColumnType(databaseSchemaName),
+      );
+
+      const readStoredPosition = async (streamId: string) => {
+        const row = await single(
+          pool.execute.query<{
+            message_id: string;
+            global_position: string;
+            transaction_id: string;
+          }>(
+            SQL`SELECT message_id, global_position, transaction_id FROM ${SQL.identifier(databaseSchemaName)}.emt_messages WHERE stream_id = ${streamId}`,
+          ),
+        );
+        return {
+          messageId: row.message_id,
+          globalPosition: PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+            transactionId: BigInt(row.transaction_id),
+            globalPosition: BigInt(row.global_position),
+          }),
+        };
+      };
+      const position_0_42_0 = await readStoredPosition(streamId_0_42_0);
+      const position_0_43_0_rc_2 =
+        await readStoredPosition(streamId_0_43_0_rc_2);
+
+      const events_0_42_0 = await readStream(pool.execute, streamId_0_42_0, {
+        databaseSchemaName,
+      });
+      const events_0_43_0_rc_2 = await readStream(
+        pool.execute,
+        streamId_0_43_0_rc_2,
+        {
+          databaseSchemaName,
+        },
+      );
+      assertDeepEqual(events_0_42_0.events, [
+        recordedEvent(
+          streamId_0_42_0,
+          1,
+          position_0_42_0.messageId,
+          1n,
+          position_0_42_0.globalPosition,
+        ),
+      ]);
+      assertDeepEqual(events_0_43_0_rc_2.events, [
+        recordedEvent(
+          streamId_0_43_0_rc_2,
+          2,
+          messageId_0_43_0_rc_2,
+          1n,
+          position_0_43_0_rc_2.globalPosition,
+        ),
+      ]);
+
+      const currentStreamId = `shopping_cart-${crypto.randomUUID()}`;
+      const currentMessageIds = [crypto.randomUUID(), crypto.randomUUID()];
+      const currentGlobalPositions = await append_0_43_0(
+        currentStreamId,
+        [
+          versionedEvent(currentStreamId, 2),
+          versionedEvent(currentStreamId, 3),
+        ],
+        currentMessageIds,
+        databaseSchemaName,
+      );
+      const current = await readStream(pool.execute, currentStreamId, {
+        databaseSchemaName,
+      });
+      assertDeepEqual(
+        current.events,
+        [2, 3].map((schemaVersion, index) =>
+          recordedEvent(
+            currentStreamId,
+            schemaVersion,
+            currentMessageIds[index]!,
+            BigInt(index + 1),
+            currentGlobalPositions[index]!,
+          ),
+        ),
+      );
+      assertDeepEqual(
+        await readStoredRows(currentStreamId, databaseSchemaName),
+        [
+          {
+            message_schema_version: '2',
+            message_metadata: { schemaVersion: '2' },
+          },
+          {
+            message_schema_version: '3',
+            message_metadata: { schemaVersion: '3' },
+          },
+        ],
+      );
+
+      const appended_0_43_0_rc_2 = await single(
+        pool.execute.command<{ success: boolean }>(
+          callAppendToStream({
+            databaseSchemaName,
+            messageIds: [crypto.randomUUID()],
+            messagesData: [productItemData(streamId_0_43_0_rc_2)],
+            messagesMetadata: [{ schemaVersion: '2' }],
+            schemaVersions: ['2'],
+            messageTypes: ['ProductItemAdded'],
+            messageKinds: ['E'],
+            streamId: streamId_0_43_0_rc_2,
+            streamType: 'shopping_cart',
+            expectedStreamPosition: null,
+            partition: defaultTag,
+          }),
+        ),
+      );
+      assertTrue(appended_0_43_0_rc_2.success);
+      assertDeepEqual(
+        await readStoredRows(streamId_0_43_0_rc_2, databaseSchemaName),
+        [
+          {
+            message_schema_version: '2',
+            message_metadata: { schemaVersion: '2' },
+          },
+          {
+            message_schema_version: '2',
+            message_metadata: { schemaVersion: '2' },
+          },
+        ],
+      );
+    });
   });
 
   void it('old storeSubscriptionCheckpoint FAILS with not existing procedure', async () => {

@@ -10,6 +10,7 @@ import {
   tryPublishMessagesAfterCommit,
   upcastRecordedMessages,
   withOperationScope,
+  schemaVersionToAppend,
   withoutSchemaVersion,
   type AggregateStreamOptions,
   type AggregateStreamResult,
@@ -321,10 +322,7 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
           stream.messages.map((message) => ({
             ...message,
             kind: message.kind ?? 'Event',
-            schemaVersion: resolveSchemaVersion(
-              message.schemaVersion,
-              message.metadata,
-            ),
+            schemaVersion: resolveSchemaVersion(message.schemaVersion),
             metadata: withoutSchemaVersion(message.metadata),
           })),
           options?.schema?.versioning,
@@ -444,7 +442,10 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
               type: event.type,
               data: event.data,
               kind: event.kind ?? 'Event',
-              schemaVersion: event.schemaVersion ?? 1,
+              schemaVersion: schemaVersionToAppend(
+                event.schemaVersion,
+                'metadata' in event ? event.metadata : undefined,
+              ),
               metadata: {
                 ...metadata,
                 ...withoutSchemaVersion(
