@@ -33,22 +33,25 @@ type Command<
   CommandType extends string = string,
   CommandData extends DefaultRecord = DefaultRecord,
   CommandMetaData extends DefaultRecord | undefined = undefined,
+  SchemaVersion extends number = string extends CommandType ? number : 1,
 > = Readonly<{
   type: CommandType;
   data: CommandData;
   metadata?: CommandMetaData | DefaultCommandMetadata;
   kind?: 'Command';
+  schemaVersion?: SchemaVersion;
 }>;
 
 type DefaultCommandMetadata = { now: Date };
 ```
 
-| Property   | Type         | Description                                         |
-| ---------- | ------------ | --------------------------------------------------- |
-| `type`     | `string`     | Unique command type name (e.g., `'AddProductItem'`) |
-| `data`     | `object`     | Request payload (must be a record, not primitive)   |
-| `metadata` | `object?`    | Infrastructure data (defaults to `{ now: Date }`)   |
-| `kind`     | `'Command'?` | Discriminator for union types with Events           |
+| Property        | Type         | Description                                                                                                                                        |
+| --------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`          | `string`     | Unique command type name (e.g., `'AddProductItem'`)                                                                                                |
+| `data`          | `object`     | Request payload (must be a record, not primitive)                                                                                                  |
+| `metadata`      | `object?`    | Infrastructure data (defaults to `{ now: Date }`)                                                                                                  |
+| `kind`          | `'Command'?` | Discriminator for union types with Events                                                                                                          |
+| `schemaVersion` | `number?`    | Version of the command schema. Missing means `1`. Required when the type declares a version other than `1`. See [Schema Version](#schema-version). |
 
 ## Basic Usage
 
@@ -133,6 +136,28 @@ const authenticatedCommand = command<AuthenticatedAddProductItem>(
   { userId: 'user-123', correlationId: 'req-456', now: new Date() },
 );
 ```
+
+## Schema Version
+
+Commands have a schema version with the same rules as [events](/api-reference/event#schema-version). A command without `schemaVersion` is version `1`. When you change the shape of a command, keep its type name and declare the next version as the fourth type parameter of `Command`, after the metadata type (`undefined` when there is none):
+
+<<< @./../packages/emmett/src/typing/messageSchemaVersion.unit.spec.ts#command-schema-version-types
+
+A command of a type declared with a version other than `1` must set `schemaVersion`, so a missing one fails to compile:
+
+<<< @./../packages/emmett/src/typing/messageSchemaVersion.unit.spec.ts#command-schema-version-literal
+
+Versions of the same command form a discriminated union, so code that gets either version can switch on `schemaVersion` without casts:
+
+<<< @./../packages/emmett/src/typing/messageSchemaVersion.unit.spec.ts#command-schema-version-switch
+
+If you use the optional `command` factory, pass the version as its last argument, after the metadata when there is any:
+
+<<< @./../packages/emmett/src/typing/messageSchemaVersion.unit.spec.ts#command-schema-version-factory
+
+The factory takes a single command type. With a union of versions as the type argument, the version is not required, and without it the result is version `1`.
+
+When a command is stored, for example by a workflow, it is read back with `schemaVersion` set, next to the command and not in `metadata`.
 
 ## Commands vs Events
 

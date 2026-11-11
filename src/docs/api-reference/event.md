@@ -29,20 +29,23 @@ type Event<
   EventType extends string = string,
   EventData extends DefaultRecord = DefaultRecord,
   EventMetaData extends DefaultRecord | undefined = undefined,
+  SchemaVersion extends number = string extends EventType ? number : 1,
 > = Readonly<{
   type: EventType;
   data: EventData;
   metadata?: EventMetaData;
   kind?: 'Event';
+  schemaVersion?: SchemaVersion;
 }>;
 ```
 
-| Property   | Type       | Description                                                |
-| ---------- | ---------- | ---------------------------------------------------------- |
-| `type`     | `string`   | Unique event type name (e.g., `'ProductItemAdded'`)        |
-| `data`     | `object`   | Business data payload (must be a record, not primitive)    |
-| `metadata` | `object?`  | Optional infrastructure data (user ID, tenant, timestamps) |
-| `kind`     | `'Event'?` | Discriminator for union types with Commands                |
+| Property        | Type       | Description                                                                                                                                      |
+| --------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `type`          | `string`   | Unique event type name (e.g., `'ProductItemAdded'`)                                                                                              |
+| `data`          | `object`   | Business data payload (must be a record, not primitive)                                                                                          |
+| `metadata`      | `object?`  | Optional infrastructure data (user ID, tenant, timestamps)                                                                                       |
+| `kind`          | `'Event'?` | Discriminator for union types with Commands                                                                                                      |
+| `schemaVersion` | `number?`  | Version of the event schema. Missing means `1`. Required when the type declares a version other than `1`. See [Schema Version](#schema-version). |
 
 ## Basic Usage
 
@@ -134,9 +137,31 @@ const auditedEvent = event<AuditedProductItemAdded>(
 );
 ```
 
+## Schema Version
+
+Every event has a schema version, a whole number that starts at `1`. An event without `schemaVersion` is version `1`. When you change the shape of an event, keep its type name and declare the next version as the fourth type parameter, after the metadata type (`undefined` when there is none):
+
+<<< @./../packages/emmett/src/eventStore/versioning/upcasting.unit.spec.ts#event-schema-version-types
+
+An event of a type declared with a version other than `1` must set `schemaVersion`, so a missing one fails to compile. Versions of the same event form a discriminated union, so code that gets either version can switch on `schemaVersion` without casts. See [Schema versioning](/api-reference/commandhandler#schema-versioning) for an upcaster that does it.
+
+An upcaster or downcaster sets the version of its result. The upcaster below returns version `2`:
+
+<<< @./../packages/emmett/src/eventStore/versioning/upcasting.unit.spec.ts#upcast-to-schema-version
+
+A result without `schemaVersion` is version `1`, so this upcaster returns version `1`, whatever the stored event had:
+
+<<< @./../packages/emmett/src/eventStore/versioning/upcasting.unit.spec.ts#upcast-without-schema-version
+
+If you use the optional `event` factory, pass the version as its last argument, after the metadata when there is any:
+
+<<< @./../packages/emmett/src/typing/messageSchemaVersion.unit.spec.ts#event-schema-version-factory
+
+The factory takes a single event type. With a union of versions as the type argument, such as `event<ProductItemAddedV1 | ProductItemAddedV2>(...)`, the version is not required, and without it the result is version `1`.
+
 ## Read Events
 
-When events are read from the event store, they include additional metadata:
+When events are read from the event store, they include additional metadata, and `kind` and `schemaVersion` are always set:
 
 ```typescript
 type ReadEvent<
@@ -146,8 +171,12 @@ type ReadEvent<
   type: EventType['type'];
   data: EventType['data'];
   metadata: CombinedMetadata<EventType, MetadataType>;
+  kind: 'Event' | 'Command';
+  schemaVersion: number;
 };
 ```
+
+All event stores store the schema version next to the event, not in `metadata`. An event appended without a version is read as version `1`.
 
 ### Stream Metadata
 

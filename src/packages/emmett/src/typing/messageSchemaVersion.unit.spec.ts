@@ -531,3 +531,97 @@ void describe('Message factories with schema version', () => {
     event<V1 | V2>('ProductItemAdded', d1, 2);
   });
 });
+
+void describe('Versioned shopping cart messages', () => {
+  // #region command-schema-version-types
+  type AddProductItemV1 = Command<
+    'AddProductItem',
+    { productId: string; quantity: number }
+  >;
+
+  type AddProductItemV2 = Command<
+    'AddProductItem',
+    { productItem: { productId: string; quantity: number } },
+    undefined,
+    2
+  >;
+  // #endregion command-schema-version-types
+
+  type ProductItemAddedV2 = Event<
+    'ProductItemAdded',
+    { productItem: { productId: string; quantity: number } },
+    undefined,
+    2
+  >;
+
+  // #region command-schema-version-switch
+  const productItemOf = (command: AddProductItemV1 | AddProductItemV2) => {
+    switch (command.schemaVersion) {
+      case 2:
+        return command.data.productItem;
+      default:
+        return command.data;
+    }
+  };
+  // #endregion command-schema-version-switch
+
+  void it('reads the product item from both versions of a command', () => {
+    // #region command-schema-version-literal
+    const addProductItem: AddProductItemV2 = {
+      type: 'AddProductItem',
+      data: { productItem: { productId: 'shoes-1', quantity: 2 } },
+      schemaVersion: 2,
+    };
+    // #endregion command-schema-version-literal
+
+    assertDeepEqual(productItemOf(addProductItem), {
+      productId: 'shoes-1',
+      quantity: 2,
+    });
+    assertDeepEqual(
+      productItemOf({
+        type: 'AddProductItem',
+        data: { productId: 'shoes-1', quantity: 2 },
+      }),
+      { productId: 'shoes-1', quantity: 2 },
+    );
+  });
+
+  void it('creates a versioned command with the command factory', () => {
+    const now = new Date('2024-03-01T09:00:00.000Z');
+
+    // #region command-schema-version-factory
+    const addProductItem = command<AddProductItemV2>(
+      'AddProductItem',
+      { productItem: { productId: 'shoes-1', quantity: 2 } },
+      { now },
+      2,
+    );
+    // #endregion command-schema-version-factory
+
+    assertDeepEqual(addProductItem, {
+      type: 'AddProductItem',
+      data: { productItem: { productId: 'shoes-1', quantity: 2 } },
+      metadata: { now },
+      kind: 'Command',
+      schemaVersion: 2,
+    });
+  });
+
+  void it('creates a versioned event with the event factory', () => {
+    // #region event-schema-version-factory
+    const productItemAdded = event<ProductItemAddedV2>(
+      'ProductItemAdded',
+      { productItem: { productId: 'shoes-1', quantity: 2 } },
+      2,
+    );
+    // #endregion event-schema-version-factory
+
+    assertDeepEqual(productItemAdded, {
+      type: 'ProductItemAdded',
+      data: { productItem: { productId: 'shoes-1', quantity: 2 } },
+      kind: 'Event',
+      schemaVersion: 2,
+    });
+  });
+});
