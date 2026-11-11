@@ -1,7 +1,14 @@
-import { dumbo, runSQLMigrations, type Dumbo } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  runSQLMigrations,
+  single,
+  SQL,
+  type Dumbo,
+} from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
   assertDeepEqual,
+  assertEqual,
   assertMatches,
   assertThatArray,
   assertTrue,
@@ -106,6 +113,12 @@ void describe('Schema migrations tests', () => {
     // Then
     assertDeepEqual(applied, migrations_0_44_0);
     assertThatArray(skipped).isEmpty();
+    const { data_type } = await single(
+      pool.execute.query<{ data_type: string }>(
+        SQL`SELECT data_type FROM information_schema.columns WHERE table_name = 'emt_messages' AND column_name = 'message_schema_version'`,
+      ),
+    );
+    assertEqual('integer', data_type);
 
     const result = await assertCanAppendAndRead();
     await assertCanStoreAndReadCheckpoints(pool, result);
