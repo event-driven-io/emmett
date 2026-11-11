@@ -1,6 +1,6 @@
 # Plan: numeric message schema version
 
-Revision: 8. Built from spec r12.
+Revision: 12. Built from spec r14.
 
 Spec: `spec.md`. Q&A: `qa.md`. Reviews: `reviews/`.
 
@@ -11,9 +11,9 @@ The order follows "make the change easy, make the easy change". Every step ends 
 Steps 1 to 7 are done and committed. They are kept below as they were written in plan r1, before spec r1. Where the spec changed what they built, steps 8 and 9 correct the code. The r1 terms inside those prompts (for example the metadata fallback in every store) are replaced by the terms below.
 
 1. Steps 8 and 9: corrections to the done steps. First the optional version argument and the internal helper types, then the read rule per store.
-2. Steps 10 to 12: PostgreSQL. The append functions, the fresh `INT` layout and the appends through the new function, then the schema version migration with the prepared 0.44.0 migration, then the tetris migration.
-3. Step 13: SQLite.
-4. Step 14: the breaking type change for recorded messages, and the docs.
+2. Steps 10 and 11: PostgreSQL. The append functions, the fresh `INT` layout and the appends through the new function, then the schema version migration with the prepared 0.44.0 migration. The tetris migration is moved to https://github.com/event-driven-io/emmett/issues/428 (Q128).
+3. Step 12: SQLite.
+4. Step 13: the breaking type change for recorded messages, and the docs.
 
 Criteria the done steps already cover: 1.1 to 1.7 (step 2, `messageSchemaVersion.unit.spec.ts`, including "narrows created event and command types mixed with versioned types" for 1.7), 2.1 to 2.7 (step 3), 4.8 (steps 5 and 6, "reads kind Event for a message stored without a kind"), 5.4 (step 6), 15.1, 15.2 and 15.4 (step 7). Step 9 moves the step 7 tests for 6.1, 6.2 and 6.4 onto a 0.43.0-rc.2 store.
 
@@ -25,9 +25,9 @@ Criteria the done steps already cover: 1.1 to 1.7 (step 2, `messageSchemaVersion
 - **0.43.0-rc.2 store**: a database built with the migrations that shipped in 0.43.0-rc.2 (`migrations_0_43_0_rc_2` from step 1, after the 0.36.0, 0.38.7 and 0.42.0 sets). Its column is `TEXT`.
 - **Old append function**: `emt_append_to_stream`, versions as `text[]`. **New append function**: `emt_append_to_stream_v_0_43_0`, versions as `int[]`.
 - **Converting body**: the old append function's body from step 10. Numeric strings become integers. A non-numeric value, or one too large for `INT`, fails the append with an error. It works on `TEXT` and `INT` columns.
-- **Automatic migrations of the current release**: the migrations the current release adds to a driver's 0.43.0 set, and their variants for a custom database schema. PostgreSQL: the migration from step 10. SQLite: the SQLite rebuild from step 13.
-- **Schema version migration** (`migrateSchemaToNumericMessageSchemaVersion`, step 11) and **tetris migration** (`migrateToOptimisedPostgreSQLStorageLayout`, step 12): the two on-demand PostgreSQL migrations. **Mandatory migration**: the schema version migration in the PostgreSQL 0.44.0 set (step 11).
-- **SQLite rebuild**: the automatic SQLite migration that rebuilds the messages table with an `INTEGER` column (step 13).
+- **Automatic migrations of the current release**: the migrations the current release adds to a driver's 0.43.0 set, and their variants for a custom database schema. PostgreSQL: the migration from step 10. SQLite: the SQLite rebuild from step 12.
+- **Schema version migration** (`migrateSchemaToNumericMessageSchemaVersion`, step 11): the on-demand PostgreSQL migration. **Mandatory migration**: the schema version migration in the PostgreSQL 0.44.0 set (step 11).
+- **SQLite rebuild**: the automatic SQLite migration that rebuilds the messages table with an `INTEGER` column (step 12).
 - **User `CASE`**: the optional Dumbo `SQL` fragment `messageSchemaVersionMapping`, the first `COALESCE` argument in the migrations.
 - **Numeric value** (read rule). A value stored as a number is numeric when it is a whole number (`Number.isInteger`), and is taken as it is: `-1` is `-1`, `1.5` is missing. A string is numeric when it matches `^[0-9]+$`, and reads as that number: `'02'` is `2`. Any other string (`'2.0'`, `'-1'`, `' 2'`, `'v2'`) is missing.
 - **Read rule.** PostgreSQL: the stored value if numeric, else numeric `metadata.schemaVersion`, else `1`. MongoDB, EventStoreDB and in-memory: the stored value if numeric, else `1`. SQLite: the column only. Every read removes `schemaVersion` from `metadata`.
@@ -388,7 +388,7 @@ Context
 - `emmett-mongodb/src/eventStore/mongoDBEventStore.schemaVersion.e2e.spec.ts:194-247` runs two `it`s (`:197`, `:221`) inside `describe.each(cases_0_43_0_rc_2)`. `cases_0_43_0_rc_2[0]` (lines 130-134), "reads the version from the metadata of a message stored without a version", stores `legacyMetadata: { schemaVersion: '2', ... }` and expects `2`. Spec 6.5 makes this `1`.
 - Existing tests that already cover criteria of this step: MongoDB 5.5 at `mongoDBEventStore.schemaVersion.e2e.spec.ts:147`; EventStoreDB 6.8 in `cases_0_43_0_rc_2` at `eventstoreDBEventStore.schemaVersion.int.spec.ts:84-99`; 4.7 in the shared 4.6 feature at `emmett-tests/src/eventStore/features.ts:653`, which asserts the whole recorded command including `metadata`.
 - The step 7 PostgreSQL read tests build the store with `createEventStoreSchema({ pool })` (`readStream.int.spec.ts:64`, `readMessagesBatch.int.spec.ts:42`): `readStream.int.spec.ts:174` (6.1), `:221` (6.2), `:255` (6.4), and `readMessagesBatch.int.spec.ts:609` (6.1), `:649` (6.2), `:677` (6.4). The 6.1 and 6.2 tests append through the current API with `metadata.schemaVersion: '2'`, so they never had "a stored message without a stored version".
-- Shared features: `testSchemaVersion` in `src/packages/emmett-tests/src/eventStore/features.ts:521`, wired for in-memory, MongoDB and EventStoreDB. PostgreSQL is wired in step 10, SQLite in step 13.
+- Shared features: `testSchemaVersion` in `src/packages/emmett-tests/src/eventStore/features.ts:521`, wired for in-memory, MongoDB and EventStoreDB. PostgreSQL is wired in step 10, SQLite in step 12.
 
 Similar code
 - The existing read-rule unit tests in `emmett/src/eventStore/versioning/schemaVersion.unit.spec.ts`.
@@ -480,9 +480,9 @@ Through the shared features on a new store:
 - 4.5 GIVEN an appended event with `schemaVersion: 2` WHEN the stream is aggregated THEN `evolve` receives the event with `schemaVersion: 2`.
 - 4.6 GIVEN an appended command with `schemaVersion: 2` WHEN it is read THEN the recorded command has `schemaVersion: 2`.
 - 4.7 GIVEN MongoDB, EventStoreDB, PostgreSQL or SQLite AND an appended command WHEN it is read THEN the recorded message has `kind: 'Command'` AND `metadata` has no `kind`. Part: PostgreSQL (Q119).
-- 4.9 GIVEN an empty stream WHEN an event without a top-level `schemaVersion` and with `metadata.schemaVersion: '2'` is appended and the stream is read THEN the recorded event has `schemaVersion: 2` AND `metadata` has no `schemaVersion`. All stores except SQLite (step 13) (Q122).
-- 4.10 GIVEN an empty stream WHEN an event without a top-level `schemaVersion` and with `metadata.schemaVersion: 'v2'` is appended and the stream is read THEN the recorded event has `schemaVersion: 1`. All stores except SQLite (step 13).
-- 4.11 GIVEN an empty stream WHEN an event with `schemaVersion: 3` and `metadata.schemaVersion: '2'` is appended and the stream is read THEN the recorded event has `schemaVersion: 3`. All stores except SQLite (step 13).
+- 4.9 GIVEN an empty stream WHEN an event without a top-level `schemaVersion` and with `metadata.schemaVersion: '2'` is appended and the stream is read THEN the recorded event has `schemaVersion: 2` AND `metadata` has no `schemaVersion`. All stores except SQLite (step 12) (Q122).
+- 4.10 GIVEN an empty stream WHEN an event without a top-level `schemaVersion` and with `metadata.schemaVersion: 'v2'` is appended and the stream is read THEN the recorded event has `schemaVersion: 1`. All stores except SQLite (step 12).
+- 4.11 GIVEN an empty stream WHEN an event with `schemaVersion: 3` and `metadata.schemaVersion: '2'` is appended and the stream is read THEN the recorded event has `schemaVersion: 3`. All stores except SQLite (step 12).
 - 5.1 GIVEN an event appended with `schemaVersion: 2` and user metadata WHEN it is read THEN `metadata` contains the user metadata and Emmett's recorded fields, and no `schemaVersion`.
 - 7.1 GIVEN an empty stream in any store WHEN an event with `schemaVersion: 0` is appended and the stream is read THEN the append succeeds AND the recorded event has `schemaVersion: 0`.
 - 7.2 GIVEN an empty stream in any store WHEN an event with `schemaVersion: -1` is appended and the stream is read THEN the append succeeds AND the recorded event has `schemaVersion: 1`. Part: PostgreSQL, and the change for every store (Q120).
@@ -589,15 +589,14 @@ Acceptance criteria
 - 16.11 GIVEN the migration is called with the dry run option WHEN it finishes THEN the column is still `TEXT` and no data changed.
 - 16.12 GIVEN the migration is called with a migration timeout AND another transaction holds a lock on the messages table longer than that WHEN the timeout passes THEN the migration fails AND the column and data are unchanged.
 - 16.13 GIVEN a store migrated with a user `CASE` WHEN the migration runs again with a different `CASE` THEN it succeeds AND the column and data are unchanged.
-- 16.14 GIVEN two runs of the migration start at the same time WHEN both finish THEN both succeed AND the column is `INT` with the values from 16.1.
 - 16.15 GIVEN a row with `'99999999999'` in the column WHEN the migration runs without a user `CASE` THEN it fails with an error AND the column is still `TEXT` with unchanged data, AND WHEN it runs with a `CASE` that maps that row to `2` THEN the row holds `2`.
-- 17.1 GIVEN an existing store with a `TEXT` column WHEN the automatic migrations of the current release run THEN the new append function exists AND the column is still `TEXT` AND Dumbo's migrations table has no entry for either on-demand migration or the mandatory migration, AND WHEN the schema version migration is called after that THEN the column is `INT`. Part: everything except the tetris migration's entry, which step 12 adds.
+- 17.1 GIVEN an existing store with a `TEXT` column WHEN the automatic migrations of the current release run THEN the new append function exists AND the column is still `TEXT` AND Dumbo's migrations table has no entry for the schema version migration or the mandatory migration, AND WHEN the schema version migration is called after that THEN the column is `INT`.
 - 23.1 GIVEN a store with a `TEXT` column and the rows from 16.1 WHEN the mandatory migration is run directly THEN the column is `INT` with the same values as in 16.1.
 - 23.2 GIVEN the mandatory migration AND migration options with a user `CASE` WHEN it runs THEN values follow the same rules as 16.2 to 16.5.
 - 23.3 GIVEN a store already migrated by the on-demand schema version migration WHEN the mandatory migration runs THEN it succeeds without changing data.
 - 23.4 GIVEN a store after the mandatory migration WHEN the frozen 0.43.0 API appends an event with `metadata.schemaVersion: '2'` and reads the stream THEN the append succeeds AND the column holds `2` AND the read returns the event with `metadata.schemaVersion: '2'`.
 - 23.5 GIVEN a store after the mandatory migration with a user `CASE` WHEN it runs again with a different `CASE` THEN it succeeds AND the column and data are unchanged.
-- 24.3 GIVEN a PostgreSQL store in a custom schema WHEN either on-demand migration runs with that `databaseSchemaName` THEN the messages table in that schema is migrated as in 16.1 or 18.1. Part: this migration. Step 12 covers the tetris migration.
+- 24.3 GIVEN a PostgreSQL store in a custom schema WHEN the schema version migration runs with that `databaseSchemaName` THEN the messages table in that schema is migrated as in 16.1.
 - 24.4 GIVEN a PostgreSQL store in a custom schema WHEN the mandatory migration is run directly with that `databaseSchemaName` THEN it behaves as in 23.1 and 23.4.
 
 Tests
@@ -613,9 +612,8 @@ Build the 16.1 store this way: a 0.42.x store with rows from the 0.38.7 legacy a
 - 16.9: "a second run changes nothing" - asserts data and type unchanged.
 - 16.10: "converts an empty store" - asserts `integer`.
 - 16.11: "a dry run changes nothing" - `dryRun: true`; asserts `text` and unchanged data.
-- 16.12: "fails on the timeout while another transaction holds a lock" - a second pool opens a transaction with `LOCK TABLE <messages> IN ACCESS SHARE MODE` and keeps it open; the migration runs with `migrationTimeoutMS: 1000`; asserts it rejects, then the second pool rolls back; asserts `text` and unchanged data.
+- 16.12: "fails on the timeout while another transaction holds a lock" - a second pool opens a transaction with `LOCK TABLE <messages> IN ACCESS SHARE MODE` and keeps it open; the migration runs with `migrationTimeoutMS: 10`; asserts it rejects with Dumbo's `QueryCanceledError`, not just any error (Q126), then the second pool rolls back; asserts `text` and unchanged data.
 - 16.13: "a rerun with a different user CASE succeeds and changes nothing" - first run maps type `X` to `5`, second maps it to `7`; asserts success and the row still holds `5`.
-- 16.14: "two runs started together both succeed" - a third pool opens a transaction holding `LOCK TABLE <messages> IN ACCESS SHARE MODE`; start both calls on separate pools without awaiting; poll `pg_stat_activity` every 50 ms until two backends have `wait_event_type = 'Lock'`; commit the third pool; await both; asserts both resolve and the 16.1 values.
 - 16.15: "fails on a value too large for INT and succeeds once a user CASE maps it" - asserts the first call rejects with the column still `text`, then the call with the `CASE` gives `2`.
 - 13.1: "a 0.43.0 instance appends a numeric version after the schema version migration" - frozen append with `'2'`; asserts success, the column holds `2`, and the current read returns `schemaVersion: 2` with no `metadata.schemaVersion`.
 - 13.2: "a 0.43.0 instance gets an error for a non-numeric version after the schema version migration" - frozen append with `'v2'`; asserts rejection and the frozen read returns no new event.
@@ -623,7 +621,7 @@ Build the 16.1 store this way: a 0.42.x store with rows from the 0.38.7 legacy a
 - 13.5: "a 0.43.0 append waits for the migration and succeeds" - pool A opens a transaction holding `LOCK TABLE <messages> IN ACCESS SHARE MODE`; start the migration without awaiting; poll `pg_stat_activity` every 50 ms until a backend running the `ALTER` has `wait_event_type = 'Lock'`; start a frozen append with `'2'` without awaiting; poll until a second backend waits on a lock; commit pool A; await both; asserts both succeed and the row holds `2`.
 - 14.1 (INT): "the current release appends to an INT column after the schema version migration" - the 16.1 store after the migration, current append with `schemaVersion: 2`; asserts success and that `readStream` returns `schemaVersion: 2`.
 - 14.2 (INT): "a 0.43.0 instance appends to an INT column" - frozen append with `'2'` after the migration; asserts the column holds `2`.
-- 17.1: "a store migrated from 0.43.0-rc.2 keeps the TEXT column until the schema version migration runs" (Q123) - 0.43.0-rc.2 store, automatic migrations; asserts `functionExists` for the new function, `data_type` `text`, and that Dumbo's default migrations table (`emt_migrations`, from `eventStoreDatabaseSchema(options).migrationTable`) has no row named `emt:postgresql:eventstore:0.43.0:numeric-message-schema-version` or `emt:postgresql:eventstore:0.44.0:numeric-message-schema-version`; then calls `migrateSchemaToNumericMessageSchemaVersion` and asserts `integer`.
+- 17.1: "a store migrated from 0.43.0-rc.2 keeps the TEXT column until the schema version migration runs" (Q123) - 0.43.0-rc.2 store, automatic migrations; asserts `functionExists` for the new function, `data_type` `text`, and that Dumbo's default migrations table (`dmb_migrations`; `eventStoreDatabaseSchema(options).migrationTable` passes a name only when the user sets one) has no row named `emt:postgresql:eventstore:0.43.0:numeric-message-schema-version` or `emt:postgresql:eventstore:0.44.0:numeric-message-schema-version`; then calls `migrateSchemaToNumericMessageSchemaVersion` and asserts `integer`.
 - 23.1: "the mandatory migration converts every row" - the 16.1 rows, set run directly; asserts `integer` and the values.
 - 23.2: "the mandatory migration applies a user CASE from its options" - the 16.2 to 16.5 rows and `CASE`s through `messageSchemaVersionMapping`; asserts the same values.
 - 23.3: "the mandatory migration changes nothing after the on-demand one" - `migrateSchemaToNumericMessageSchemaVersion`, then the 0.44.0 set run directly; asserts the mandatory migration is in `applied`, so its own check ran, and that the data is unchanged.
@@ -632,78 +630,14 @@ Build the 16.1 store this way: a 0.42.x store with rows from the 0.38.7 legacy a
 - 24.3: 16.1 in a custom `databaseSchemaName`.
 - 24.4: 23.1 and 23.4 in a custom `databaseSchemaName`.
 - extra: "reads a whole JSON number in metadata by the number rule" - a row with a non-numeric column and metadata `schemaVersion: -1` as a JSON number converts to `1` (Q120).
+- extra: "fails on a metadata version too large for INT and succeeds once a user CASE maps it" - a row with a non-numeric column and metadata `schemaVersion: '99999999999'`; as in 16.15 (Q109, Q125).
 - Update `0_44_0.migration.int.spec.ts` and the 0.44.0 snapshot for the new set entry, and review the diff.
 The on-demand migration is one `sqlMigration` named `emt:postgresql:eventstore:0.43.0:numeric-message-schema-version` with `ignoreHashMismatch: true`, built by an internal `numericMessageSchemaVersionMigrationFor(name, options)` that is not exported from the package entry. Its SQL is a `DO` block that runs the `ALTER TABLE ... ALTER COLUMN message_schema_version TYPE INT USING COALESCE(...)` only when the column is not `integer`. Numeric column: `CASE WHEN message_schema_version ~ '^[0-9]+$' THEN message_schema_version::int END`. Numeric metadata: a JSON number that is a whole number of 0 or more is taken as it is (Q120), a JSON string by `^[0-9]+$`. When no user `CASE` is given, `COALESCE` starts with the numeric column. Export `migrateSchemaToNumericMessageSchemaVersion` from the package entry like `rebuildPostgreSQLProjections`. Do not add it to any automatic list. Export `migration_0_44_0_numericMessageSchemaVersionFor(options)` and a default constant from the 0.44.0 folder, both built by the same builder with the name `emt:postgresql:eventstore:0.44.0:numeric-message-schema-version`, the same SQL and `ignoreHashMismatch: true` (Q118). Add the constant to `migrations_0_44_0` after the checkpoint cleanup, with the comment `// Double-check before the 0.44.0 release.`
 ```
 
 ---
 
-## Step 12. On-demand tetris migration
-
-```text
-Use the `implement-step` skill.
-
-What to build
-Users can call `migrateToOptimisedPostgreSQLStorageLayout(options)` to rebuild the messages table into the layout of a fresh store, with an `INT` version computed by the same `COALESCE` as step 11. It runs unless `message_schema_version` is already `INT` and right after `created`. While it runs, other connections can read streams, and their appends wait and then land in the new table. A 0.43.0 append during the run succeeds after it.
-
-Context
-- Step 11's migration builder, options type and `COALESCE` builder.
-- `tables.ts`: `messagesTableSQLFor` (the fresh layout from step 10), `addTablePartitionsFor` and `addPartitionSQLFor` (partition names and bounds). Global positions come from the sequence `emt_global_message_position`, which the table does not own.
-- A fresh store has only the default partition. Archived rows have `is_archived = TRUE`; the column defaults to `FALSE`.
-
-Similar code
-- Step 11's function and tests, including the 13.5 test (separate pools, polling `pg_stat_activity` and `pg_locks`).
-- `createEventStoreSchema` for a fresh store to compare with.
-
-Blocked by
-Step 11.
-
-Acceptance criteria
-- 13.4 GIVEN a store after the tetris migration WHEN the frozen 0.43.0 API appends and reads THEN the results are the same as in 13.1 to 13.3.
-- 13.6 GIVEN the tetris migration is switching the tables WHEN the frozen 0.43.0 API appends at the same time THEN the result is the same as in 13.5.
-- 17.1 GIVEN an existing store with a `TEXT` column WHEN the automatic migrations of the current release run THEN the new append function exists AND the column is still `TEXT` AND Dumbo's migrations table has no entry for either on-demand migration or the mandatory migration, AND WHEN the schema version migration is called after that THEN the column is `INT`. Part: Dumbo's table has no entry for the tetris migration.
-- 18.1 GIVEN an existing store with a `TEXT` column WHEN the tetris migration runs THEN the messages table has the same columns, column order, column types, primary key, indexes, partitions and `global_position` default as a fresh store of the current release.
-- 18.2 GIVEN a `TEXT` column with the rows from 16.1 WHEN the tetris migration runs without a user `CASE` THEN the rows hold the same values as in 16.1.
-- 18.3 GIVEN a `TEXT` column WHEN the tetris migration runs with a user `CASE` THEN values follow the same rules as 16.2 to 16.5.
-- 18.4 GIVEN a store already migrated by the schema version migration WHEN the tetris migration runs without a user `CASE` THEN the existing `INT` values are kept.
-- 18.5 GIVEN the tetris migration holds its lock and has not committed WHEN another connection reads a stream THEN the read succeeds before the migration ends.
-- 18.6 GIVEN the tetris migration is running WHEN another connection appends THEN the append waits until the migration ends AND, after it ends, the appended message is in the new table.
-- 18.7 GIVEN a store with N messages WHEN the tetris migration finishes THEN the new table has N messages with the same stream ids, positions, global positions, transaction ids, data, metadata, types, kinds, ids, archive flags and created timestamps.
-- 18.8 GIVEN the tetris migration fails part way WHEN the transaction rolls back THEN the original table and data are unchanged.
-- 18.9 GIVEN the tetris migration has run WHEN a new message is appended THEN its `global_position` continues the existing sequence.
-- 18.10 GIVEN an existing store with a `TEXT` column WHEN the tetris migration is called with the dry run option, or with a migration timeout while another transaction holds a lock on the messages table THEN the results are the same as in 16.11 and 16.12.
-- 18.11 GIVEN the tetris migration has run, or the store is fresh, WHEN it runs again THEN it succeeds without rebuilding the table or changing data.
-- 18.12 GIVEN a `TEXT` column with a row holding `'99999999999'` WHEN the tetris migration runs without a user `CASE` THEN it fails with an error AND the original table and data are unchanged.
-- 18.13 GIVEN a store already migrated by the schema version migration WHEN the tetris migration runs with a `CASE` that maps one row's message type to `5` THEN that row holds `5` AND the other rows keep their values.
-- 24.3 GIVEN a PostgreSQL store in a custom schema WHEN either on-demand migration runs with that `databaseSchemaName` THEN the messages table in that schema is migrated as in 16.1 or 18.1. Part: the tetris migration.
-
-Tests
-Stores for 18.1, 18.2 and 18.7 have rows in two partitions and one archived row. Build them as in step 11.
-- 18.1: "rebuilds into the fresh layout" - compares `information_schema.columns`, `pg_indexes`, `pg_constraint`, `pg_inherits` and the `global_position` default with a store from `createEventStoreSchema` that has the same two partitions.
-- 18.2: "converts every row to an INT version without a user CASE" - the 16.1 rows; asserts `1`, `1`, `2`, `3`.
-- 18.3: "applies a user CASE on a TEXT column" - the 16.2 to 16.5 rows and `CASE`s from step 11; asserts the same values.
-- 18.4: "keeps INT values without a user CASE" - after step 11's migration, with rows holding `1`, `2`, `3` and `-1` (appended by the current release on the `INT` column); asserts the same four values.
-- 18.7: "copies every message unchanged" - N = 10 messages over two streams in two partitions, one archived; asserts every listed column.
-- 18.8: "a failure part way leaves the table unchanged" - a user `CASE` `CASE WHEN message_type = 'Boom' THEN (1/0) END`; asserts the old table and data.
-- 18.9: "new appends continue the global position" - asserts the next `global_position` is greater than every copied one.
-- 18.10: "a dry run changes nothing" and "fails on the timeout while another transaction holds a lock" - as 16.11 and 16.12, with `migrationTimeoutMS: 1000`.
-- 18.11: "a second run, or a run on a fresh store, does not rebuild" - asserts `'<messages>'::regclass::oid` is unchanged and the data is unchanged.
-- 18.12: "fails on a value too large for INT" - asserts rejection and the old table unchanged.
-- 18.13: "applies a user CASE on an INT column" - after step 11's migration, a `CASE` mapping one message type to `5`; asserts that row holds `5` and the others keep their values.
-- 13.4: "a 0.43.0 instance appends and reads after the tetris migration" - the 13.1 to 13.3 tests from step 11, run after this migration.
-- 17.1: "the automatic migrations do not run the tetris migration" - extend step 11's 17.1 test: Dumbo's migrations table has no row named `emt:postgresql:eventstore:0.43.0:optimised-storage-layout`.
-- 24.3: 18.1 in a custom `databaseSchemaName`.
-Concurrency tests. Hold the migration in its copy with a user `CASE` `CASE WHEN message_type = 'SlowEvent' THEN (SELECT NULL::int FROM pg_sleep(3)) END` and one `SlowEvent` row. Start it without awaiting on its own pool. Poll `pg_locks` every 50 ms until its backend holds `ExclusiveLock` on the messages table.
-- 18.5: "reads a stream while the tetris migration runs" - on a second pool, `readStream`; asserts it resolves with the events while the migration promise is still pending.
-- 18.6: "an append waits for the tetris migration and lands in the new table" - on a third pool, append; after 500 ms asserts the append promise is still pending; after the migration resolves, asserts the append resolved, the message is readable, and its `global_position` is greater than every copied one.
-- 13.6: "a 0.43.0 append during the table switch succeeds after it" - before starting the migration, pool A opens a transaction holding `LOCK TABLE <messages> IN ACCESS SHARE MODE`. Start the migration without awaiting. Poll `pg_locks` every 50 ms until it has an ungranted `AccessExclusiveLock` on the messages table, which means it waits at the switch. Start a frozen append with `'2'` without awaiting; poll until a second backend waits on a lock; commit pool A; await both; asserts both succeed and the column holds `2`.
-If an append fails instead of waiting, stop and report it. Do not change the locking without asking. Run the concurrency tests five times in a row.
-One `sqlMigration` named `emt:postgresql:eventstore:0.43.0:optimised-storage-layout` with `ignoreHashMismatch: true`. One transaction: `LOCK TABLE <messages> IN EXCLUSIVE MODE`, create the new partitioned table and partitions under a temporary name, copy all rows through the `COALESCE`, create the primary key and indexes, switch the names under `ACCESS EXCLUSIVE`, restore the `global_position` default, drop the old table. The `DO` block reads the column type at migration time and picks the numeric column expression: on `TEXT` it is step 11's regex `CASE`, on `INT` it is `message_schema_version` as it is.
-```
-
----
-
-## Step 13. SQLite rebuild, append and read
+## Step 12. SQLite rebuild, append and read
 
 ```text
 Use the `implement-step` skill.
@@ -766,7 +700,7 @@ Add `migration_0_43_0_numericMessageSchemaVersionFor(options)` (name `emt:sqlite
 
 ---
 
-## Step 14. Recorded message types and docs
+## Step 13. Recorded message types and docs
 
 ```text
 Use the `implement-step` skill.

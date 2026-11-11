@@ -1574,5 +1574,68 @@ $spc$ LANGUAGE plpgsql;
       },
     ],
   },
+  {
+    "ignoreHashMismatch": true,
+    "name": "emt:postgresql:eventstore:0.44.0:numeric-message-schema-version",
+    "sqls": [
+      {
+        "__brand": "tokenized-sql",
+        "sqlChunks": [
+          "
+DO $emt_numeric_schema_version$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = ",
+          "current_schema()",
+          "
+      AND table_name = '",
+          "emt_messages",
+          "'
+      AND column_name = 'message_schema_version'
+      AND data_type <> 'integer'
+  ) THEN
+    ALTER TABLE ",
+          "__P__",
+          "
+      ALTER COLUMN message_schema_version TYPE INT
+      USING COALESCE(",
+          "",
+          " ",
+          "
+  CASE
+    WHEN message_schema_version ~ '^[0-9]+$' THEN message_schema_version::int
+  END",
+          ", ",
+          "
+  CASE jsonb_typeof(message_metadata -> 'schemaVersion')
+    WHEN 'number' THEN
+      CASE
+        WHEN (message_metadata ->> 'schemaVersion')::numeric >= 0
+          AND (message_metadata ->> 'schemaVersion')::numeric = trunc((message_metadata ->> 'schemaVersion')::numeric)
+        THEN (message_metadata ->> 'schemaVersion')::numeric::int
+      END
+    WHEN 'string' THEN
+      CASE
+        WHEN message_metadata ->> 'schemaVersion' ~ '^[0-9]+$' THEN (message_metadata ->> 'schemaVersion')::int
+      END
+  END",
+          ", 1);
+  END IF;
+END $emt_numeric_schema_version$;
+",
+        ],
+        "sqlTokens": [
+          {
+            "SQL_TABLE_REFERENCE": true,
+            "databaseSchemaName": "dmb_default_schema",
+            "sqlTokenType": "SQL_TABLE_REFERENCE",
+            "tableName": "emt_messages",
+          },
+        ],
+      },
+    ],
+  },
 ]
 `;

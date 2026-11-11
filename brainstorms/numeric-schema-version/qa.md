@@ -671,3 +671,65 @@ Test and helper names in migration and compatibility tests name the exact versio
 > 3. ok
 
 Answered: yes to all three. The 15.3 test now covers 14.1 (TEXT). The on-demand migration takes a metadata JSON number only when it is a whole number of 0 or more. The plan's append rule text uses `schemaVersionToAppend`.
+
+## Q125 (plan r8, step 11 review). (1) Two runs of the on-demand migration at once: Dumbo reads pending migrations before its lock, so the second run fails on the unique name. Keep the lock the step 11 code takes before `runSQLMigrations` as a workaround and file a Dumbo issue? (2) Fix 17.1 to say `dmb_migrations`? (3) A metadata version too large for `INT` fails the migration as in Q109, with a test?
+
+> Why the implementation status is done while it's not?
+>
+> 1. Advisory lock should make the second wait, isn't that true?
+> 2. ok
+> 3. yes
+
+> Ok, then add issue for dumbo, what's agent's lock?!
+
+Answered: keep the advisory lock taken before `runSQLMigrations` as a workaround; filed https://github.com/event-driven-io/Pongo/issues/235. 17.1 uses `dmb_migrations`. A metadata version too large for `INT` fails the migration (Q109), with a test.
+
+> Why is agent adding such lock? What's the value?
+
+> Dude, isn't that checking dumbo? What's the value in emmett?
+
+Revised: 16.14 tests Dumbo's locking, not Emmett, so it is removed from the spec and plan, with its test. The advisory lock is removed. The Dumbo issue https://github.com/event-driven-io/Pongo/issues/235 stays.
+
+## Q126 (plan r9, step 11). The timeout tests (16.12, 18.10) use `migrationTimeoutMS: 1000` and pass on any error. Use `10` ms and assert Dumbo's `QueryCanceledError`?
+
+> But I don't want slow test, what do you mean by slow?!
+
+> Can't you set it even to lower?
+
+> ok
+
+Answered: yes. 10 ms, so Dumbo's own setup statements finish and only the blocked `ALTER` times out, and the test asserts `QueryCanceledError`.
+
+## Q127 (plan r10, step 12 review). (1) The tetris migration creates a new table and drops the old one, so grants to other roles, views, triggers, RLS policies, publications and user-added indexes on the messages table are lost, and a dependent view makes the drop fail. Carry them over, fail early, or document the limit? (2) With no messages table, the tetris migration fails while the schema version migration does nothing. Should it do nothing too? (3) The agent probes index and constraint names through a temporary table, which needs the `TEMPORARY` privilege. Drop the probe and get fresh-store names by renaming the new table before the primary key is added?
+
+> 1. How would this be done? 2. yes, migrations should be idempotent 3. why would we need temp table?
+
+> Wouldn't be simpler to say that we're just doing migration and if someone had some additional stuff added on top they need to migrate that on their own?
+
+> yes
+
+Answered: (1) The tetris migration rebuilds only what Emmett creates. Grants to other roles, views, triggers, policies, publications and user-added indexes on the messages table are not carried over. Users drop or move them before running it and reapply them after. A dependent view makes the migration fail with PostgreSQL's error and roll back. This is documented in the spec and in the docs. (2) With no messages table, the tetris migration does nothing, with a test. (3) No temporary table. The new table gets its final name before the primary key is added, so PostgreSQL generates the same names as for a fresh store.
+
+## Q128 (plan r11, step 12). Point 3 of Q127 means the old table is dropped before the new one gets its final name, so reads also wait while the primary key and indexes are built. Keep the brief switch by building the keys first and renaming every object to the fresh-store names (B), or drop, rename, then build the keys and indexes (A)?
+
+> Which is simpler and less risky?
+
+> If we drop then won't we lose the old tables and data?
+
+> Ok, but the new tables may be wrong, or not?
+
+> In terms of grants etc.
+
+> Yes, we should run the check, but how will we ensure someone will move them to be able to run it?
+
+> I don't want interactive, someone will need to run this in CI or app
+
+> Ok, then we need to move grants etc. otherwise this will be bs
+
+> we should allow user to keep the old one just in case
+
+> ok, so let's move this tetris migration out of this change, please document an issue in gh with all concerns we just discussed and the initial plan we had
+
+> yes, agreed
+
+Answered: the tetris migration is moved out of this change to https://github.com/event-driven-io/emmett/issues/428, which holds the initial plan and every concern above: the name and lock ordering (A is simpler and less risky, reads wait during the index build), no data loss from dropping inside the transaction, moving owner, grants, triggers, policies, user indexes, comments and publications so it runs unattended in CI or on app startup, views, keeping the old table under a backup name, the row-count check and the backup advice. Step 12's code, tests, criteria 13.4, 13.6 and 18, and the tetris parts of 17.1 and 24.3 are removed. Steps 13 and 14 become 12 and 13. Q127's decisions now belong to #428.

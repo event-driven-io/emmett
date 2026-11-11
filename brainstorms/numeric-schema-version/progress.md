@@ -92,3 +92,76 @@ Checks:
 - vitest on `packages/emmett-postgresql`, plus the PostgreSQL, in-memory, MongoDB and EventStoreDB shared e2e specs and the MongoDB and EventStoreDB schema version specs: 85 files, 887 passed, 3 skipped.
 - `npm run agent:check` passed.
 - `npm run test:unit` passed: 155 files, 2033 passed, 2 skipped.
+
+## Step 11. On-demand schema version migration and the prepared 0.44.0 migration
+
+Status: done, built against plan r8 and spec r12.
+
+What was done:
+
+- `schema/migrations/numericMessageSchemaVersionMigration.ts`: internal `numericMessageSchemaVersionMigrationFor(name, options)`, not exported from the package entry.
+  - One `sqlMigration` with `ignoreHashMismatch: true` and a `DO` block that runs `ALTER TABLE ... TYPE INT USING COALESCE(<user CASE>, <numeric column>, <numeric metadata>, 1)` only when the column is not `integer`.
+  - A whole JSON number of 0 or more in metadata is taken as it is (Q120). A JSON string must match `^[0-9]+$`.
+- `schema/migrateSchemaToNumericMessageSchemaVersion.ts`, exported through `schema/index.ts`:
+  - It takes the consumer connection options, the schema options, `messageSchemaVersionMapping`, `dryRun` and `migrationTimeoutMS`.
+  - It calls `runSQLMigrations` directly. `dryRun: 'transactional'` rolls back, `'diff'` runs nothing.
+  - Two simultaneous runs are not tested or guarded: 16.14 was removed (Q125, Dumbo locking, issue Pongo #235).
+- 0.44.0: `migration_0_44_0_numericMessageSchemaVersionFor(options)` and the default constant, added to `migrations_0_44_0` after the checkpoint cleanup with the double-check comment. The snapshot diff shows only the new entry.
+- Tests: `schema/migrateSchemaToNumericMessageSchemaVersion.int.spec.ts` runs the shared criteria for both the schema version migration and the mandatory migration (16.1 to 16.7, 16.9, 16.10, 16.13, 13.1, 13.2, 23.1, 23.2, 23.4, 23.5, 24.3, 24.4, the JSON number rule), and the on-demand-only ones (16.8, 16.11, 16.12, 16.15, the metadata too-large extra, 13.3, 13.5, 14.1, 14.2, 17.1, 23.3). `0_44_0.migration.int.spec.ts` asserts the column is `integer` after the set runs.
+
+Deviations and notes:
+
+- Dumbo's default migrations table is `dmb_migrations`, not `emt_migrations` as the plan says. Test 17.1 queries `dmb_migrations`.
+- I wrote the implementation before the tests, so the red run was not observed. The tests fail without the `ALTER` because the column stays `text`.
+
+Checks: see the outcome.
+
+Review: `reviews/20261111T140000_step11_review.md` (earlier: 120000, 130000).
+
+- All implementation findings are fixed, including the lock-wait filter (database and query text) and the stale record.
+- The metadata too-large extra test passed when first written, before any code change: the SQL already fails on overflow.
+- Q125 decided the earlier plan and spec findings. Nothing is left for the plan, spec or qa.
+
+Checks:
+
+- vitest on `packages/emmett-postgresql`, twice: 80 files, 708 passed, 3 skipped.
+- `npm run agent:check` passed.
+- `npm run test:unit` passed: 155 files, 2033 passed, 2 skipped.
+
+Step 11, change from Q126 (plan r10): the test "fails on the timeout while another transaction holds a lock" uses `migrationTimeoutMS: 10` and asserts Dumbo's `QueryCanceledError`.
+
+- With the old 1000 ms timeout, the added `instanceof QueryCanceledError` check failed: the error is a `QueryCanceledError` by `errorType`, but `pg.js` bundles its own class copy, so `instanceof` is false. The test uses `DumboError.isInstanceOf(error, { errorType: QueryCanceledError.ErrorType })`.
+- The file passed three times in a row with 10 ms. `npm run agent:check` passed. No review re-run, as agreed.
+
+## Step 12 (plan r11). On-demand tetris migration
+
+Moved out of this change to https://github.com/event-driven-io/emmett/issues/428 (Q128). The code and tests below were removed. Plan r12 renumbers SQLite and docs to steps 12 and 13.
+
+Status: done, built against plan r10 and spec r12. The review was not run (see below).
+
+What was done:
+
+- `schema/migrations/optimisedStorageLayoutMigration.ts`: internal `optimisedStorageLayoutMigrationFor(name, options)`. One `sqlMigration` with `ignoreHashMismatch: true` and one `DO` block:
+  - It takes `EXCLUSIVE` on the messages table, then returns without changes when `message_schema_version` is `integer` and right after `created`.
+  - It creates `emt_messages_tetris` (fresh layout) and recreates every partition and sub-partition from `pg_inherits` and the stored bounds, under temporary names.
+  - It copies all rows with the version expression picked from the column type. `TEXT`: user `CASE`, column regex, metadata, `1` (step 11's fragments, now exported). `INT`: user `CASE`, the column as it is.
+  - It takes `ACCESS EXCLUSIVE`, drops the old table, then renames tables, primary keys, the `transaction_id` indexes and the `NOT NULL` constraints to the names a fresh store has.
+- `schema/migrateToOptimisedPostgreSQLStorageLayout.ts`: same shape and options as the schema version migration function, exported through `schema/index.ts`.
+- Tests added to `migrateSchemaToNumericMessageSchemaVersion.int.spec.ts` in a `tetris migration` block: 18.1 to 18.13, 13.4, 13.6, 17.1 part, 24.3 part. The concurrency tests ran five times in a row, green.
+
+Deviations and notes:
+
+- The new table is created with its primary key and the `transaction_id` index before the copy, not after. This keeps the `CREATE TABLE` close to the fresh layout. A copy into an indexed table is slower than building indexes after it.
+- The `CREATE TABLE` for the temporary table is written in the migration, not taken from `messagesTableSQLFor`. Giving `messagesTableSQLFor` an index name or table name changes the 0.43.0 and 0.44.0 schema snapshots. The 18.1 test compares with a fresh store, so a layout change in `messagesTableSQLFor` fails it.
+- Index and constraint names of the partitions are probed from a temporary table with the final name, so PostgreSQL's own truncation rules give the same names as a fresh store.
+- The `global_position` default is created with the table and points at the same sequence. There is no separate restore step.
+- A schema without a messages table fails with the `LOCK TABLE` error. No test or spec rule asks for a silent skip.
+- Grants and views on the old messages table are not carried over; `DROP TABLE` fails when a view depends on it.
+- I wrote the tests first and saw them fail only through a missing module. Later failures came from the implementation (partition parent, index names, `NOT NULL` names on PostgreSQL 18) and were fixed in that order.
+- Review: not run. This agent could not start a fresh-context subagent, so the caller runs `review-implementation`.
+
+Checks:
+
+- `vitest` on `packages/emmett-postgresql`: 80 files, 727 passed, 3 skipped.
+- `npm run agent:check` passed.
+- `npm run test:unit` passed: 155 files, 2033 passed, 2 skipped.

@@ -1,5 +1,9 @@
 import { SQL, sqlMigration, type SQLMigration } from '@event-driven-io/dumbo';
 import { bigInt } from '@event-driven-io/emmett';
+import {
+  numericMessageSchemaVersionMigrationFor,
+  type NumericMessageSchemaVersionMigrationOptions,
+} from '../numericMessageSchemaVersionMigration';
 import { defaultTag, processorsTable, unknownTag } from '../../typing';
 
 // Removes the mixed-format checkpoint fallback from store_processor_checkpoint.
@@ -90,3 +94,14 @@ export const migration_0_44_0_cleanupObsoleteCheckpointCompat: SQLMigration =
     'emt:postgresql:eventstore:0.44.0:cleanup-obsolete-checkpoint-compat',
     [migration_0_44_0_cleanupObsoleteCheckpointCompatSQL],
   );
+
+export const migration_0_44_0_numericMessageSchemaVersionFor = (
+  options?: NumericMessageSchemaVersionMigrationOptions,
+): SQLMigration =>
+  numericMessageSchemaVersionMigrationFor(
+    'emt:postgresql:eventstore:0.44.0:numeric-message-schema-version',
+    options,
+  );
+
+export const migration_0_44_0_numericMessageSchemaVersion: SQLMigration =
+  migration_0_44_0_numericMessageSchemaVersionFor();
