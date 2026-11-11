@@ -1,6 +1,7 @@
 import { dumbo, SQL } from '@event-driven-io/dumbo';
 import { pgDumboDriver, tableExists } from '@event-driven-io/dumbo/pg';
 import {
+  assertDeepEqual,
   assertEqual,
   assertFalse,
   assertRejects,
@@ -24,6 +25,9 @@ type ProductItemAdded = Event<
   { productItem: { price: number; productId: string; quantity: number } }
 >;
 
+type Counted = Event<'Counted', { count: number }>;
+type CountedV2 = Event<'Counted', { count: number }, undefined, 2>;
+
 void describe('PostgreSQL Projections', () => {
   let database: PostgreSQLTestDatabase;
   let connectionString: string;
@@ -39,6 +43,46 @@ void describe('PostgreSQL Projections', () => {
     } catch (error) {
       console.log(error);
     }
+  });
+
+  void it('hands events to the projection with the given schema version, or version 1 when none is given', async () => {
+    const handled: Pick<
+      Counted | CountedV2,
+      'kind' | 'type' | 'data' | 'schemaVersion'
+    >[] = [];
+
+    await PostgreSQLProjectionSpec.for({
+      connectionString,
+      projection: postgreSQLRawSQLProjection<Counted | CountedV2>({
+        name: 'schema_version_projection',
+        canHandle: ['Counted'],
+        evolve: ({ kind, type, data, schemaVersion }) => {
+          handled.push({ kind, type, data, schemaVersion });
+          return SQL`SELECT 1;`;
+        },
+      }),
+    })([])
+      .when([
+        { type: 'Counted', data: { count: 1 } },
+        { type: 'Counted', data: { count: 2 }, schemaVersion: 2 },
+      ])
+      .then(() => {
+        assertDeepEqual(handled, [
+          {
+            kind: 'Event',
+            type: 'Counted',
+            data: { count: 1 },
+            schemaVersion: 1,
+          },
+          {
+            kind: 'Event',
+            type: 'Counted',
+            data: { count: 2 },
+            schemaVersion: 2,
+          },
+        ]);
+        return Promise.resolve(true);
+      });
   });
 
   void it('should call init method', async () => {

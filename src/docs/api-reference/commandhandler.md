@@ -223,13 +223,23 @@ A decision throws to reject a command; the handler appends nothing and propagate
 
 Pass the stored shape as the last type parameter, `EventPayloadType`, on either handler so both callbacks are checked against it. It defaults to `StreamEvent`, which is only correct while the stored and current shapes still match.
 
-Define the transform against both shapes. Here older events stored the product item's fields flat and kept `addedAt` as the ISO string JSON persists a `Date` as; the current shape groups those fields and rebuilds the `Date`:
+Every recorded message carries a `schemaVersion`, a whole number that starts at `1`. A message type with a literal type name, such as `Event<'ProductItemAdded', Data>`, is version `1` unless it declares another. The bare `Event`, `Command` and `Message` types accept any number. Declare any later version with the fourth type parameter of `Event`, `Command` or `Message`, after the metadata type (`undefined` when there is none). Messages of that type must then carry the version, so a missing one fails to compile.
+
+Define the transform against both shapes. Here older events stored the product item's fields flat and kept `addedAt` as the ISO string JSON persists a `Date` as; the current shape groups those fields and rebuilds the `Date`. The upcaster switches on `schemaVersion` to see which shape it got. Its result states the version it returns:
 
 <<< @./../packages/emmett/src/commandHandling/handleCommandWithDecider.versioning.unit.spec.ts#decider-upcasting
 
 Then register it under `schema.versioning` on the handler:
 
 <<< @./../packages/emmett/src/commandHandling/handleCommandWithDecider.versioning.unit.spec.ts#decider-upcasting-register
+
+A decider creates the current version by setting `schemaVersion` on the event it returns:
+
+<<< @./../packages/emmett/src/commandHandling/handleCommandWithDecider.versioning.unit.spec.ts#decider-versioned-event
+
+An upcaster or downcaster result without `schemaVersion` is version `1`. The stores keep the version next to the message, so it is not part of `metadata`.
+
+If you use the optional `event()`, `command()` or `message()` helpers, pass the version as their last argument, after the metadata when there is any. They take a single message type: with a union of versions as the type argument, such as `event<ProductItemAddedV1 | ProductItemAdded>(...)`, the version is not required, and without it the result is version `1`.
 
 ### Serialization
 

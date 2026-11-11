@@ -35,6 +35,7 @@ import { migrations_0_42_0 } from '../../../../../../eventStore/schema/migration
 import { migrations_0_43_0 } from '../../../../../../eventStore/schema/migrations/0_43_0';
 import {
   schemaMigration,
+  migration_0_43_0_numericMessageSchemaVersionFor,
   schemaMigrationFor,
 } from '../../../../../../eventStore/schema/migrations/index';
 
@@ -142,7 +143,10 @@ void describe('Schema migrations tests', () => {
     const { applied, skipped } = await eventStore.schema.migrate();
 
     // Then
-    assertDeepEqual(applied, [schemaMigrationFor(schemaOptions)]);
+    assertDeepEqual(applied, [
+      migration_0_43_0_numericMessageSchemaVersionFor(schemaOptions),
+      schemaMigrationFor(schemaOptions),
+    ]);
     assertThatArray(skipped).isEmpty();
 
     assertTrue(await configuredTableExists('events', 'emt_streams'));

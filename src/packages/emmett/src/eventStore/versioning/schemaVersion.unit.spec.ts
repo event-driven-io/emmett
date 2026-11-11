@@ -1,5 +1,6 @@
 import { describe, it } from 'vitest';
-import { assertDeepEqual, assertEqual } from '../../testing';
+import { ValidationError } from '../../errors';
+import { assertDeepEqual, assertEqual, assertThrows } from '../../testing';
 import {
   isNumericSchemaVersion,
   resolveSchemaVersion,
@@ -100,8 +101,22 @@ describe('Schema version append rule', () => {
     assertEqual(schemaVersionToAppend(3, { schemaVersion: '2' }), 3);
   });
 
-  it('appends the top-level version without validating it', () => {
-    assertEqual(schemaVersionToAppend(-1, { schemaVersion: '2' }), -1);
+  it.each([0, -1, 1.5])('rejects the top-level version %s', (schemaVersion) => {
+    assertThrows(
+      () => schemaVersionToAppend(schemaVersion, { schemaVersion: '2' }),
+      (error) => error instanceof ValidationError,
+    );
+  });
+
+  it('rejects metadata version 0 when the top-level one is missing', () => {
+    assertThrows(
+      () => schemaVersionToAppend(undefined, { schemaVersion: '0' }),
+      (error) => error instanceof ValidationError,
+    );
+  });
+
+  it('appends version 1 when the top-level one is missing and the metadata version is -1', () => {
+    assertEqual(schemaVersionToAppend(undefined, { schemaVersion: -1 }), 1);
   });
 
   it('appends the numeric metadata version when the top-level one is missing', () => {

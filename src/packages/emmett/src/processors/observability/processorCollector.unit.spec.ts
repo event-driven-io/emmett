@@ -34,6 +34,7 @@ const makeMessage = (type: string, meta: Record<string, unknown> = {}) => ({
   type,
   data: {},
   kind: 'Event' as const,
+  schemaVersion: 1 as const,
   metadata: meta as unknown as AnyRecordedMessageMetadata,
 });
 

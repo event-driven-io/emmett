@@ -9,13 +9,14 @@ import {
 } from '@event-driven-io/dumbo';
 import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
 import {
-  DefaultMessageSchemaVersion,
   downcastRecordedMessages,
   ExpectedVersionConflictError,
   isExpectedVersionConflictError,
   NO_CONCURRENCY_CHECK,
+  schemaVersionToAppend,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
+  withoutSchemaVersion,
   type AppendToStreamOptions,
   type BeforeEventStoreCommitHandler,
   type ExpectedStreamVersion,
@@ -82,6 +83,10 @@ export const appendToStream = async <MessageType extends Message>(
       return {
         ...m,
         kind: m.kind ?? 'Event',
+        schemaVersion: schemaVersionToAppend(
+          m.schemaVersion,
+          'metadata' in m ? m.metadata : undefined,
+        ),
         metadata: {
           streamName,
           messageId,
@@ -90,7 +95,7 @@ export const appendToStream = async <MessageType extends Message>(
           causationId: options?.context?.causationId,
           traceId: options?.context?.traceId,
           spanId: options?.context?.spanId,
-          ...('metadata' in m ? (m.metadata ?? {}) : {}),
+          ...withoutSchemaVersion('metadata' in m ? (m.metadata ?? {}) : {}),
         },
       } as RecordedMessage<MessageType, SQLiteReadEventMetadata>;
     },
@@ -290,7 +295,7 @@ const buildMessageInsertQuery = (
     const streamPosition =
       BigInt(message.metadata.streamPosition) + BigInt(expectedStreamVersion);
 
-    return SQL`(${streamId},${streamPosition ?? 0n},${partition ?? defaultTag},${message.kind === 'Event' ? 'E' : 'C'},${message.data},${message.metadata},${message.metadata.schemaVersion ?? DefaultMessageSchemaVersion},${message.type},${message.metadata.messageId},${false})`;
+    return SQL`(${streamId},${streamPosition ?? 0n},${partition ?? defaultTag},${message.kind === 'Event' ? 'E' : 'C'},${message.data},${message.metadata},${message.schemaVersion},${message.type},${message.metadata.messageId},${false})`;
   });
 
   return SQL`

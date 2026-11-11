@@ -152,6 +152,7 @@ const createMockEvent = (
 ): ReadEvent<MockEvent, ReadEventMetadataWithGlobalPosition> => ({
   type: 'Mocked',
   kind: 'Event',
+  schemaVersion: 1,
   data: { mocked: true },
   metadata: {
     streamName: 'testStream',

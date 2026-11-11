@@ -74,6 +74,7 @@ void describe('reading messages in batches', () => {
   ): RecordedMessage => ({
     type: 'TestEvent',
     kind: 'Event',
+    schemaVersion: 1,
     data: { meta },
     metadata: {
       messageId: uuid(),

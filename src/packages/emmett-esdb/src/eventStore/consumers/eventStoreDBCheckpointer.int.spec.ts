@@ -207,6 +207,7 @@ void describe('EventStoreDB processor checkpointer', () => {
       ReadEventMetadataWithGlobalPosition
     > = {
       kind: 'Event',
+      schemaVersion: 1,
       type: 'TestEvent',
       data: {},
       metadata: {

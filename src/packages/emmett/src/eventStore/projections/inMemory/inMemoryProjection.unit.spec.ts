@@ -1,4 +1,6 @@
 import { beforeEach, describe, it } from 'vitest';
+import { assertDeepEqual } from '../../../testing';
+import type { Event, ReadEvent } from '../../../typing';
 import { v4 as uuid } from 'uuid';
 import {
   documentExists,
@@ -6,6 +8,7 @@ import {
   eventsInStream,
   expectInMemoryDocuments,
   InMemoryProjectionSpec,
+  inMemoryProjection,
   inMemorySingleStreamProjection,
   newEventsInStream,
 } from '.';
@@ -19,6 +22,10 @@ type ShoppingCartShortInfo = {
   totalAmount: number;
   appliedDiscounts: string[];
 };
+
+type Counted = Event<'Counted', { count: number }>;
+type CountedV2 = Event<'Counted', { count: number }, undefined, 2>;
+const streamName = 'counted-stream';
 
 const shoppingCartShortInfoCollectionName = 'shoppingCartShortInfo';
 
@@ -286,4 +293,53 @@ void describe('InMemory projection coping with drift', () => {
           .withId(shoppingCartId)
           .toBeEqual({ cartId: shoppingCartId, totalAmount: 0 }),
       ));
+  void it('hands events to the projection with the given schema version, or version 1 when none is given', async () => {
+    const handled: ReadEvent<Counted | CountedV2>[] = [];
+    const projection = inMemoryProjection<Counted | CountedV2>({
+      canHandle: ['Counted'],
+      handle: (events) => {
+        handled.push(...events);
+        return Promise.resolve();
+      },
+    });
+
+    await InMemoryProjectionSpec.for({ projection })([])
+      .when([
+        { type: 'Counted', data: { count: 1 }, metadata: { streamName } },
+        {
+          type: 'Counted',
+          data: { count: 2 },
+          schemaVersion: 2,
+          metadata: { streamName },
+        },
+      ])
+      .then(() => {
+        assertDeepEqual(
+          handled.map(({ kind, type, data, schemaVersion, metadata }) => ({
+            kind,
+            type,
+            data,
+            schemaVersion,
+            streamName: metadata.streamName,
+          })),
+          [
+            {
+              kind: 'Event',
+              type: 'Counted',
+              data: { count: 1 },
+              schemaVersion: 1,
+              streamName,
+            },
+            {
+              kind: 'Event',
+              type: 'Counted',
+              data: { count: 2 },
+              schemaVersion: 2,
+              streamName,
+            },
+          ],
+        );
+        return Promise.resolve();
+      });
+  });
 });

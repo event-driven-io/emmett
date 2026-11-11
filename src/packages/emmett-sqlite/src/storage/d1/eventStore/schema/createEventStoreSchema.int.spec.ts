@@ -34,7 +34,10 @@ import { d1EventStoreDriver } from '../..';
 import type { ProductItemAdded } from '../../../../testing/shoppingCart.domain';
 import { getSQLiteEventStore } from '../../../../eventStore/SQLiteEventStore';
 import { createEventStoreSchema } from '../../../../eventStore/schema';
-import { schemaMigrationFor } from '../../../../eventStore/schema/migrations';
+import {
+  migration_0_43_0_numericMessageSchemaVersionFor,
+  schemaMigrationFor,
+} from '../../../../eventStore/schema/migrations';
 
 void describe('createEventStoreSchema', () => {
   let pool: D1ConnectionPool;
@@ -156,7 +159,10 @@ void describe('createEventStoreSchema with configured database schemas', () => {
         databaseSchemaName: 'events',
         tableName: 'dmb_migrations',
       }),
-      [schemaMigrationFor(schemaOptions).name],
+      [
+        migration_0_43_0_numericMessageSchemaVersionFor(schemaOptions).name,
+        schemaMigrationFor(schemaOptions).name,
+      ],
     );
   });
 
@@ -180,7 +186,10 @@ void describe('createEventStoreSchema with configured database schemas', () => {
 
     const dryRun = await eventStore.schema.migrate({ dryRun: 'diff' });
 
-    assertDeepEqual(dryRun.applied, [schemaMigrationFor(schemaOptions)]);
+    assertDeepEqual(dryRun.applied, [
+      migration_0_43_0_numericMessageSchemaVersionFor(schemaOptions),
+      schemaMigrationFor(schemaOptions),
+    ]);
     assertFalse(await configuredTableExists('events', 'emt_streams'));
     assertFalse(
       await configuredTableExists('infrastructure', 'emmett_migrations'),
@@ -188,14 +197,20 @@ void describe('createEventStoreSchema with configured database schemas', () => {
 
     const { applied } = await eventStore.schema.migrate();
 
-    assertDeepEqual(applied, [schemaMigrationFor(schemaOptions)]);
+    assertDeepEqual(applied, [
+      migration_0_43_0_numericMessageSchemaVersionFor(schemaOptions),
+      schemaMigrationFor(schemaOptions),
+    ]);
     assertTrue(await configuredTableExists('events', 'emt_streams'));
     assertDeepEqual(
       await migrationNames({
         databaseSchemaName: 'infrastructure',
         tableName: 'emmett_migrations',
       }),
-      [schemaMigrationFor(schemaOptions).name],
+      [
+        migration_0_43_0_numericMessageSchemaVersionFor(schemaOptions).name,
+        schemaMigrationFor(schemaOptions).name,
+      ],
     );
   });
 

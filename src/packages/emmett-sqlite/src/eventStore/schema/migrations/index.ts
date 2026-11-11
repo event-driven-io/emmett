@@ -5,7 +5,10 @@ import {
 } from '../eventStoreDatabaseSchema';
 import { eventStoreSchemaSQL, schemaSQL } from '../eventStoreSchemaSQL';
 import { migrations_0_42_0 } from './0_42_0';
-import { migrations_0_43_0 } from './0_43_0';
+import {
+  migration_0_43_0_numericMessageSchemaVersionFor,
+  migrations_0_43_0,
+} from './0_43_0';
 
 export * from './0_41_0';
 export * from './0_42_0';
@@ -41,5 +44,8 @@ export const eventStoreSchemaMigrationsFor = (
 
   return databaseSchemaName === undefined
     ? eventStoreSchemaMigrations
-    : [schemaMigrationFor(options)];
+    : [
+        migration_0_43_0_numericMessageSchemaVersionFor(options),
+        schemaMigrationFor(options),
+      ];
 };

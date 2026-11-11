@@ -18,6 +18,7 @@ You coordinate. You do not implement steps yourself, and you never pick a step o
 5. If the outcome is `planNeedsChange`, stop, show the details and ask the user whether to go back to the `brainstorm`, `specification` or `plan` skill, with the details as notes.
 6. If the outcome is `done` or `doneWithDeviation`:
    - If the subagent reported `Review: notRun`, run the `review-implementation` skill in a fresh subagent and act on its `Review:` line. The step's subagent is the implementer that fixes `implementation` findings.
+   - If findings were fixed and no review ran after the fixes, whoever ran it, run `review-implementation` once more in a fresh subagent as a re-review. A `findingsLeft` or `clean` line counts only when it comes from that last review.
    - If the review is `blocked`, handle it as `planNeedsChange`. If it is `findingsLeft`, go on: the open findings wait for the end of the run.
    - Run the build and lint check that `AGENTS.md` names. If it fails, do not tick the step, stop and show the failure.
    - Otherwise tick the step in `todo.md`, show the summary and any deviation, and go on with the next step.

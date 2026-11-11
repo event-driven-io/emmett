@@ -12,6 +12,8 @@ import {
   type CreateEventType,
   type Event,
   type Message,
+  type CommonRecordedMessageMetadata,
+  type RecordedMessage,
 } from '.';
 import type * as emmett from '../index';
 import type { MessageSchemaVersionOf } from './messageSchemaVersion';
@@ -206,6 +208,21 @@ void describe('Message schema version', () => {
     expectTypeOf<MessageSchemaVersionOf<C3>>().toEqualTypeOf<3>();
     expectTypeOf<MessageSchemaVersionOf<Event>>().toEqualTypeOf<number>();
     expectTypeOf<MessageSchemaVersionOf<Message>>().toEqualTypeOf<number>();
+  });
+
+  void it('recorded messages have a numeric schema version', () => {
+    expectTypeOf<
+      RecordedMessage<Event>['schemaVersion']
+    >().toEqualTypeOf<number>();
+    expectTypeOf<RecordedMessage<V2>['schemaVersion']>().toEqualTypeOf<2>();
+    expectTypeOf<RecordedMessage<V1>['schemaVersion']>().toEqualTypeOf<1>();
+    expectTypeOf<RecordedMessage<C3>['schemaVersion']>().toEqualTypeOf<3>();
+  });
+
+  void it('recorded message metadata has no schema version', () => {
+    expectTypeOf<CommonRecordedMessageMetadata>().not.toHaveProperty(
+      'schemaVersion',
+    );
   });
 
   void it('does not export the schema version helper types from the package', () => {

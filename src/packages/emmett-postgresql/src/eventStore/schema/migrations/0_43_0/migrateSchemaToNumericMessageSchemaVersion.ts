@@ -1,19 +1,21 @@
 import {
   dumbo,
   runSQLMigrations,
-  type Dumbo,
   type MigrationDryRun,
   type RunSQLMigrationsResult,
   type SQL,
 } from '@event-driven-io/dumbo';
-import { pgEventStoreDriver, type PgEventStoreDriverOptions } from '../../pg';
-import type { PostgreSQLEventStoreConsumerConnectionOptions } from '../consumers/postgreSQLEventStoreConsumer';
-import type { AnyPostgreSQLEventStoreDriver } from '../eventStoreDriver';
+import {
+  pgEventStoreDriver,
+  type PgEventStoreDriverOptions,
+} from '../../../../pg';
+import type { PostgreSQLEventStoreConsumerConnectionOptions } from '../../../consumers/postgreSQLEventStoreConsumer';
+import type { AnyPostgreSQLEventStoreDriver } from '../../../eventStoreDriver';
 import {
   eventStoreDatabaseSchema,
   type EventStoreDatabaseSchemaOptions,
-} from './eventStoreDatabaseSchema';
-import { numericMessageSchemaVersionMigrationFor } from './migrations/numericMessageSchemaVersionMigration';
+} from '../../eventStoreDatabaseSchema';
+import { numericMessageSchemaVersionMigrationFor } from '../numericMessageSchemaVersionMigration';
 
 const migrationName =
   'emt:postgresql:eventstore:0.43.0:numeric-message-schema-version';
@@ -34,12 +36,13 @@ export const migrateSchemaToNumericMessageSchemaVersion = async <
 ): Promise<RunSQLMigrationsResult> => {
   const databaseSchema = eventStoreDatabaseSchema(options);
   const isOwnPool = !options.pool;
-  const pool = (options.pool ??
+  const pool =
+    options.pool ??
     dumbo(
       (options.driver ?? pgEventStoreDriver).mapToDumboOptions(
         options as PgEventStoreDriverOptions,
       ) as Parameters<typeof dumbo>[0],
-    )) as Dumbo;
+    );
 
   const migration = numericMessageSchemaVersionMigrationFor(migrationName, {
     databaseSchemaName: databaseSchema.databaseSchemaName,

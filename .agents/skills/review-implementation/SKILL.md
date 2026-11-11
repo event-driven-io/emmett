@@ -8,7 +8,7 @@ Two-axis review of the uncommitted changes in the working tree, for one step of 
 - **Step**: does the change do what the step and the spec say, and only that?
 - **Standards**: does the change follow `AGENTS.md` and the local conventions?
 
-Neither subagent edits files.
+Neither subagent edits files. Running this skill is the approval to start both subagents, so do not ask again and do not review both axes yourself.
 
 ## Process
 
@@ -34,7 +34,7 @@ Write both reports to `reviews/<timestamp>_step<n>_review.md`, with the timestam
 
 End with one line: `Review: clean` if there are no findings, `Review: blocked` if any finding belongs to `plan`, `spec` or `qa`, otherwise `Review: findingsLeft`.
 
-- `implementation` findings: the implementer fixes them, then this review runs again once. Findings still left after that second review get `Resolution: open` and wait for the user at the end of the plan run.
+- `implementation` findings: the implementer fixes them, then the implementer, or the caller if the implementer cannot, runs this review again once in a fresh subagent. Findings still left after that second review get `Resolution: open` and wait for the user at the end of the plan run.
 - `plan`, `spec` or `qa` findings block the step: ask the user whether to go back to `plan`, `specification` or `brainstorm`, with the findings as notes.
 
 <review-template>

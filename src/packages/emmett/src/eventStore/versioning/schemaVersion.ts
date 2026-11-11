@@ -1,3 +1,6 @@
+import { ValidationError } from '../../errors';
+import { DefaultMessageSchemaVersion } from '../../typing';
+
 export const isNumericSchemaVersion = (value: unknown): boolean =>
   (typeof value === 'number' && Number.isInteger(value) && value >= 0) ||
   (typeof value === 'string' && /^[0-9]+$/.test(value));
@@ -17,13 +20,22 @@ export const resolveSchemaVersion = (
 
   return isNumericSchemaVersion(metadataSchemaVersion)
     ? Number(metadataSchemaVersion)
-    : 1;
+    : DefaultMessageSchemaVersion;
 };
 
 export const schemaVersionToAppend = (
   schemaVersion: number | undefined,
   metadata: unknown,
-): number => schemaVersion ?? resolveSchemaVersion(undefined, metadata);
+): number => {
+  const version = schemaVersion ?? resolveSchemaVersion(undefined, metadata);
+
+  if (!Number.isInteger(version) || version < 1)
+    throw new ValidationError(
+      `Schema version must be a whole number of 1 or more, got: ${version}`,
+    );
+
+  return version;
+};
 
 export const withoutSchemaVersion = <Metadata extends object>(
   metadata: Metadata,

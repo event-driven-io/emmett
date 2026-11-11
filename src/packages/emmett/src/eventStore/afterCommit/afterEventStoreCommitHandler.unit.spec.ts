@@ -33,6 +33,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
     const events: TestReadEvent[] = [
       {
         kind: 'Event',
+        schemaVersion: 1,
         type: 'test',
         data: { counter: 1 },
         metadata: {
@@ -46,6 +47,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
       },
       {
         kind: 'Event',
+        schemaVersion: 1,
         type: 'test',
         data: { counter: 2 },
         metadata: {
@@ -82,6 +84,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
     const events: TestReadEvent[] = [
       {
         kind: 'Event',
+        schemaVersion: 1,
         type: 'test',
         data: { counter: 1 },
         metadata: {
@@ -95,6 +98,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
       },
       {
         kind: 'Event',
+        schemaVersion: 1,
         type: 'test',
         data: { counter: 2 },
         metadata: {
@@ -110,6 +114,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
     const nextEvents: TestReadEvent[] = [
       {
         kind: 'Event',
+        schemaVersion: 1,
         type: 'test',
         data: { counter: 3 },
         metadata: {
@@ -123,6 +128,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
       },
       {
         kind: 'Event',
+        schemaVersion: 1,
         type: 'test',
         data: { counter: 4 },
         metadata: {
@@ -166,6 +172,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
     const events: TestReadEvent[] = [
       {
         kind: 'Event',
+        schemaVersion: 1,
         type: 'test',
         data: { counter: 1 },
         metadata: {
@@ -179,6 +186,7 @@ void describe('InMemoryEventStore onAfterCommit', () => {
       },
       {
         kind: 'Event',
+        schemaVersion: 1,
         type: 'test',
         data: { counter: 2 },
         metadata: {

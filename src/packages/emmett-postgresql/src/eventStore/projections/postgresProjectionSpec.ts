@@ -13,6 +13,7 @@ import {
   AssertionError,
   assertThatArray,
   assertTrue,
+  DefaultMessageSchemaVersion,
   isErrorConstructor,
   type CombinedReadEventMetadata,
   type Event,
@@ -147,6 +148,8 @@ export const PostgreSQLProjectionSpec = {
                 allEvents.push({
                   ...event,
                   kind: 'Event',
+                  schemaVersion:
+                    event.schemaVersion ?? DefaultMessageSchemaVersion,
                   metadata: {
                     ...metadata,
                     ...('metadata' in event ? (event.metadata ?? {}) : {}),

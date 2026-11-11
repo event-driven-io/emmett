@@ -165,3 +165,91 @@ Checks:
 - `vitest` on `packages/emmett-postgresql`: 80 files, 727 passed, 3 skipped.
 - `npm run agent:check` passed.
 - `npm run test:unit` passed: 155 files, 2033 passed, 2 skipped.
+
+## Step 12 (plan r12). SQLite rebuild, append and read
+
+Status: done, built against plan r12 and spec r14. The review was not run (see below).
+
+What was done:
+
+- `migrations/0_43_0/0_43_0.migration.ts`: `migration_0_43_0_numericMessageSchemaVersionFor(options)` (name `emt:sqlite:eventstore:0.43.0:numeric-message-schema-version`) and the default `migration_0_43_0_numericMessageSchemaVersion`. It is appended to `migrations_0_43_0` and, for a custom `databaseSchemaName`, returned by `eventStoreSchemaMigrationsFor` before `schemaMigrationFor(options)`.
+  - It creates the old-layout table `IF NOT EXISTS` (so a fresh database works), renames it to `emt_messages_text_schema_version`, creates the fresh table with `messagesTableSQLFor`, copies every row with the version from `json_type`/`json_extract` (JSON integer of 0 or more as it is, digit-only text cast to `INTEGER`, else `1`), and drops the renamed table.
+- `tables.ts`: `message_schema_version INTEGER NOT NULL`.
+- `appendToStream.ts`: the column and the hook messages take `schemaVersionToAppend`; the stored metadata and the hook messages have no `schemaVersion` in `metadata`.
+- `readStream.ts`, `readMessagesBatch.ts`: version from the column only (`resolveSchemaVersion`), `schemaVersion` removed from `metadata`, `message_kind` `'C'` read as `Command` (4.7).
+- Tests: 19.1 to 19.7, 24.2, the whole-JSON-number extra and the "second run" in `sqlite3/.../migrations/0_43_0/0_43_0.migration.int.spec.ts`; 20.2 in the three `createEventStoreSchema.int.spec.ts` files; 20.3, 5.3, the three-event hook extra in `appendToStream.int.spec.ts`; the command kind and version reads in `readStream`/`readMessagesBatch` specs; `testSchemaVersion` and `testConsumerSchemaVersion` wired in the SQLite e2e spec. Updated the existing tests the plan lists, the custom-schema and `current/migration` lists (explicit `[numeric migration, schemaMigrationFor]`) in sqlite3, d1 and durableObject, and the 0.43.0 snapshot (diff: INTEGER in the latest schema, plus the new migration entry).
+
+Deviations and notes:
+
+- The rebuild renames the old table and creates the fresh one under the real name, instead of creating a temporary new table and renaming it. The result is the same and the fresh DDL comes from `messagesTableSQLFor`, so it cannot drift. SQLite has no extra indexes to recreate beyond the `UNIQUE` constraint in the DDL.
+- Custom database schemas in SQLite are flattened into the table name (`"events.emt_messages"`), so the rename target uses `tableReference` too.
+- I wrote the append/read/migration implementation right after the migration and e2e tests had failed, and before the append/read test updates. Those later tests were not seen red; the migration, e2e and snapshot tests were.
+- The 20.2 test was added after `tables.ts` changed, so its red run was not observed.
+- The d1 and durableObject run only the list and 20.2 updates; the migration behaviour tests live in sqlite3 only, as before.
+- Review: not run. This agent runs as a subagent, so the caller runs `review-implementation`.
+
+Checks:
+
+- `vitest` on `packages/emmett-sqlite` and `packages/emmett-tests/src/eventStore/sqlite`: 101 files, 785 passed.
+- `npm run agent:check` passed.
+- `npm run test:unit` passed: 155 files, 2033 passed, 2 skipped.
+
+Step 12 (plan r12), review fixes from Q129:
+
+- `readMessagesBatch.int.spec.ts`: new "reads a stored command with the Command kind" test with every field. The earlier note that the command read was covered through `readStream` only was too broad: `readMessagesBatch` had no command test before this.
+- Migration: the whole-JSON-number test now also has `-1`, `0` and `'02'` rows; results 1, 0, 2 (spec line 313). It was seen red with a wrong expectation first. SQLite keeps its plain `CAST`, no range check (Q129).
+- Test renames: "creates an INTEGER message_schema_version column" (sqlite3, d1, durableObject), "stores the appended schema version in the column", "a 0.43.0-rc.2 row gets its numeric metadata version, or 1"; the unused label is gone from the custom-schema rows.
+- Hook tests renamed to "the before-commit hook receives the top-level version" in both drivers.
+- Added "inline projections and the onBeforeCommit hook receive the appended messages with their top-level schema version" to the SQLite and PostgreSQL e2e specs. Each was run with `[2, 2, 2]` first and failed, then fixed to `[2, 1, 2]`.
+- Deviation: projected and hooked messages equal the read events without the fields the store adds only after commit: `globalPosition` and `checkpoint` in SQLite, `checkpoint` in PostgreSQL. All other fields are compared.
+- The PostgreSQL test "a new store holds the appended version in the column" in `appendToStream.int.spec.ts` was not renamed (the instruction named the SQLite specs).
+- `migrateSchemaToNumericMessageSchemaVersion` was left where it is now.
+- Review: not run.
+
+Checks: `npm run agent:check` passed; `npm run test:unit` passed (155 files, 2033 passed, 2 skipped); vitest on sqlite, emmett-tests sqlite e2e, PostgreSQL appendToStream and PostgreSQL e2e passed.
+
+## Step 12 (plan r16). SQLite column swap, append and read
+
+Status: done. Replaces the earlier table-rebuild migration.
+
+- `migration_0_43_0_numericMessageSchemaVersionFor`: creates the old-layout table `IF NOT EXISTS`, adds `message_schema_version_int INTEGER NOT NULL DEFAULT 1`, fills it from `json_type`/`json_extract`, drops the old column and renames the new one. `tables.ts` declares the column last, after `created`, `INTEGER NOT NULL DEFAULT 1`.
+- Tests: 20.2 checks type, `notnull`, default and position after `created` in sqlite3, d1 and durableObject. 19.4 renamed to "the column swap keeps every message unchanged". 19.7 now updates a row to `3` and asserts rows, layout and `3` unchanged on the second run. The read-rule test adds `''`, `' 2'` and `'2.0'`. 0.42.x test renamed to "0.42.0".
+- Deviation: 19.7 uses `runSQLMigrations` twice, not `createEventStoreSchema`.
+- Snapshots updated.
+- Review (r16 code): three findings, all fixed as above. Not re-run.
+
+Checks: vitest on emmett-sqlite and emmett-tests sqlite passed (789); `npm run agent:check` passed; `npm run test:unit` passed (2039).
+
+## Step 13 (plan r16). Recorded message types and docs
+
+Status: done. The review was not run (see below).
+
+What was done:
+
+- `typing/message.ts`: `RecordedMessage` has `schemaVersion: MessageSchemaVersionOf<MessageType>` next to `kind`; `CommonRecordedMessageMetadata` has no `schemaVersion`; `DefaultMessageSchemaVersion = 1`.
+- Product code compiled without further changes; the stores already built messages with the top-level version. The three projection specs (`inMemoryProjectionSpec.ts`, `postgresProjectionSpec.ts`, `sqliteProjectionSpec.ts`) take `event.schemaVersion ?? DefaultMessageSchemaVersion`.
+- Frozen 0.43.0 APIs (PostgreSQL and SQLite `legacyApi.ts`): local `RecordedMessageMetadata_0_43_0` and `ReadEventMetadataWithGlobalPosition_0_43_0` with `schemaVersion?: string`, used where they read `metadata.schemaVersion ?? '1'` and in their read builders. Their read result type is `ReadStreamResult_0_43_0`: events without the top-level `schemaVersion`, because the frozen read never returned one. Runtime behaviour is unchanged.
+- Fixtures in unit, int and e2e specs got `schemaVersion: 1`. `migrateSchemaToNumericMessageSchemaVersion.int.spec.ts`: `expectedEvents` is split into `expectedEvents` (current read) and `expectedEventsOfFrozenRead`, because the two shapes no longer share one type.
+- Tests: 3.1 and 3.2 in `messageSchemaVersion.unit.spec.ts` (seen red with the type change reverted); 21.1 as "stores the processor version 2 as the integer 2" in `storeProcessorCheckpoint.int.spec.ts` (protects existing behaviour, green at once).
+- Docs: the two versioning unit specs use `Event<..., undefined, 2>`, `event(..., 2)` and an upcaster with `switch (storedEvent.schemaVersion)`; they also assert the downcast event is stored as version 1. New region `decider-versioned-event`; the "Schema versioning" section in `src/docs/api-reference/commandhandler.md` explains `schemaVersion`, the type parameter, the helper argument, the version 1 default and that the helpers take a single message type.
+
+Deviations and notes:
+
+- 3.1 and 3.2 were written after the type change and then checked red by reverting the type; they were not seen red before the change.
+- The plan says "Blocked by Steps 9, 10 and 13"; 13 is this step, so I took it as a slip. Steps 9 and 10 are done.
+- No samples used `metadata.schemaVersion`.
+- Review: not run. This agent runs as a subagent, so the caller runs `review-implementation`.
+
+Checks: `npm run build:ts`, `npm run agent:check`, `npm run docs:build` passed; `npm run test:unit` passed (155 files, 2041 passed); `npm test` passed (unit 2041, int 1467, e2e 336 passed).
+
+Step 13, review fixes:
+
+- 21.1: removed the `emt_processors` test; added "stores the registered projection version 2 as the integer 2" to `projectionRegistration.int.spec.ts` (reads `emt_projections`; asserts name, version, partition, status). It protects existing behaviour, so it was green at once.
+- The `event.schemaVersion ?? DefaultMessageSchemaVersion` fallback is reachable (given events may have no version), so it stays. Tests "hands events to the projection with the given schema version, or version 1 when none is given" in the in-memory unit spec, the PostgreSQL and SQLite raw SQL projection int specs. Each was seen failing with the fallback removed.
+- Decider versioning spec: my added comment sentences removed; the region markers stay because the docs include the snippets.
+- Both versioning specs assert every field of the downcast stored event. Generated ids and positions (`messageId`, `globalPosition`, `checkpoint`, `causationId`, `correlationId`, `spanId`, `traceId`) are matched with `expect.any(String) as unknown`, as in `inMemoryEventStore.unit.spec.ts`.
+- Follow-up: the two versioning specs now use `expect.any(String) as unknown` for the generated fields, so a missing field fails. `resolveSchemaVersion` falls back to `DefaultMessageSchemaVersion` instead of the literal `1`.
+- Docs: version 1 default holds for literal type names; bare `Event`, `Command` and `Message` accept any number.
+- Step-3, Step-4 and Standards-5/6 left for Oskar.
+
+Checks: `npm run agent:check`, `npm run docs:build`, `npm run test:unit` (2042 passed), `npm test` all passed.

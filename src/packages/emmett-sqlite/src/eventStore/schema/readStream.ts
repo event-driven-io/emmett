@@ -2,8 +2,9 @@ import { SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import type { JSONSerializer } from '@event-driven-io/emmett';
 import {
   bigIntProcessorCheckpoint,
-  DefaultMessageSchemaVersion,
+  resolveSchemaVersion,
   upcastRecordedMessage,
+  withoutSchemaVersion,
   type CombinedReadEventMetadata,
   type Event,
   type ReadEvent,
@@ -18,7 +19,8 @@ type ReadStreamSqlResult = {
   stream_position: string;
   message_data: string;
   message_metadata: string;
-  message_schema_version: string;
+  message_schema_version: number;
+  message_kind: string;
   message_type: string;
   message_id: string;
   global_position: string;
@@ -54,7 +56,7 @@ export const readStream = async <
     : SQL.EMPTY;
 
   const { rows: results } = await execute.query<ReadStreamSqlResult>(
-    SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
+    SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_kind, message_type, message_id
         FROM ${tableReference(options?.databaseSchemaName, messagesTable.name)}
         WHERE stream_id = ${streamId} AND partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE ${fromCondition} ${toCondition}
         ORDER BY stream_position ASC`,
@@ -69,8 +71,9 @@ export const readStream = async <
       } as unknown as EventPayloadType;
 
       const metadata: ReadEventMetadataWithGlobalPosition = {
-        schemaVersion: DefaultMessageSchemaVersion,
-        ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
+        ...withoutSchemaVersion(
+          'metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {},
+        ),
         messageId: row.message_id,
         streamName: streamId,
         streamPosition: BigInt(row.stream_position),
@@ -80,7 +83,8 @@ export const readStream = async <
 
       const event = {
         ...rawEvent,
-        kind: 'Event',
+        kind: row.message_kind === 'C' ? 'Command' : 'Event',
+        schemaVersion: resolveSchemaVersion(row.message_schema_version),
         metadata: metadata as CombinedReadEventMetadata<
           EventPayloadType,
           ReadEventMetadataWithGlobalPosition

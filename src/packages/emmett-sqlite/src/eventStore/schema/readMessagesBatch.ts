@@ -2,7 +2,8 @@ import { mapRows, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import type { JSONSerializer } from '@event-driven-io/emmett';
 import {
   bigIntProcessorCheckpoint,
-  DefaultMessageSchemaVersion,
+  resolveSchemaVersion,
+  withoutSchemaVersion,
   type CombinedMessageMetadata,
   type Message,
   type RecordedMessage,
@@ -16,7 +17,8 @@ type ReadMessagesBatchSqlResult = {
   stream_id: string;
   message_data: string;
   message_metadata: string;
-  message_schema_version: string;
+  message_schema_version: number;
+  message_kind: string;
   message_type: string;
   message_id: string;
   global_position: string;
@@ -83,7 +85,7 @@ export const readMessagesBatch = async <
   const messages: RecordedMessage<MessageType, RecordedMessageMetadataType>[] =
     await mapRows(
       execute.query<ReadMessagesBatchSqlResult>(
-        SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id
+        SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_kind, message_type, message_id
            FROM ${tableReference(options?.databaseSchemaName, messagesTable.name)}
            WHERE partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE ${fromCondition} ${toCondition}
            ORDER BY global_position
@@ -101,8 +103,9 @@ export const readMessagesBatch = async <
         );
 
         const metadata: RecordedMessageMetadataWithGlobalPosition = {
-          schemaVersion: DefaultMessageSchemaVersion,
-          ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
+          ...withoutSchemaVersion(
+            'metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {},
+          ),
           messageId: row.message_id,
           streamName: row.stream_id,
           streamPosition: BigInt(row.stream_position),
@@ -112,7 +115,8 @@ export const readMessagesBatch = async <
 
         return {
           ...rawEvent,
-          kind: 'Event',
+          kind: row.message_kind === 'C' ? 'Command' : 'Event',
+          schemaVersion: resolveSchemaVersion(row.message_schema_version),
           metadata: metadata as CombinedMessageMetadata<
             MessageType,
             RecordedMessageMetadataType

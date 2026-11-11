@@ -33,12 +33,12 @@ export const messagesTableSQLFor = (databaseSchemaName?: string) =>
       message_kind           CHAR(1)                   NOT NULL DEFAULT 'E',
       message_data           JSONB                     NOT NULL,
       message_metadata       JSONB                     NOT NULL,
-      message_schema_version TEXT                      NOT NULL,
       message_type           TEXT                      NOT NULL,
       message_id             TEXT                      NOT NULL,
       is_archived            BOOLEAN                   NOT NULL DEFAULT FALSE,
       global_position        INTEGER                   PRIMARY KEY,
       created                DATETIME                  DEFAULT CURRENT_TIMESTAMP,
+      message_schema_version INTEGER                   NOT NULL DEFAULT 1,
       UNIQUE (stream_id, stream_position, partition, is_archived)
   ); 
 `;

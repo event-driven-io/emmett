@@ -285,6 +285,7 @@ void describe('Processors', () => {
       > = {
         type: 'test',
         kind: 'Event',
+        schemaVersion: 1,
         data: { counter: 1 },
         metadata: {
           streamName: 'test-stream',
@@ -349,6 +350,7 @@ void describe('Processors', () => {
           {
             ...event1,
             kind: 'Event',
+            schemaVersion: 1,
             metadata: {
               streamName: 'test-stream',
               messageId: uuid(),
@@ -360,6 +362,7 @@ void describe('Processors', () => {
           {
             ...event2,
             kind: 'Event',
+            schemaVersion: 1,
             metadata: {
               streamName: 'test-stream',
               messageId: uuid(),
@@ -417,6 +420,7 @@ void describe('Processors', () => {
           {
             ...event1,
             kind: 'Event',
+            schemaVersion: 1,
             metadata: {
               streamName: 'test-stream',
               messageId: uuid(),
@@ -428,6 +432,7 @@ void describe('Processors', () => {
           {
             ...event2,
             kind: 'Event',
+            schemaVersion: 1,
             metadata: {
               streamName: 'test-stream',
               messageId: uuid(),
@@ -478,6 +483,7 @@ void describe('Processors', () => {
         {
           ...event1,
           kind: 'Event',
+          schemaVersion: 1,
           metadata: {
             streamName: 'test-stream',
             messageId: uuid(),
@@ -489,6 +495,7 @@ void describe('Processors', () => {
         {
           ...event2,
           kind: 'Event',
+          schemaVersion: 1,
           metadata: {
             streamName: 'test-stream',
             messageId: uuid(),
@@ -500,6 +507,7 @@ void describe('Processors', () => {
         {
           ...event3,
           kind: 'Event',
+          schemaVersion: 1,
           metadata: {
             streamName: 'test-stream',
             messageId: uuid(),
@@ -511,6 +519,7 @@ void describe('Processors', () => {
         {
           ...event4,
           kind: 'Event',
+          schemaVersion: 1,
           metadata: {
             streamName: 'test-stream',
             messageId: uuid(),
@@ -587,6 +596,7 @@ void describe('Processors', () => {
       > = {
         ...event,
         kind: 'Event',
+        schemaVersion: 1,
         metadata: {
           streamName: 'test-stream',
           messageId: uuid(),
@@ -643,6 +653,7 @@ void describe('Processors', () => {
         type: 'test',
         data: { counter },
         kind: 'Event',
+        schemaVersion: 1,
         metadata: {
           streamName: 'test-stream',
           messageId: uuid(),
@@ -690,6 +701,7 @@ void describe('Processors', () => {
       >[] = [1n, 2n, 3n, 4n].map((position) => ({
         ...event,
         kind: 'Event',
+        schemaVersion: 1,
         metadata: {
           streamName: 'test-stream',
           messageId: uuid(),
@@ -733,6 +745,7 @@ void describe('Processors', () => {
     > => ({
       type: 'test',
       kind: 'Event',
+      schemaVersion: 1,
       data: { counter: Number(position) },
       metadata: {
         streamName: 'test-stream',
@@ -1047,6 +1060,7 @@ void describe('Processors', () => {
       amounts.map((amount, i) => ({
         type: 'OrderPlaced',
         kind: 'Event',
+        schemaVersion: 1,
         data: { amount },
         metadata: {
           streamName: 'orders',
@@ -1326,6 +1340,7 @@ void describe('Processors', () => {
         {
           ...event1,
           kind: 'Event',
+          schemaVersion: 1,
           metadata: {
             streamName: 'test-stream',
             messageId: uuid(),
@@ -1337,6 +1352,7 @@ void describe('Processors', () => {
         {
           ...event2,
           kind: 'Event',
+          schemaVersion: 1,
           metadata: {
             streamName: 'test-stream',
             messageId: uuid(),

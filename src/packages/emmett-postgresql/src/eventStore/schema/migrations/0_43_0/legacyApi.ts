@@ -13,6 +13,7 @@ import {
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
   upcastRecordedMessage,
+  type AnyRecordedMessageMetadata,
   type AppendToStreamOptions,
   type CombinedReadEventMetadata,
   type DefaultRecord,
@@ -241,6 +242,22 @@ const isOptimisticConcurrencyError = (error: unknown): boolean =>
     errorType: UniqueConstraintError.ErrorType,
   });
 
+type RecordedMessageMetadata_0_43_0 = AnyRecordedMessageMetadata & {
+  schemaVersion?: string;
+};
+
+type ReadEventMetadataWithGlobalPosition_0_43_0 =
+  ReadEventMetadataWithGlobalPosition & { schemaVersion?: string };
+
+type ReadStreamResult_0_43_0<EventType extends Event> = {
+  currentStreamVersion: ReadStreamResult<EventType>['currentStreamVersion'];
+  events: Omit<
+    ReadEvent<EventType, ReadEventMetadataWithGlobalPosition_0_43_0>,
+    'schemaVersion'
+  >[];
+  streamExists: boolean;
+};
+
 type AppendToStreamSqlResult = {
   success: boolean;
   next_stream_position: string | null;
@@ -252,7 +269,7 @@ const appentToStreamRaw = (
   execute: SQLExecutor,
   streamId: string,
   streamType: string,
-  messages: RecordedMessage[],
+  messages: RecordedMessage<Message, RecordedMessageMetadata_0_43_0>[],
   options?: {
     expectedStreamVersion: bigint | null;
     partition?: string;
@@ -302,9 +319,7 @@ export const readStream_0_43_0_rc_2 = async <
     partition?: string;
     databaseSchemaName?: string;
   },
-): Promise<
-  ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
-> => {
+): Promise<ReadStreamResult_0_43_0<EventType>> => {
   const fromCondition: string = options?.from
     ? `AND stream_position >= ${options.from}`
     : '';
@@ -316,49 +331,48 @@ export const readStream_0_43_0_rc_2 = async <
 
   const toCondition = !isNaN(to) ? `AND stream_position <= ${to}` : '';
 
-  const events: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[] =
-    await mapRows(
-      execute.query<ReadStreamSqlResult<EventPayloadType>>(
-        SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id, transaction_id
+  const events: ReadStreamResult_0_43_0<EventType>['events'] = await mapRows(
+    execute.query<ReadStreamSqlResult<EventPayloadType>>(
+      SQL`SELECT stream_id, stream_position, global_position, message_data, message_metadata, message_schema_version, message_type, message_id, transaction_id
            FROM ${tableReference(options?.databaseSchemaName, messagesTable.name)}
            WHERE stream_id = ${streamId} AND partition = ${options?.partition ?? defaultTag} AND is_archived = FALSE ${SQL.plain(fromCondition)} ${SQL.plain(toCondition)}
            ORDER BY stream_position ASC`,
-      ),
-      (row) => {
-        const rawEvent = {
-          type: row.message_type,
-          data: row.message_data,
-          metadata: row.message_metadata,
-        } as unknown as EventPayloadType;
+    ),
+    (row) => {
+      const rawEvent = {
+        type: row.message_type,
+        data: row.message_data,
+        metadata: row.message_metadata,
+      } as unknown as EventPayloadType;
 
-        const globalPosition =
-          PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
-            transactionId: BigInt(row.transaction_id),
-            globalPosition: BigInt(row.global_position),
-          });
+      const globalPosition =
+        PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
+          transactionId: BigInt(row.transaction_id),
+          globalPosition: BigInt(row.global_position),
+        });
 
-        const metadata: ReadEventMetadataWithGlobalPosition = {
-          schemaVersion: '1',
-          ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
-          messageId: row.message_id,
-          streamName: streamId,
-          streamPosition: BigInt(row.stream_position),
-          globalPosition,
-          checkpoint: globalPosition,
-        };
+      const metadata: ReadEventMetadataWithGlobalPosition_0_43_0 = {
+        schemaVersion: '1',
+        ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
+        messageId: row.message_id,
+        streamName: streamId,
+        streamPosition: BigInt(row.stream_position),
+        globalPosition,
+        checkpoint: globalPosition,
+      };
 
-        const event = {
-          ...rawEvent,
-          kind: 'Event',
-          metadata: metadata as CombinedReadEventMetadata<
-            EventPayloadType,
-            ReadEventMetadataWithGlobalPosition
-          >,
-        };
+      const event = {
+        ...rawEvent,
+        kind: 'Event',
+        metadata: metadata as CombinedReadEventMetadata<
+          EventPayloadType,
+          ReadEventMetadataWithGlobalPosition_0_43_0
+        >,
+      };
 
-        return upcastRecordedMessage(event, options?.schema?.versioning);
-      },
-    );
+      return upcastRecordedMessage(event, options?.schema?.versioning);
+    },
+  );
 
   return events.length > 0
     ? {

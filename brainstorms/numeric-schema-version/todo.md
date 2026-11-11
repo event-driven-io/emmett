@@ -1,6 +1,6 @@
 # Todo: numeric message schema version
 
-Plan: `plan.md` (r12). Spec: `spec.md` (r14). Tick a step only when its tests pass. Nothing is committed unless Oskar asks.
+Plan: `plan.md` (r20). Spec: `spec.md` (r21). Tick a step only when its tests pass. Nothing is committed unless Oskar asks.
 
 ## Steps
 
@@ -13,11 +13,13 @@ Plan: `plan.md` (r12). Spec: `spec.md` (r14). Tick a step only when its tests pa
 - [x] 7. PostgreSQL reads (6.1, 6.2, 6.4, 15.1, 15.2, 15.4)
 - [x] 8. Optional version argument and internal helper types (2.8, 2.9, 3.3)
 - [x] 9. Read rule per store (4.7, 5.5, 6.1 to 6.8, 7.2 and 9.3 in-memory, MongoDB, EventStoreDB)
-- [x] 10. PostgreSQL append functions, fresh `INT` layout, appends through the new function, blue/green (shared features, 4.7, 4.9 to 4.11 in every store but SQLite, 5.2, 7.2, 11.1, 11.2, 12.1 to 12.3, 14.1 TEXT, 14.2 TEXT, 14.3 to 14.6, 15.3, 20.1, 20.3, 20.4, 24.1)
-- [x] 11. On-demand schema version migration and the prepared 0.44.0 migration (13.1 to 13.3, 13.5, 14.1 INT, 14.2 INT, 16.1 to 16.13, 16.15, 17.1, 23.1 to 23.5, 24.3, 24.4)
-- [ ] 12. SQLite rebuild, append and read (shared features, 5.3, 19.1 to 19.7, 20.2, 20.3, 24.2)
-- [ ] 13. Recorded message types and docs (3.1, 3.2, 21.1, 22.1)
+- [x] 10. PostgreSQL append functions, fresh `INT` layout, appends through the new function, blue/green (shared features, 4.7, 4.9 to 4.11 in every store but SQLite, 5.2, 7.1 to 7.3, 11.1, 11.2, 12.1 to 12.3, 14.1 TEXT, 14.2 TEXT, 14.3 to 14.7, 15.3, 20.1, 20.3 to 20.5, 24.1)
+- [x] 11. On-demand schema version migration and the prepared 0.44.0 migration (13.1 to 13.3, 14.1 INT, 14.2 INT, 16.1 to 16.13, 16.15, 17.1, 23.1 to 23.5, 24.3, 24.4)
+- [x] 12. SQLite column swap, append and read (shared features, 5.3, 19.1 to 19.7, 20.2, 20.3, 24.2)
+- [x] 13. Recorded message types and docs (3.1, 3.2, 21.1, 22.1)
 
 ## Notes
+
+- 7.1 to 7.3 (spec r17, Q132): appends reject versions below 1, fixed directly in the core append rule and the shared features.
 
 - 4.4 and 8.4 do not apply to in-memory, which has no consumer (#427).

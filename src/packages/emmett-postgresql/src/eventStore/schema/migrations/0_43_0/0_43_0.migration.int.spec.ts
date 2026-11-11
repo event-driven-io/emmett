@@ -21,6 +21,7 @@ import {
   bigIntProcessorCheckpoint,
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
+  ValidationError,
   type Event,
   type ProcessorCheckpoint,
 } from '@event-driven-io/emmett';
@@ -820,22 +821,21 @@ void describe('Schema migrations tests', () => {
       ),
     });
 
-    void it('0.43.0 reads version 1 for version -1 it appended, after migrating from 0.43.0-rc.2', async () => {
+    void it('0.43.0 append fails for version -1, after migrating from 0.43.0-rc.2', async () => {
       await upgradeFrom_0_43_0_rc_2();
       const streamId = `shopping_cart-${crypto.randomUUID()}`;
-      const messageId = crypto.randomUUID();
-      const [globalPosition] = await append_0_43_0(
-        streamId,
-        [versionedEvent(streamId, -1)],
-        [messageId],
+
+      await assertThrowsAsync(
+        () =>
+          append_0_43_0(
+            streamId,
+            [versionedEvent(streamId, -1)],
+            [crypto.randomUUID()],
+          ),
+        (error) => error instanceof ValidationError,
       );
 
-      const { events } = await readStream(pool.execute, streamId);
-
-      assertEqual('text', await readSchemaVersionColumnType());
-      assertDeepEqual(events, [
-        recordedEvent(streamId, 1, messageId, 1n, globalPosition!),
-      ]);
+      assertDeepEqual(await readStoredRows(streamId), []);
     });
 
     void it('0.43.0-rc.2 reads metadata schema versions of events 0.43.0 appended, after migrating from 0.43.0-rc.2', async () => {
@@ -960,6 +960,11 @@ void describe('Schema migrations tests', () => {
           '0.43.0-rc.2 append fails for a metadata schemaVersion too large for INT, after migrating from 0.43.0-rc.2',
         schemaVersion: '99999999999',
       },
+      {
+        criterion:
+          "0.43.0-rc.2 append fails for metadata schemaVersion '0', after migrating from 0.43.0-rc.2",
+        schemaVersion: '0',
+      },
     ]) {
       void it(criterion, async () => {
         await upgradeFrom_0_43_0_rc_2();
@@ -1053,10 +1058,26 @@ void describe('Schema migrations tests', () => {
       ]);
     });
 
-    void it('a fresh 0.43.0 store gets an INT schema version column', async () => {
+    void it('a fresh 0.43.0 store gets an INT schema version column after created and before is_archived', async () => {
       await runSQLMigrations(pool, eventStoreSchemaMigrationsFor());
 
-      assertEqual('integer', await readSchemaVersionColumnType());
+      const { rows } = await pool.execute.query<{
+        column_name: string;
+        data_type: string;
+      }>(
+        SQL`SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'emt_messages' ORDER BY ordinal_position`,
+      );
+      const index = rows.findIndex(
+        (row) => row.column_name === 'message_schema_version',
+      );
+      assertDeepEqual(
+        {
+          dataType: rows[index]?.data_type,
+          after: rows[index - 1]?.column_name,
+          before: rows[index + 1]?.column_name,
+        },
+        { dataType: 'integer', after: 'created', before: 'is_archived' },
+      );
     });
 
     void it('a store migrated from 0.43.0-rc.2 keeps the TEXT schema version column', async () => {
@@ -1091,6 +1112,15 @@ void describe('Schema migrations tests', () => {
           message_metadata: { schemaVersion: '2' },
         },
       ]);
+    });
+
+    void it("0.43.0-rc.2 append fails for metadata schemaVersion '0' on a store 0.43.0 created", async () => {
+      await runSQLMigrations(pool, eventStoreSchemaMigrationsFor());
+      const streamId = `shopping_cart-${crypto.randomUUID()}`;
+
+      await assertThrowsAsync(() => append_0_43_0_rc_2(streamId, '0'));
+
+      assertDeepEqual(await readStoredRows(streamId), []);
     });
 
     void it('running the 0.43.0 automatic migrations twice after migrating from 0.43.0-rc.2 applies nothing and keeps both append functions', async () => {

@@ -12,12 +12,14 @@ import {
   assertMatches,
   assertThatArray,
   assertThrowsAsync,
+  assertTrue,
   EmmettAttributes,
   EmmettError,
   MessagingSystemName,
   projections,
   type Event,
   type ReadEvent,
+  type RecordedMessage,
 } from '@event-driven-io/emmett';
 import { pongoClient, type PongoClient } from '@event-driven-io/pongo';
 import pg from 'pg';
@@ -397,6 +399,83 @@ void describe('PostgreSQLEventStore', () => {
 
       assertEqual(savedEvents.length, 1);
       assertEqual(savedEvents[0]!.type, 'ProductItemAdded');
+    } finally {
+      await hookedStore.close();
+    }
+  });
+
+  void it('inline projections and the onBeforeCommit hook receive the appended messages with their top-level schema version', async () => {
+    type ClientMetadata = { clientId: string; schemaVersion?: string };
+    type ClientProductItemAdded = Event<
+      'ProductItemAdded',
+      { productItem: PricedProductItem },
+      ClientMetadata
+    >;
+    type VersionedProductItemAdded = Event<
+      'ProductItemAdded',
+      { productItem: PricedProductItem },
+      ClientMetadata,
+      2
+    >;
+    const projected: RecordedMessage[] = [];
+    const hooked: RecordedMessage[] = [];
+    const hookedStore = getPostgreSQLEventStore({
+      driver: pgEventStoreDriver,
+      connectionString,
+      projections: projections.inline([
+        postgreSQLProjection<ClientProductItemAdded>({
+          name: `schema_version_projection_${uuid().replaceAll('-', '_')}`,
+          canHandle: ['ProductItemAdded'],
+          handle: (events) => {
+            projected.push(...events);
+          },
+        }),
+      ]),
+      hooks: {
+        onBeforeCommit: (messages): void => {
+          hooked.push(...messages);
+        },
+      },
+    });
+    const versioned: VersionedProductItemAdded = {
+      type: 'ProductItemAdded',
+      data: { productItem },
+      metadata: { clientId: 'versioned' },
+      schemaVersion: 2,
+    };
+    const unversioned: ClientProductItemAdded = {
+      type: 'ProductItemAdded',
+      data: { productItem },
+      metadata: { clientId: 'unversioned' },
+    };
+    const versionedInMetadata: ClientProductItemAdded = {
+      type: 'ProductItemAdded',
+      data: { productItem },
+      metadata: { clientId: 'metadata', schemaVersion: '2' },
+    };
+    const streamName = `shopping_cart-${uuid()}`;
+
+    try {
+      await hookedStore.appendToStream(streamName, [
+        versioned,
+        unversioned,
+        versionedInMetadata,
+      ]);
+      const { events } = await hookedStore.readStream(streamName);
+
+      assertDeepEqual(
+        events.map((event) => event.schemaVersion),
+        [2, 1, 2],
+      );
+      assertTrue(events.every((event) => !('schemaVersion' in event.metadata)));
+      const beforeCommit = events.map(
+        ({ metadata: { checkpoint: _checkpoint, ...metadata }, ...event }) => ({
+          ...event,
+          metadata,
+        }),
+      );
+      assertDeepEqual(projected, beforeCommit);
+      assertDeepEqual(hooked, beforeCommit);
     } finally {
       await hookedStore.close();
     }

@@ -6,11 +6,13 @@ import { sqlite3EventStoreDriver } from '@event-driven-io/emmett-sqlite/sqlite3'
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
-import { describe } from 'vitest';
+import { describe, expect } from 'vitest';
 import { deleteSQLiteDatabaseFiles } from '../../testing/sqliteTestDatabase';
 import {
   testAppendToStream,
   testCommandHandling,
+  testConsumerSchemaVersion,
+  testSchemaVersion,
   type EventStoreFactory,
 } from '../features';
 
@@ -37,6 +39,27 @@ describe('SQLiteEventStore', () => {
 
   testCommandHandling(eventStoreFactory, {
     getInitialIndex: () => 1n,
+    teardownHook,
+  });
+
+  const storeMetadata = {
+    correlationId: expect.any(String) as unknown,
+    causationId: expect.any(String) as unknown,
+    traceId: expect.any(String) as unknown,
+    spanId: expect.any(String) as unknown,
+    checkpoint: expect.any(String) as unknown,
+    globalPosition: expect.any(String) as unknown,
+  };
+
+  testSchemaVersion(eventStoreFactory, {
+    getInitialIndex: () => 1n,
+    storeMetadata,
+    teardownHook,
+  });
+
+  testConsumerSchemaVersion(eventStoreFactory, {
+    getInitialIndex: () => 1n,
+    storeMetadata,
     teardownHook,
   });
 });

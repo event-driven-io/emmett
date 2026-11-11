@@ -1,12 +1,14 @@
 # Plan: numeric message schema version
 
-Revision: 12. Built from spec r14.
+Revision: 20. Built from spec r21.
 
 Spec: `spec.md`. Q&A: `qa.md`. Reviews: `reviews/`.
 
 ## How the work is ordered
 
 The order follows "make the change easy, make the easy change". Every step ends green, wires its code into the product, and can be merged on its own. Each step lists the existing tests it breaks and how it updates them.
+
+Criteria 7.1 to 7.3 changed in spec r17 (Q132): appends reject a version below 1 or not whole with `ValidationError`. This is fixed directly in `schemaVersionToAppend` and the shared features after step 11, not as a step. In PostgreSQL the old `text[]` append function's digits check also rejects `'0'`, so 0.43.0-rc.2 instances cannot store a version below 1 (Q133); steps 4, 9, 10 and 12 list 7.1 to 7.3 as spec r20 states them. Step 12 runs the shared features, so SQLite gets the same check.
 
 Steps 1 to 7 are done and committed. They are kept below as they were written in plan r1, before spec r1. Where the spec changed what they built, steps 8 and 9 correct the code. The r1 terms inside those prompts (for example the metadata fallback in every store) are replaced by the terms below.
 
@@ -24,14 +26,14 @@ Criteria the done steps already cover: 1.1 to 1.7 (step 2, `messageSchemaVersion
 - **Frozen 0.43.0 API**: the copy of the released PostgreSQL and SQLite append and read code in `migrations/0_43_0/legacyApi.ts` (step 1), used by tests to act as a 0.43.0 instance.
 - **0.43.0-rc.2 store**: a database built with the migrations that shipped in 0.43.0-rc.2 (`migrations_0_43_0_rc_2` from step 1, after the 0.36.0, 0.38.7 and 0.42.0 sets). Its column is `TEXT`.
 - **Old append function**: `emt_append_to_stream`, versions as `text[]`. **New append function**: `emt_append_to_stream_v_0_43_0`, versions as `int[]`.
-- **Converting body**: the old append function's body from step 10. Numeric strings become integers. A non-numeric value, or one too large for `INT`, fails the append with an error. It works on `TEXT` and `INT` columns.
-- **Automatic migrations of the current release**: the migrations the current release adds to a driver's 0.43.0 set, and their variants for a custom database schema. PostgreSQL: the migration from step 10. SQLite: the SQLite rebuild from step 12.
+- **Converting body**: the old append function's body from step 10. Values matching `^0*[1-9][0-9]*$` become integers. A non-numeric value, `0`, or one too large for `INT`, fails the append with an error (Q133). It works on `TEXT` and `INT` columns.
+- **Automatic migrations of the current release**: the migrations the current release adds to a driver's 0.43.0 set, and their variants for a custom database schema. PostgreSQL: the migration from step 10. SQLite: the SQLite column swap from step 12.
 - **Schema version migration** (`migrateSchemaToNumericMessageSchemaVersion`, step 11): the on-demand PostgreSQL migration. **Mandatory migration**: the schema version migration in the PostgreSQL 0.44.0 set (step 11).
-- **SQLite rebuild**: the automatic SQLite migration that rebuilds the messages table with an `INTEGER` column (step 12).
+- **SQLite column swap**: the automatic SQLite migration that replaces the `TEXT` column with an `INTEGER` column: it adds the column, fills it, drops the old one and renames the added one (step 12).
 - **User `CASE`**: the optional Dumbo `SQL` fragment `messageSchemaVersionMapping`, the first `COALESCE` argument in the migrations.
-- **Numeric value** (read rule). A value stored as a number is numeric when it is a whole number (`Number.isInteger`), and is taken as it is: `-1` is `-1`, `1.5` is missing. A string is numeric when it matches `^[0-9]+$`, and reads as that number: `'02'` is `2`. Any other string (`'2.0'`, `'-1'`, `' 2'`, `'v2'`) is missing.
+- **Numeric value** (read rule). A value stored as a number is numeric when it is a whole number of `0` or more, and is taken as it is: `-1` and `1.5` are missing. A string is numeric when it matches `^[0-9]+$`, and reads as that number: `'02'` is `2`. Any other string (`'2.0'`, `'-1'`, `' 2'`, `'v2'`) is missing.
 - **Read rule.** PostgreSQL: the stored value if numeric, else numeric `metadata.schemaVersion`, else `1`. MongoDB, EventStoreDB and in-memory: the stored value if numeric, else `1`. SQLite: the column only. Every read removes `schemaVersion` from `metadata`.
-- **Append rule.** Every store persists the top-level `schemaVersion`, else a numeric `metadata.schemaVersion` by the read rule, else `1`; the top-level value always wins. No validation (Q122). `schemaVersionToAppend` in core implements it.
+- **Append rule.** Every store persists the top-level `schemaVersion`, else a numeric `metadata.schemaVersion` by the read rule, else `1`; the top-level value always wins. A version that is not a whole number of `1` or more fails the append with `ValidationError` (Q132). `schemaVersionToAppend` in core implements it.
 - **Recorded shape.** Every recorded message, including those handed to hooks, inline projections and consumers, has `schemaVersion` at the top level and none in `metadata`. The PostgreSQL metadata copy exists only in the stored row.
 
 ## Rules for every step
@@ -172,12 +174,12 @@ Emmett repo. Read `AGENTS.md` first and follow it.
 Core versioning helpers: `src/packages/emmett/src/eventStore/versioning/upcasting.ts` and `downcasting.ts`. They copy `data` and merge `metadata` from the function result, and ignore `schemaVersion`.
 In-memory store: `src/packages/emmett/src/eventStore/inMemoryEventStore.ts`. Append spreads `...event` and builds metadata. Read slices the stored array and calls `upcastRecordedMessages`.
 Shared cross-store feature tests: `src/packages/emmett-tests/src/eventStore/features.ts`, with exported `testAppendToStream`, `testAggregateStream`, `testCommandHandling` and `testStreamExists`. Store wiring: `src/packages/emmett-tests/src/eventStore/{inMemory,postgresql,sqlite,mongodb,esdb}/*.spec.ts`. The domain is in `shoppingCart.domain.ts`.
-`DefaultMessageSchemaVersion` is still the string `'1'` in `typing/message.ts`. Do not change it here. Step 17 changes it.
+`DefaultMessageSchemaVersion` is still the string `'1'` in `typing/message.ts`. Do not change it here. Step 13 changes it.
 
 Terms
 Numeric value: a JavaScript integer, or a string made only of the digits 0–9. Everything else is non-numeric.
 Read rule: the stored value if numeric, else `metadata.schemaVersion` if numeric, else `1`. Every read removes `schemaVersion` from `metadata`.
-Append rule: persist the top-level `schemaVersion`, else a numeric `metadata.schemaVersion` by the read rule, else `1`; the top-level value always wins. No validation (Q122).
+Append rule: persist the top-level `schemaVersion`, else a numeric `metadata.schemaVersion` by the read rule, else `1`; the top-level value always wins. A version that is not a whole number of `1` or more fails the append with `ValidationError` (Q132).
 
 Goal
 1. Core functions that drivers call to apply the read rule.
@@ -193,7 +195,7 @@ Acceptance criteria (in-memory unless noted)
 4.6 GIVEN an appended command with `schemaVersion: 2` WHEN it is read THEN the recorded command has `schemaVersion: 2`.
 5.1 GIVEN an event appended with `schemaVersion: 2` and user metadata WHEN it is read THEN `metadata` contains the user metadata and Emmett's recorded fields, and no `schemaVersion`.
 6.1–6.3 (core unit tests of the read rule) GIVEN no usable stored version and `metadata.schemaVersion` of `'2'`, missing, or `'v2'` THEN the version is 2, 1, or 1, AND `metadata` has no `schemaVersion`.
-7.1 GIVEN an event with `schemaVersion: 0` WHEN it is appended THEN no Emmett validation error is raised.
+7.1 GIVEN an event with `schemaVersion: 0` WHEN it is appended THEN the append fails with a `ValidationError` (spec r20; see the plan intro).
 8.1 GIVEN a stored event with `schemaVersion: 1` AND an upcaster that returns `schemaVersion: 2` with new data WHEN the stream is read THEN the recorded event has `schemaVersion: 2` and the new data.
 8.2 GIVEN a stored event with `schemaVersion: 1` AND an upcaster that returns only `type` and `data` WHEN read THEN the recorded event has `schemaVersion: 1` and the new data.
 8.3 GIVEN a stored event with `schemaVersion: 2` AND an upcaster that returns the event unchanged WHEN read THEN the recorded event has `schemaVersion: 2`.
@@ -235,7 +237,7 @@ MongoDB store: `src/packages/emmett-mongodb/src/eventStore/mongoDBEventStore.ts`
 The `schemaVersion` in `projections/mongoDBInlineProjection.ts` is the read model's version. It is not part of this work. Do not touch it.
 
 Terms
-Read rule: the stored value if numeric, else `metadata.schemaVersion` if numeric, else `1`. Remove `schemaVersion` from `metadata` on read. Append rule: store the top-level `schemaVersion`, else a numeric `metadata.schemaVersion` by the read rule, else `1`; the top-level value always wins. No validation (Q122).
+Read rule: the stored value if numeric, else `metadata.schemaVersion` if numeric, else `1`. Remove `schemaVersion` from `metadata` on read. Append rule: store the top-level `schemaVersion`, else a numeric `metadata.schemaVersion` by the read rule, else `1`; the top-level value always wins. A version that is not a whole number of `1` or more fails the append with `ValidationError` (Q132).
 
 Goal
 MongoDB stores the version as a top-level field on the stored message, next to `type`, `data` and `metadata`. It returns the version on stream reads and in consumers. It writes no string copy into metadata.
@@ -409,7 +411,8 @@ Acceptance criteria
 - 6.6 GIVEN stored messages without a stored version and with `metadata.schemaVersion` `'02'`, `'2.0'`, `'-1'`, `' 2'` and the JSON number `2` WHEN they are read THEN `schemaVersion` is `2`, `1`, `1`, `1` and `2`.
 - 6.7 GIVEN a PostgreSQL `TEXT` column holding `'99999999999'` WHEN the row is read THEN `schemaVersion` is `99999999999`.
 - 6.8 GIVEN EventStoreDB events written before this release, one without `metadata.schemaVersion`, one with `'2'` and one with `'v2'` WHEN they are read THEN `schemaVersion` is `1`, `2` and `1`, AND `metadata` has no `schemaVersion`.
-- 7.2 GIVEN an empty stream in any store WHEN an event with `schemaVersion: -1` is appended and the stream is read THEN the append succeeds AND the recorded event has `schemaVersion: 1`. Part: in-memory, MongoDB and EventStoreDB, through the shared features. Step 9 was built for r6, where `-1` read as `-1`; step 10 changes it (Q120).
+- 7.2 GIVEN an empty stream in any store WHEN an event with `schemaVersion: -1` or `1.5` is appended THEN the append fails with a `ValidationError` AND the stream has no events. Part: in-memory, MongoDB and EventStoreDB, through the shared features.
+- 7.3 GIVEN an empty stream in any store WHEN an event without a top-level `schemaVersion` and with `metadata.schemaVersion: '0'` is appended THEN the append fails with a `ValidationError` AND the stream has no events. Part: in-memory, MongoDB and EventStoreDB, through the shared features.
 - 9.3 GIVEN a downcaster typed `(e: V2) => V1 | V2` that returns a V1 for one event and a V2 with `schemaVersion: 2` for another WHEN both are appended and read without an upcaster THEN the recorded events have `schemaVersion: 1` and `2`. Part: in-memory, MongoDB and EventStoreDB, through the shared features.
 
 Tests
@@ -421,7 +424,7 @@ Tests
 - 6.6: "reads the metadata version by the numeric value rule" - PostgreSQL, same store: insert rows with a non-numeric column value and `metadata.schemaVersion` `'02'`, `'2.0'`, `'-1'`, `' 2'` and the JSON number `2`; asserts `2`, `1`, `1`, `1` and `2`. Add core unit tests for the same values. Both protect existing behaviour.
 - 6.7: "reads a too large digits-only column value as that number" - PostgreSQL, same store: insert a row with `'99999999999'` in the column; asserts `schemaVersion: 99999999999`. Protects existing behaviour.
 - 6.8: protects existing behaviour, covered by `cases_0_43_0_rc_2` at `eventstoreDBEventStore.schemaVersion.int.spec.ts:84-99`. Do not add a copy.
-- 7.2: shared feature "Appends an event with schema version -1 without validating it" - asserts the recorded event has `schemaVersion: -1`. Protects existing behaviour.
+- 7.1 to 7.3: shared features "Rejects an append with schema version 0", "Rejects an append with schema version -1", "Rejects an append with schema version 1.5" and "Rejects an append with metadata version 0 when the top-level one is missing" (`features.ts`) - each asserts the append rejects with `ValidationError` and the stream has no events; core unit tests of `schemaVersionToAppend` in `schemaVersion.unit.spec.ts`, including "rejects metadata version 0 when the top-level one is missing".
 - 9.3: shared feature "Records the schema version of each result of a downcaster that returns either version" - downcaster typed `(e: V2) => V1 | V2` returns a V1 for one event and a V2 with `schemaVersion: 2` for another; asserts `1` and `2`. Protects existing behaviour.
 Existing tests this step changes: MongoDB `cases_0_43_0_rc_2[0]` is renamed and expects `1`; the six PostgreSQL tests move to a 0.43.0-rc.2 store.
 Make `metadata` an optional parameter of `resolveSchemaVersion`. MongoDB, in-memory and EventStoreDB call it with the stored value only.
@@ -484,8 +487,9 @@ Through the shared features on a new store:
 - 4.10 GIVEN an empty stream WHEN an event without a top-level `schemaVersion` and with `metadata.schemaVersion: 'v2'` is appended and the stream is read THEN the recorded event has `schemaVersion: 1`. All stores except SQLite (step 12).
 - 4.11 GIVEN an empty stream WHEN an event with `schemaVersion: 3` and `metadata.schemaVersion: '2'` is appended and the stream is read THEN the recorded event has `schemaVersion: 3`. All stores except SQLite (step 12).
 - 5.1 GIVEN an event appended with `schemaVersion: 2` and user metadata WHEN it is read THEN `metadata` contains the user metadata and Emmett's recorded fields, and no `schemaVersion`.
-- 7.1 GIVEN an empty stream in any store WHEN an event with `schemaVersion: 0` is appended and the stream is read THEN the append succeeds AND the recorded event has `schemaVersion: 0`.
-- 7.2 GIVEN an empty stream in any store WHEN an event with `schemaVersion: -1` is appended and the stream is read THEN the append succeeds AND the recorded event has `schemaVersion: 1`. Part: PostgreSQL, and the change for every store (Q120).
+- 7.1 GIVEN an empty stream in any store WHEN an event with `schemaVersion: 0` is appended THEN the append fails with a `ValidationError` AND the stream has no events.
+- 7.2 GIVEN an empty stream in any store WHEN an event with `schemaVersion: -1` or `1.5` is appended THEN the append fails with a `ValidationError` AND the stream has no events. Part: PostgreSQL.
+- 7.3 GIVEN an empty stream in any store WHEN an event without a top-level `schemaVersion` and with `metadata.schemaVersion: '0'` is appended THEN the append fails with a `ValidationError` AND the stream has no events. Part: PostgreSQL.
 - 8.1 GIVEN a stored event with `schemaVersion: 1` AND an upcaster that returns `schemaVersion: 2` with the new data WHEN the stream is read THEN the recorded event has `schemaVersion: 2` and the new data.
 - 8.2 GIVEN a stored event with `schemaVersion: 1` AND an upcaster that returns only `type` and `data` WHEN the stream is read THEN the recorded event has `schemaVersion: 1` and the new data.
 - 8.3 GIVEN a stored event with `schemaVersion: 2` AND an upcaster that returns the event unchanged WHEN the stream is read THEN the recorded event has `schemaVersion: 2`.
@@ -508,37 +512,41 @@ PostgreSQL only:
 - 14.4 GIVEN a store upgraded to the current release AND the old append function dropped WHEN the current release appends THEN the append succeeds.
 - 14.5 GIVEN a store upgraded to the current release AND another function named `emt_append_to_stream_v_0_43_0` with a different argument list WHEN the current release appends THEN the append succeeds.
 - 14.6 GIVEN a `TEXT` column after the automatic migrations of the current release WHEN the frozen 0.43.0 API appends an event with `metadata.schemaVersion: '99999999999'` THEN the append fails with an error AND the stream has no new event.
+- 14.7 GIVEN a `TEXT` column after the automatic migrations of the current release WHEN the frozen 0.43.0 API appends an event with `metadata.schemaVersion: '0'` THEN the append fails with an error AND the stream has no new event (Q133).
 - 15.3 GIVEN a `TEXT` column after the automatic migrations of the current release WHEN the current release appends an event with `schemaVersion: 3` THEN the column holds `3` AND reads return `schemaVersion: 3`.
 - 20.1 GIVEN an empty PostgreSQL database WHEN the event store schema is created THEN `message_schema_version` is `INT` and placed after the 8-byte columns and before the 1-byte columns.
 - 20.3 GIVEN a new store WHEN a message with `schemaVersion: 2` is appended THEN the column holds `2`. Part: PostgreSQL.
 - 20.4 GIVEN a new PostgreSQL store WHEN the frozen 0.43.0 API appends an event with `metadata.schemaVersion: '2'` and then one with `'v2'` THEN the first append succeeds and the column holds `2` AND the second fails with an error and the stream has no new event.
+- 20.5 GIVEN a new PostgreSQL store WHEN the frozen 0.43.0 API appends an event with `metadata.schemaVersion: '0'` THEN the append fails with an error AND the stream has no new event (Q133).
 - 24.1 GIVEN an existing PostgreSQL store in a custom schema WHEN the automatic migrations of the current release run THEN both append functions exist in that schema AND appends and reads behave as in 14.1, 14.2 and 15.1 to 15.3.
 
 Tests
 - Shared features wired in the PostgreSQL e2e spec: each shared criterion above as in `features.ts`.
 - 5.2: "stores the version as a string in the raw metadata" - select `message_metadata` directly; asserts `schemaVersion: '2'`.
-- 7.2: change the shared feature "Appends an event with schema version -1 without validating it" to assert `schemaVersion: 1`, and the core rule so a stored number below `0` counts as missing; add core unit tests for `-1` as a number. Keep "reads version 1 for a negative version on a TEXT column" if it already exists: 0.43.0-rc.2 store, automatic migrations, current append with `schemaVersion: -1`; asserts the read returns `1`.
-- 11.1, 11.2: "a 0.43.0 instance reads versions written by the current release" - frozen read after current appends with `2` and without a version; asserts `metadata.schemaVersion` `'2'` and `'1'`.
-- 12.1, 12.2: "the current release reads versions written by a 0.43.0 instance" - frozen append with and without `'2'`; asserts `schemaVersion` `2` and `1`, and no `metadata.schemaVersion`.
-- 12.3: "a 0.43.0 instance and the current release append to one stream in turn" - four alternating appends; asserts all succeed and stream positions are `1` to `4`.
-- 14.2 (TEXT): "a 0.43.0 instance appends a numeric version after the upgrade" - 0.43.0-rc.2 store, current automatic migrations, frozen 0.43.0 append with `metadata.schemaVersion: '2'`; asserts success and the column holds `'2'`.
-- 14.3: "a 0.43.0 instance gets an error for a non-numeric version after the upgrade" - same store, frozen append with `'v2'`; asserts the append rejects with an error and the frozen read returns no new event.
-- 14.4: "the current release appends after the old function is dropped" - `DROP FUNCTION emt_append_to_stream(text[], jsonb[], jsonb[], text[], text[], text[], text, text, bigint, text)`, then append; asserts success.
-- 14.5: "the current release appends when another function has the new name with other arguments" - create `emt_append_to_stream_v_0_43_0(text[], jsonb[], jsonb[], text[], text[], text[], text, text, bigint, text) RETURNS void` (`text[]` in the versions position) in the same schema, then append; asserts success and the read.
-- 14.6: "a 0.43.0 instance gets an error for a version too large for INT" - same store as 14.3, `'99999999999'`; asserts the same.
+- 7.1 to 7.3: shared features "Rejects an append with schema version 0", "Rejects an append with schema version -1", "Rejects an append with schema version 1.5" and "Rejects an append with metadata version 0 when the top-level one is missing" (`features.ts`) - each asserts the append rejects with `ValidationError` and the stream has no events; core unit tests of `schemaVersionToAppend` in `schemaVersion.unit.spec.ts`, including "rejects metadata version 0 when the top-level one is missing".
+- 11.1, 11.2: "0.43.0-rc.2 reads metadata schema versions of events 0.43.0 appended, after migrating from 0.43.0-rc.2" - frozen read after current appends with `2` and without a version; asserts `metadata.schemaVersion` `'2'` and `'1'`.
+- 12.1, 12.2: "0.43.0 reads schema versions of events 0.43.0-rc.2 appended, after migrating from 0.43.0-rc.2" - frozen append with and without `'2'`; asserts `schemaVersion` `2` and `1`, and no `metadata.schemaVersion`.
+- 12.3: "0.43.0-rc.2 and 0.43.0 append to one stream in turn, after migrating from 0.43.0-rc.2" - four alternating appends; asserts all succeed and stream positions are `1` to `4`.
+- 14.2 (TEXT): "0.43.0-rc.2 appends metadata schemaVersion '2' to the TEXT column, after migrating from 0.43.0-rc.2" - 0.43.0-rc.2 store, current automatic migrations, frozen 0.43.0 append with `metadata.schemaVersion: '2'`; asserts success and the column holds `'2'`.
+- 14.3: "0.43.0-rc.2 append fails for metadata schemaVersion 'v2', after migrating from 0.43.0-rc.2" - same store, frozen append with `'v2'`; asserts the append rejects with an error and the frozen read returns no new event.
+- 14.4: "0.43.0 appends after emt_append_to_stream is dropped, after migrating from 0.43.0-rc.2" - `DROP FUNCTION emt_append_to_stream(text[], jsonb[], jsonb[], text[], text[], text[], text, text, bigint, text)`, then append; asserts success.
+- 14.5: "0.43.0 appends when an emt_append_to_stream_v_0_43_0 with text[] versions also exists, after migrating from 0.43.0-rc.2" - create `emt_append_to_stream_v_0_43_0(text[], jsonb[], jsonb[], text[], text[], text[], text, text, bigint, text) RETURNS void` (`text[]` in the versions position) in the same schema, then append; asserts success and the read.
+- 14.6: "0.43.0-rc.2 append fails for a metadata schemaVersion too large for INT, after migrating from 0.43.0-rc.2" - same store as 14.3, `'99999999999'`; asserts the same.
+- 14.7: "0.43.0-rc.2 append fails for metadata schemaVersion '0', after migrating from 0.43.0-rc.2" - same store as 14.3, `'0'`; asserts the same.
 - 14.1 (TEXT) and 15.3: "0.43.0 stores version 3 in the TEXT column and in metadata, after migrating from 0.43.0-rc.2" - asserts the column holds `'3'`, the stored metadata holds `'3'`, and the read returns `3`.
-- 20.1: "a new store has an INT schema version column after created and before is_archived" - `information_schema.columns`: `data_type` is `integer`, and its `ordinal_position` is one more than `created`'s and one less than `is_archived`'s; for the default and a custom schema.
-- 20.1 and 17.1 side by side: "a fresh 0.43.0 store gets an INT schema version column", "a store migrated from 0.43.0-rc.2 keeps the TEXT schema version column" and "a store migrated from 0.42.0 keeps the TEXT schema version column" - next to each other in `0_43_0.migration.int.spec.ts`; the first runs the automatic migrations on an empty database and asserts `integer`, the other two build the store from the version lists (`migrations_0_43_0_rc_2`, or the 0.42.0 sets), run the automatic migrations and assert `text` (Q123).
-- 20.3: "a new store holds the appended version in the column" - asserts the column holds `2`.
-- 20.4: "a 0.43.0 instance appends to a new store" - `createEventStoreSchema`, frozen 0.43.0 append with `'2'`, then with `'v2'`; asserts the first succeeds and the column holds `2` (an integer), and the second rejects with an error and the stream has no new event.
-- 24.1: "the automatic migrations add both append functions in a custom schema" - `functionExists` for both functions in a custom `databaseSchemaName`; then the 14.1 (TEXT), 14.2 (TEXT) and 15.1 to 15.3 scenarios in that schema. Load the `schema_0_42_0` snapshot into the schema and write 0.42.x rows with the 0.38.7 legacy append under `SET LOCAL search_path`, as `0_43_0.migration.int.spec.ts:131-176` does. Insert the 0.43.0 rows (`'2'` in the column and in `metadata.schemaVersion`) with SQL, since no released 0.43.0 API builds a custom schema.
-- extra: "hooks and inline projections receive the top-level version" - a `beforeCommitHook` collects the messages of one append with three events: one with `schemaVersion: 2`, one without `schemaVersion`, and one without a top-level version and with user `metadata.schemaVersion: '2'`; asserts the whole messages, with `schemaVersion` `2`, `1` and `2`, and `metadata` without `schemaVersion` in all three.
+- 20.1 and 17.1 side by side: "a fresh 0.43.0 store gets an INT schema version column after created and before is_archived", "a store migrated from 0.43.0-rc.2 keeps the TEXT schema version column" and "a store migrated from 0.42.0 keeps the TEXT schema version column" - next to each other in `0_43_0.migration.int.spec.ts`; the first runs the automatic migrations on an empty database and asserts `data_type` `integer` with `created` right before and `is_archived` right after the column (`information_schema.columns` ordered by `ordinal_position`); `createEventStoreSchema.int.spec.ts` has no copy, and its custom-schema test asserts `emt_append_to_stream_v_0_43_0` exists (Q136), the other two build the store from the version lists (`migrations_0_43_0_rc_2`, or the 0.42.0 sets), run the automatic migrations and assert `text` (Q123).
+- 20.3: "stores the appended schema version in the column" - asserts the column holds `2`.
+- 20.4: "0.43.0-rc.2 appends metadata schemaVersion '2' as INT and fails for 'v2' on a store 0.43.0 created" - `createEventStoreSchema`, frozen 0.43.0 append with `'2'`, then with `'v2'`; asserts the first succeeds and the column holds `2` (an integer), and the second rejects with an error and the stream has no new event.
+- 20.5: "0.43.0-rc.2 append fails for metadata schemaVersion '0' on a store 0.43.0 created" - `createEventStoreSchema`, frozen 0.43.0 append with `'0'`; asserts the append rejects with an error and the stream has no new event.
+- 24.1: "the 0.43.0 automatic migrations add both append functions to a custom schema with 0.42.0 and 0.43.0-rc.2 events" - `functionExists` for both functions in a custom `databaseSchemaName`; then the 14.1 (TEXT), 14.2 (TEXT) and 15.1 to 15.3 scenarios in that schema. Load the `schema_0_42_0` snapshot into the schema and write 0.42.x rows with the 0.38.7 legacy append under `SET LOCAL search_path`, as `0_43_0.migration.int.spec.ts:131-176` does. Insert the 0.43.0 rows (`'2'` in the column and in `metadata.schemaVersion`) with SQL, since no released 0.43.0 API builds a custom schema.
+- extra: "the before-commit hook receives the top-level version" - a `beforeCommitHook` collects the messages of one append with three events: one with `schemaVersion: 2`, one without `schemaVersion`, and one without a top-level version and with user `metadata.schemaVersion: '2'`; asserts the whole messages, with `schemaVersion` `2`, `1` and `2`, and `metadata` without `schemaVersion` in all three.
+- extra: "inline projections and the onBeforeCommit hook receive the appended messages with their top-level schema version" - in `postgreSQLEventStore.e2e.spec.ts`, next to "should allow events to be processed in the onBeforeCommit hook"; an event store with an inline projection that collects its events and a `hooks.onBeforeCommit` that collects its messages; append the same three events, then read the stream; asserts both collections deep-equal the events read back, `schemaVersion` `[2, 1, 2]`, and no `metadata.schemaVersion` (Q129).
 - extra: "the stored metadata copy matches the column when user metadata has a version" - append with top-level `schemaVersion: 3` and user `metadata.schemaVersion: '2'`; asserts the raw metadata has `schemaVersion: '3'`, the column holds `3`, and the read returns `3`.
-- extra: "running the automatic migrations twice changes nothing" - second run succeeds, both functions still exist.
+- extra: "running the 0.43.0 automatic migrations twice after migrating from 0.43.0-rc.2 applies nothing and keeps both append functions" - second run succeeds, applies nothing, both functions still exist.
 - Update the existing tests listed in Context: `appendToStream.int.spec.ts:462` appends with top-level `schemaVersion: 2` and asserts the column `[2]`; `:490` asserts `[1, 1]`; `readStream.int.spec.ts:305` appends its second event with top-level `schemaVersion: 2` and keeps its expected data; export the frozen `callAppendToStream` from `0_43_0/legacyApi.ts` and import it in `0_43_0.migration.int.spec.ts` for the calls at `:164` and `:204`; add the new migration to the custom-schema lists in `migrations/current/migration.int.spec.ts:146` and `createEventStoreSchema.int.spec.ts:320` and `:336`.
 - 4.9 to 4.11: shared features "takes the metadata version when the top-level one is missing", "falls back to version 1 for a non-numeric metadata version" and "keeps the top-level version over the metadata one"; each asserts the whole recorded event. The append rule goes into core code next to `resolveSchemaVersion`, and the in-memory, MongoDB, EventStoreDB and PostgreSQL appends call it. Remove the in-memory 6.5 test "reads version 1 when only the metadata has a version" from step 9: it appends through the public API, so 4.9 now gives `2`, and spec 6.5 no longer covers in-memory. Check that the MongoDB `cases_0_43_0_rc_2` and the 6.x PostgreSQL tests insert their rows directly and so stay as they are; if one appends through the current API, stop and report it.
 - 4.7: the shared 4.6 feature, which asserts the whole recorded command. `readStream.ts` and `readMessagesBatch.ts` select `message_kind` and map `'C'` to `'Command'` and anything else to `'Event'`, instead of the hard-coded `'Event'`.
-Build both functions for the current schema from one body builder that takes the function name and the SQL type of the versions array. The migration holds its own SQL text inline, as the released migrations do (`0_43_0.migration.ts` at HEAD writes out `emt_append_to_stream` itself); it does not call the builder, so a later change to the current schema cannot change its hash (Q121). For `text[]`, raise an exception when any value does not match `^[0-9]+$`, then insert `v::int`. For `int[]`, insert the values as they are. Add `migration_0_43_0_addNumericSchemaVersionAppendFor(options)` (name `emt:postgresql:eventstore:0.43.0:add-numeric-schema-version-append`) that creates the new function and replaces the old body, only when the old function exists. Append it to `migrations_0_43_0` and to the custom-schema list after the stream existence migration. Add the new function to `eventStoreSchemaSQL`. Change the column in `messagesTableSQLFor`. `callAppendToStream` calls the new function with `::text[]`, `::jsonb[]`, `::jsonb[]`, `::int[]`, `::text[]`, `::text[]`, `::text`, `::text`, `::bigint`, `::text`, and `CallAppendToStreamParams.schemaVersions` becomes `number[]` (Q118). Remove the `DefaultMessageSchemaVersion` import if nothing else uses it. Update `0_43_0.snapshot.int.spec.ts` and the `schemaMigration` snapshot in `0_44_0.snapshot.int.spec.ts` and review the diff: only the new migration, the new function and the column appear. If an existing test appends a non-numeric `metadata.schemaVersion` through the current API, stop and report it.
+Build both functions for the current schema from one body builder that takes the function name and the SQL type of the versions array. The migration holds its own SQL text inline, as the released migrations do (`0_43_0.migration.ts` at HEAD writes out `emt_append_to_stream` itself); it does not call the builder, so a later change to the current schema cannot change its hash (Q121). For `text[]`, raise an exception when any value does not match `^0*[1-9][0-9]*$` (so `0` fails too, Q133; the migration's inline SQL uses the same check), then insert `v::int`. For `int[]`, insert the values as they are. Add `migration_0_43_0_addNumericSchemaVersionAppendFor(options)` (name `emt:postgresql:eventstore:0.43.0:add-numeric-schema-version-append`) that creates the new function and replaces the old body, only when the old function exists. Append it to `migrations_0_43_0` and to the custom-schema list after the stream existence migration. Add the new function to `eventStoreSchemaSQL`. Change the column in `messagesTableSQLFor`. `callAppendToStream` calls the new function with `::text[]`, `::jsonb[]`, `::jsonb[]`, `::int[]`, `::text[]`, `::text[]`, `::text`, `::text`, `::bigint`, `::text`, and `CallAppendToStreamParams.schemaVersions` becomes `number[]` (Q118). Remove the `DefaultMessageSchemaVersion` import if nothing else uses it. Update `0_43_0.snapshot.int.spec.ts` and the `schemaMigration` snapshot in `0_44_0.snapshot.int.spec.ts` and review the diff: only the new migration, the new function and the column appear. If an existing test appends a non-numeric `metadata.schemaVersion` through the current API, stop and report it.
 ```
 
 ---
@@ -559,7 +567,6 @@ Context
 - Dumbo 0.13.0-rc.2 `MigratorOptions`: `dryRun`, `migrationTimeoutMS` (applied as `statement_timeout`, which also counts lock waits), `lock`, `transactionOptions`. `sqlMigration(name, sqls, { ignoreHashMismatch })`. With `ignoreHashMismatch`, a changed hash is skipped with a warning.
 - `eventStoreDatabaseSchema.ts`: `EventStoreDatabaseSchemaOptions` and `eventStoreDatabaseSchema(options)` (`migrationTable`, table names).
 - The messages table is partitioned by list on `partition`. `ALTER TABLE` on the parent changes every partition.
-- Step 10 gave the old function the converting body, so a 0.43.0 append that waits for the `ALTER` lock succeeds after it.
 - `src/packages/emmett-postgresql/src/eventStore/schema/migrations/0_44_0/`: `migration_0_44_0_cleanupObsoleteCheckpointCompat` and `migrations_0_44_0`. `0_44_0.migration.int.spec.ts` runs the set with `runSQLMigrations` and asserts `applied` equals `migrations_0_44_0`. `0_44_0.snapshot.int.spec.ts` snapshots it. Both change in this step.
 
 Similar code
@@ -573,7 +580,6 @@ Acceptance criteria
 - 13.1 GIVEN a store after the schema version migration WHEN the frozen 0.43.0 API appends an event with `metadata.schemaVersion: '2'` THEN the append succeeds AND the column holds `2` AND the current release reads it with `schemaVersion: 2`.
 - 13.2 GIVEN a store after the schema version migration WHEN the frozen 0.43.0 API appends an event with `metadata.schemaVersion: 'v2'` THEN the append fails with an error AND the stream has no new event.
 - 13.3 GIVEN events appended by the current release with versions `1` and `2` AND then the schema version migration WHEN the frozen 0.43.0 API reads the stream THEN the events have `metadata.schemaVersion` `'1'` and `'2'`.
-- 13.5 GIVEN the schema version migration is changing the column WHEN the frozen 0.43.0 API appends an event with `metadata.schemaVersion: '2'` at the same time THEN the append succeeds after the migration AND the column holds `2`.
 - 14.1 GIVEN a store upgraded to the current release WHEN the current release appends an event with `schemaVersion: 2`, once on a `TEXT` column and once on an `INT` column THEN both appends succeed AND reads return `schemaVersion: 2`. Part: the `INT` column. Step 10 covers the `TEXT` column.
 - 14.2 GIVEN a store upgraded to the current release WHEN the frozen 0.43.0 API appends an event with `metadata.schemaVersion: '2'`, once on a `TEXT` column and once on an `INT` column THEN both appends succeed AND the column holds `'2'` and `2`. Part: the `INT` column. Step 10 covers the `TEXT` column.
 - 16.1 GIVEN a store with 0.42.x junk rows, 0.43.0 rows with versions `1` and `2`, and rows appended by the current release with version `3` WHEN the migration runs without a user `CASE` THEN the column is `INT` AND the rows hold `1`, `1`, `2` and `3` respectively.
@@ -615,20 +621,20 @@ Build the 16.1 store this way: a 0.42.x store with rows from the 0.38.7 legacy a
 - 16.12: "fails on the timeout while another transaction holds a lock" - a second pool opens a transaction with `LOCK TABLE <messages> IN ACCESS SHARE MODE` and keeps it open; the migration runs with `migrationTimeoutMS: 10`; asserts it rejects with Dumbo's `QueryCanceledError`, not just any error (Q126), then the second pool rolls back; asserts `text` and unchanged data.
 - 16.13: "a rerun with a different user CASE succeeds and changes nothing" - first run maps type `X` to `5`, second maps it to `7`; asserts success and the row still holds `5`.
 - 16.15: "fails on a value too large for INT and succeeds once a user CASE maps it" - asserts the first call rejects with the column still `text`, then the call with the `CASE` gives `2`.
-- 13.1: "a 0.43.0 instance appends a numeric version after the schema version migration" - frozen append with `'2'`; asserts success, the column holds `2`, and the current read returns `schemaVersion: 2` with no `metadata.schemaVersion`.
-- 13.2: "a 0.43.0 instance gets an error for a non-numeric version after the schema version migration" - frozen append with `'v2'`; asserts rejection and the frozen read returns no new event.
-- 13.3: "a 0.43.0 instance reads versions written before the schema version migration" - current appends with `1` and `2`, then the migration, then the frozen read; asserts `metadata.schemaVersion` `'1'` and `'2'`.
-- 13.5: "a 0.43.0 append waits for the migration and succeeds" - pool A opens a transaction holding `LOCK TABLE <messages> IN ACCESS SHARE MODE`; start the migration without awaiting; poll `pg_stat_activity` every 50 ms until a backend running the `ALTER` has `wait_event_type = 'Lock'`; start a frozen append with `'2'` without awaiting; poll until a second backend waits on a lock; commit pool A; await both; asserts both succeed and the row holds `2`.
-- 14.1 (INT): "the current release appends to an INT column after the schema version migration" - the 16.1 store after the migration, current append with `schemaVersion: 2`; asserts success and that `readStream` returns `schemaVersion: 2`.
-- 14.2 (INT): "a 0.43.0 instance appends to an INT column" - frozen append with `'2'` after the migration; asserts the column holds `2`.
-- 17.1: "a store migrated from 0.43.0-rc.2 keeps the TEXT column until the schema version migration runs" (Q123) - 0.43.0-rc.2 store, automatic migrations; asserts `functionExists` for the new function, `data_type` `text`, and that Dumbo's default migrations table (`dmb_migrations`; `eventStoreDatabaseSchema(options).migrationTable` passes a name only when the user sets one) has no row named `emt:postgresql:eventstore:0.43.0:numeric-message-schema-version` or `emt:postgresql:eventstore:0.44.0:numeric-message-schema-version`; then calls `migrateSchemaToNumericMessageSchemaVersion` and asserts `integer`.
-- 23.1: "the mandatory migration converts every row" - the 16.1 rows, set run directly; asserts `integer` and the values.
-- 23.2: "the mandatory migration applies a user CASE from its options" - the 16.2 to 16.5 rows and `CASE`s through `messageSchemaVersionMapping`; asserts the same values.
-- 23.3: "the mandatory migration changes nothing after the on-demand one" - `migrateSchemaToNumericMessageSchemaVersion`, then the 0.44.0 set run directly; asserts the mandatory migration is in `applied`, so its own check ran, and that the data is unchanged.
-- 23.4: "a 0.43.0 instance appends and reads after the mandatory migration" - frozen append with `'2'` and frozen read; asserts success, the column holds `2`, and the read has `metadata.schemaVersion: '2'`.
-- 23.5: "the mandatory migration reruns with a different user CASE without changes" - as in 16.13.
-- 24.3: 16.1 in a custom `databaseSchemaName`.
-- 24.4: 23.1 and 23.4 in a custom `databaseSchemaName`.
+- 13.1: "a 0.43.0-rc.2 append of a numeric version succeeds after the migration", run for both the schema version migration and the mandatory migration - frozen append with `'2'`; asserts success, the column holds `2`, and the current read returns `schemaVersion: 2` with no `metadata.schemaVersion`.
+- 13.2: "a 0.43.0-rc.2 append of a non-numeric version fails after the migration", run for both migrations - frozen append with `'v2'`; asserts rejection and the frozen read returns no new event.
+- 13.3: "0.43.0-rc.2 reads versions written before the migration" - current appends with `1` and `2`, then the migration, then the frozen read; asserts `metadata.schemaVersion` `'1'` and `'2'`.
+- 14.1 (INT), 14.2 (INT): "0.43.0 and 0.43.0-rc.2 append to an INT column after the migration" - the 16.1 store after the schema version migration, current append with `schemaVersion: 2`, then frozen append with `'2'`; asserts the column is `integer`, `readStream` returns both events with `schemaVersion: 2`, and the column holds `2`.
+- 17.1: "a store migrated from 0.43.0-rc.2 keeps the TEXT column until the migration runs" (Q123) - 0.43.0-rc.2 store, automatic migrations; asserts `functionExists` for the new function, `data_type` `text`, and that Dumbo's default migrations table (`dmb_migrations`; `eventStoreDatabaseSchema(options).migrationTable` passes a name only when the user sets one) has no row named `emt:postgresql:eventstore:0.43.0:numeric-message-schema-version` or `emt:postgresql:eventstore:0.44.0:numeric-message-schema-version`; then calls `migrateSchemaToNumericMessageSchemaVersion` and asserts `integer`.
+- 23.1: the mandatory migration run of "converts every row to an INT version without a user CASE" (16.1) - the 16.1 rows, set run directly; asserts `integer` and the values.
+- 23.2: the mandatory migration runs of the 16.2 to 16.5 tests - the same rows and `CASE`s through `messageSchemaVersionMapping`; asserts the same values.
+- 23.3: "the mandatory migration changes nothing after the schema version migration" - `migrateSchemaToNumericMessageSchemaVersion`, then the 0.44.0 set run directly; asserts the mandatory migration is in `applied`, so its own check ran, and that the data is unchanged.
+- 23.4: the mandatory migration run of "a 0.43.0-rc.2 append of a numeric version succeeds after the migration" (13.1) - frozen append with `'2'`; asserts the column holds `2`, the current read and the frozen read, which has `metadata.schemaVersion: '2'`.
+- 23.5: the mandatory migration run of "a rerun with a different user CASE succeeds and changes nothing" (16.13).
+- 24.3, 24.4: "migrates a store in a custom database schema", run for both migrations - the 16.1 rows in a custom `databaseSchemaName`; asserts `integer`, the values, and an append and read in that schema.
+- The 16.x, 23.x and 24.3/24.4 tests that both migrations share run once per migration, inside `describe('schema version migration')` and `describe('mandatory migration')` in `migrateSchemaToNumericMessageSchemaVersion.int.spec.ts`.
+- extra: "opens its own pool from a driver and a connection string" - the migration called with a driver and a connection string instead of a pool; asserts the column is `integer`.
+- extra: "a diff dry run reports the migration and changes nothing" - `dryRun: 'diff'`; asserts the migration is reported and the column is still `text` with unchanged data.
 - extra: "reads a whole JSON number in metadata by the number rule" - a row with a non-numeric column and metadata `schemaVersion: -1` as a JSON number converts to `1` (Q120).
 - extra: "fails on a metadata version too large for INT and succeeds once a user CASE maps it" - a row with a non-numeric column and metadata `schemaVersion: '99999999999'`; as in 16.15 (Q109, Q125).
 - Update `0_44_0.migration.int.spec.ts` and the 0.44.0 snapshot for the new set entry, and review the diff.
@@ -637,21 +643,21 @@ The on-demand migration is one `sqlMigration` named `emt:postgresql:eventstore:0
 
 ---
 
-## Step 12. SQLite rebuild, append and read
+## Step 12. SQLite column swap, append and read
 
 ```text
 Use the `implement-step` skill.
 
 What to build
-The SQLite rebuild runs with the automatic migrations of the current release: the messages table gets `message_schema_version INTEGER NOT NULL`, and each row gets its numeric `metadata.schemaVersion`, or `1`. The old column value is never used, and the stored metadata JSON is copied unchanged. Fresh stores get the `INTEGER` column directly.
+The SQLite column swap runs with the automatic migrations of the current release: the messages table gets `message_schema_version INTEGER NOT NULL DEFAULT 1` as its last column, after `created`, and each row gets its numeric `metadata.schemaVersion`, or `1`. The old column value is never used, and the stored metadata JSON is left unchanged. Fresh stores get the same layout: on a fresh database the 0.43.0 migrations run before the `CREATE TABLE` of `tables.ts`, so the swap shapes them too, and `tables.ts` declares the swapped layout (Q130).
 
 SQLite appends write the version from `schemaVersionToAppend` (Q122) into the column and no `schemaVersion` into the stored metadata. Messages handed to hooks and inline projections have the recorded shape: the version from `schemaVersionToAppend` and no `metadata.schemaVersion`. Reads take the version from the column only and remove `schemaVersion` from `metadata`.
 
 Context
 - `src/packages/emmett-sqlite/src/eventStore/schema/tables.ts`, `messagesTableSQLFor`: `message_schema_version TEXT NOT NULL` between `message_metadata` and `message_type`. `global_position INTEGER PRIMARY KEY`.
-- `migrations/index.ts`: `pastEventStoreSchemaMigrations` (0.42.0 and 0.43.0 sets) run before `schemaMigration`. For a custom `databaseSchemaName`, `eventStoreSchemaMigrationsFor` returns only `[schemaMigrationFor(options)]`.
+- `migrations/index.ts`: `pastEventStoreSchemaMigrations` (0.42.0 and 0.43.0 sets) run before `schemaMigration`, also on a fresh database. For a custom `databaseSchemaName`, `eventStoreSchemaMigrationsFor` returns only `[schemaMigrationFor(options)]`.
 - `migrations/0_43_0/0_43_0.migration.ts` has `migration_0_43_0_FixStreamPartition`; `migrations/0_43_0/index.ts` exports `migrations_0_43_0`.
-- 0.42.x rows hold the stream's expected version in the column; 0.43.0 rows hold `metadata.schemaVersion ?? '1'`. SQLite has no conditional statements.
+- 0.42.x rows hold the stream's expected version in the column; 0.43.0 rows hold `metadata.schemaVersion ?? '1'`. SQLite has no conditional statements. SQLite's `ALTER TABLE` cannot change a column type; it supports `ADD COLUMN`, `DROP COLUMN` (SQLite 3.35 or later) and `RENAME COLUMN`. `ADD COLUMN` puts the column after the last column and before the table constraints, and SQLite rewrites the stored `CREATE TABLE` text to match (checked on SQLite 3.52, Q130). `createEventStoreSchema` runs the migrations inside `pool.withTransaction` (`eventStore/schema/index.ts:87`).
 - `src/packages/emmett-sqlite/src/eventStore/schema/appendToStream.ts` writes `message.metadata.schemaVersion ?? DefaultMessageSchemaVersion` into the column. It stores no `schemaVersion` in metadata for a top-level version (lines 82-94). `readStream.ts` and `readMessagesBatch.ts` build metadata with `schemaVersion: DefaultMessageSchemaVersion` and ignore the column.
 - `appendToStream.ts:73-96` builds `messagesToAppend` from `...m` with the user metadata, and passes them to `onBeforeCommit` at `:127-131`. `SQLiteEventStore.ts:444-463` runs inline projections and the hook with them.
 - Driver variants sqlite3, d1 and durableObject. Tests live under `src/packages/emmett-sqlite/src/storage/{sqlite3,d1,durableObject}/eventStore/...`.
@@ -664,7 +670,7 @@ Similar code
 - The PostgreSQL wiring of the shared features from step 10.
 
 Blocked by
-Step 9. The shared features for 7.2 and 9.3 come from it.
+Steps 9 and 10. The shared features for 7.1 to 7.3 come from the core append rule (plan intro), 9.3 from step 9; 4.9 to 4.11 and the hook test come from step 10.
 
 Acceptance criteria
 - 19.1 GIVEN a 0.42.x store whose column holds stream versions `0`, `1` and `2` WHEN the automatic migration runs THEN the column is `INTEGER` AND all three rows hold `1`.
@@ -674,28 +680,31 @@ Acceptance criteria
 - 19.5 GIVEN a migrated row whose stored metadata still has `schemaVersion: '2'` WHEN it is read THEN `schemaVersion` is `2` AND `metadata` has no `schemaVersion`.
 - 19.6 GIVEN a migrated row whose column holds `3` and whose stored metadata has `schemaVersion: '2'` WHEN it is read THEN `schemaVersion` is `3`, because SQLite reads the column only.
 - 19.7 GIVEN the automatic migration has run WHEN it runs again THEN nothing changes.
-- 20.2 GIVEN an empty SQLite database WHEN the event store schema is created THEN `message_schema_version` is `INTEGER`.
+- 20.2 GIVEN an empty SQLite database WHEN the event store schema is created THEN `message_schema_version` is `INTEGER NOT NULL DEFAULT 1` and placed after `created`.
 - 20.3 GIVEN a new store WHEN a message with `schemaVersion: 2` is appended THEN the column holds `2`. Part: SQLite.
 - 24.2 GIVEN an existing SQLite store in a custom schema WHEN the automatic migrations of the current release run THEN the column is `INTEGER` with values as in 19.1 to 19.3.
 - 5.3 GIVEN SQLite or MongoDB AND an event appended with `schemaVersion: 2` WHEN the raw stored metadata is inspected THEN it has no `schemaVersion`. For MongoDB this protects existing behaviour, and 5.5 covers its storage.
-Through the shared features: 4.1 to 4.7, 4.9 to 4.11 (for 4.7 the SQLite `readStream.ts` and `readMessagesBatch.ts` map `message_kind` `'C'` to `'Command'` instead of the hard-coded `'Event'`, Q119), 5.1, 7.1, 7.2, 8.1 to 8.4, 9.1 to 9.3, 10.1, 10.2, as listed in step 10.
+Through the shared features: 4.1 to 4.7, 4.9 to 4.11 (for 4.7 the SQLite `readStream.ts` and `readMessagesBatch.ts` map `message_kind` `'C'` to `'Command'` instead of the hard-coded `'Event'`, Q119), 5.1, 7.1 to 7.3, 8.1 to 8.4, 9.1 to 9.3, 10.1, 10.2, as listed in step 10.
 
 Tests
 - Shared features wired in the SQLite e2e spec.
-- 19.1: "a 0.42.x store gets version 1 for every row" - 0.42.0 snapshot and legacy append with stream versions `0`, `1`, `2`; asserts `INTEGER` through `PRAGMA table_info` and three `1`s.
-- 19.2, 19.3: "a 0.43.0 row gets its numeric metadata version, or 1" - frozen 0.43.0 append with `'2'` and `'v2'`; asserts `2` and `1`.
-- 19.4: "the rebuild keeps every message unchanged" - N = 10 messages over two streams in two partitions, one archived; asserts every other column and the metadata JSON unchanged, and the next append's `global_position` follows.
+- 19.1: "a 0.42.0 store gets version 1 for every row" - 0.42.0 snapshot and legacy append with stream versions `0`, `1`, `2`; asserts `INTEGER` through `PRAGMA table_info` and three `1`s. Rename the existing test from "a 0.42.x store gets version 1 for every row".
+- 19.2, 19.3: "a 0.43.0-rc.2 row gets its numeric metadata version, or 1" - frozen 0.43.0-rc.2 append with `'2'` and `'v2'`; asserts `2` and `1`.
+- 19.4: "the column swap keeps every message unchanged" - N = 10 messages over two streams in two partitions, one archived; asserts every other column and the metadata JSON unchanged, and the next append's `global_position` follows.
 - 19.5: "reads a migrated row with a metadata version" - asserts `2` and `metadata` without `schemaVersion`.
-- 19.6: "reads the column only" - after the rebuild, `UPDATE` the column to `3`; asserts `3`.
-- 19.7: "a second run changes nothing" - asserts nothing changes.
-- 20.2: "a new store has an INTEGER schema version column" - `createEventStoreSchema` for sqlite3, and the d1 and durableObject copies where they exist; `PRAGMA table_info`.
-- 20.3: "a new store holds the appended version in the column" - asserts the column holds `2`.
-- 24.2: 19.1 to 19.3 in a custom schema. Insert the 0.42.x and 0.43.0 rows with SQL, since no legacy API takes a `databaseSchemaName`.
+- 19.6: "reads the column only" - after the column swap, `UPDATE` the column to `3`; asserts `3`.
+- 19.7: "a second run changes nothing" - after the first `createEventStoreSchema`, `UPDATE` one row's column to `3`, then call `createEventStoreSchema` again; asserts the second run applies no migration, and the layout and every row, including the `3`, are unchanged. The swap SQL is not safe to run twice on its own; Dumbo's record of applied migrations keeps it from running again, as for every other SQLite migration (Q131).
+- 20.2: in `0_43_0.migration.int.spec.ts` (sqlite3), "a 0.42.0 store gets version 1 for every row" and "a 0.43.0-rc.2 row gets its numeric metadata version, or 1" assert the column after the migration: `PRAGMA table_info` type `INTEGER`, `notnull` `1`, `dflt_value` `'1'`, and the column right after `created`. Fresh stores run the same column swap (Q130), so `createEventStoreSchema` has no copy in sqlite3, d1 or durableObject (Q136).
+- 20.3: "stores the appended schema version in the column" - asserts the column holds `2`.
+- 24.2: 19.1 to 19.3 in a custom schema. Insert the 0.42.x and 0.43.0-rc.2 rows with SQL, since no legacy API takes a `databaseSchemaName`. Row labels, if any, name 0.43.0-rc.2, not 0.43.0 (Q129).
 - 5.3: "stores no schema version in the raw metadata" - select `message_metadata` directly. Protects existing behaviour for SQLite; for MongoDB it stays as the step 5 test.
-- extra: "takes a whole JSON number in metadata as it is" - metadata `schemaVersion: 3` as a number gives `3`.
-- extra: "hooks and inline projections receive the top-level version" - the step 10 hook test for SQLite: one append with three events, one with `schemaVersion: 2`, one without `schemaVersion`, and one without a top-level version and with user `metadata.schemaVersion: '2'`; asserts the whole messages, with `schemaVersion` `2`, `1` and `2`, and `metadata` without `schemaVersion` in all three.
+- extra: "takes a whole JSON number in metadata as it is" - rows inserted on a 0.43.0-rc.2 store and then migrated, with metadata `schemaVersion` as the number `3`, the number `1.5`, the number `-1`, the number `0`, `'02'`, `''`, `' 2'` and `'2.0'`; asserts `3`, `1`, `1`, `0`, `2`, `1`, `1` and `1` (Q130, Q131).
+- extra: digits-only metadata text too large for an `INT` is cast by SQLite's own `CAST` to `INTEGER`, with no range check and no test of its own (Q129).
+- extra: "reads the kind of a stored command" in both `readStream.int.spec.ts` and `readMessagesBatch.int.spec.ts` - a row with `message_kind` `'C'` reads as `kind: 'Command'`; asserts the whole message.
+- extra: "the before-commit hook receives the top-level version" - the step 10 hook test for SQLite: one append with three events, one with `schemaVersion: 2`, one without `schemaVersion`, and one without a top-level version and with user `metadata.schemaVersion: '2'`; asserts the whole messages, with `schemaVersion` `2`, `1` and `2`, and `metadata` without `schemaVersion` in all three.
+- extra: "inline projections and the onBeforeCommit hook receive the appended messages with their top-level schema version" - in `storage/sqlite3/eventStore/SQLiteEventStore.e2e.spec.ts`, following "should pass the stream positions of the appended events to inline projections"; an event store with an inline projection that collects its events and a `hooks.onBeforeCommit` that collects its messages; append the same three events, then read the stream; asserts both collections deep-equal the events read back, `schemaVersion` `[2, 1, 2]`, and no `metadata.schemaVersion` (Q129). It guards the event store code that passes the appended messages to inline projections, which the `appendToStream` test does not run.
 - Update `appendToStream.int.spec.ts:423` to append with top-level `schemaVersion: 2` and assert `[2]`, and `:444` to assert `[1, 1]`; update the `schemaVersion` cases in `readStream.int.spec.ts` and `readMessagesBatch.int.spec.ts` the same way; rewrite `readStream.int.spec.ts:155` to append its second event with top-level `schemaVersion: 2` and to switch on the top-level `schemaVersion`, keeping its expected data; add the new migration to the sqlite3 and durableObject `current/migration.int.spec.ts:140` and the d1 `current/migration.int.spec.ts:145` lists, and to the custom-schema `applied` and migrations-table assertions in the three `createEventStoreSchema.int.spec.ts` files; update the d1 and durableObject copies where they exist.
-Add `migration_0_43_0_numericMessageSchemaVersionFor(options)` (name `emt:sqlite:eventstore:0.43.0:numeric-message-schema-version`): create the old-layout table `IF NOT EXISTS` (so it also works on a fresh database), create the new table under a temporary name, `INSERT ... SELECT` with the version from `json_type`/`json_extract` (`integer` taken as it is, `text` matching only digits cast to `INTEGER`, else `1`), copying `global_position`, then drop, rename, and recreate the indexes and constraints of the fresh schema. Append it to `migrations_0_43_0` and the custom-schema list before `schemaMigrationFor(options)`. Update the SQLite 0.43.0 snapshots and review the diff.
+Add `migration_0_43_0_numericMessageSchemaVersionFor(options)` (name `emt:sqlite:eventstore:0.43.0:numeric-message-schema-version`), a column swap with its own SQL text: create the old-layout table `IF NOT EXISTS` (a no-op on an existing store, so the swap also runs on a fresh database), `ALTER TABLE ... ADD COLUMN message_schema_version_int INTEGER NOT NULL DEFAULT 1`, `UPDATE` it with the version from `json_type`/`json_extract` (`integer` taken when it is `0` or more, `text` matching only digits cast to `INTEGER`, else `1`), `DROP COLUMN message_schema_version`, then `RENAME COLUMN message_schema_version_int TO message_schema_version`. No table rebuild, so `global_position`, the `UNIQUE` constraint and its index stay as they are. In `tables.ts`, `messagesTableSQLFor` declares `message_schema_version INTEGER NOT NULL DEFAULT 1` after `created` and before the `UNIQUE` constraint, so fresh, migrated and custom-schema stores have one layout (Q130). Append it to `migrations_0_43_0` and the custom-schema list before `schemaMigrationFor(options)`. Update the SQLite 0.43.0 snapshots and review the diff.
 ```
 
 ---
@@ -719,19 +728,19 @@ Similar code
 - The existing snippet regions in the two versioning tests.
 
 Blocked by
-Steps 9, 10 and 13.
+Steps 9, 10 and 12.
 
 Acceptance criteria
 - 3.1 GIVEN any recorded message type WHEN its `schemaVersion` is accessed THEN its type is `number`, not optional.
 - 3.2 GIVEN recorded message metadata types WHEN `metadata.schemaVersion` is accessed THEN it is not part of the Emmett metadata type.
 - 21.1 GIVEN a projection definition with `version: 2` WHEN it is registered THEN it is stored as the integer `2`, as today. This protects existing behaviour.
-- 22.1 GIVEN the command handler versioning section WHEN it is read THEN it shows versioned message types with the version type parameter, the helper's version argument, and an upcaster switching on `schemaVersion`, all backed by tested snippets, AND it says the factories take a single message type, because a union of versions as the type argument does not require the version.
+- 22.1 GIVEN the command handler versioning section WHEN it is read THEN it shows versioned message types with the version type parameter, events created as object literals with `schemaVersion`, and an upcaster switching on `schemaVersion`, all backed by tested snippets, AND it says that the optional factories take the version as their last argument and take a single message type, because a union of versions as the type argument does not require the version (Q135).
 
 Tests
 - 3.1: "recorded messages have a numeric schema version" - `expectTypeOf<RecordedMessage<Event>['schemaVersion']>().toEqualTypeOf<number>()`, `<V2>` gives `2`, `<V1>` gives `1`.
 - 3.2: "recorded message metadata has no schema version" - `expectTypeOf<CommonRecordedMessageMetadata>().not.toHaveProperty('schemaVersion')`.
 - 21.1: find the existing test that registers a PostgreSQL or SQLite projection with a version and asserts the stored version; if none exists, add one asserting the stored integer `2`. Protects existing behaviour.
-- 22.1: the two versioning unit tests declare V1 and V2 with the fourth type parameter, create events with the version argument, and upcast with a `switch` on `schemaVersion`; the snippet regions show them. The prose says what `schemaVersion` is, that a result without it is version 1, and that the factories take a single message type.
+- 22.1: the two versioning unit tests declare V1 and V2 with the fourth type parameter, create events as object literals with `schemaVersion: 2` (not the `event()` helper, which is optional), and upcast with a `switch` on `schemaVersion`; the snippet regions show them. The prose says what `schemaVersion` is, that a result without it is version 1, and, for the optional factories, that they take the version as their last argument and a single message type.
 Add `schemaVersion: number` next to `kind` in `RecordedMessage`, remove it from `CommonRecordedMessageMetadata`, set `DefaultMessageSchemaVersion = 1` and use it for the literal `1` defaults where the code imports from `@event-driven-io/emmett`. Fix the compile errors in packages, samples and tests without casts that hide the type: fixtures get `schemaVersion: 1`, builders take `event.schemaVersion ?? DefaultMessageSchemaVersion`. The frozen 0.43.0 APIs get their own local metadata type with `schemaVersion?: string`, used both where they read `e.metadata.schemaVersion ?? '1'` and in their read builders, so their behaviour stays unchanged. If a fix needs a behaviour change, stop and ask.
 Run `npm run docs:build` and `npm test`. If `npm test` is interrupted, ask before running it again.
 ```

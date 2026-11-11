@@ -18,6 +18,7 @@ import {
   STREAM_DOES_NOT_EXIST,
   STREAM_EXISTS,
   upcastRecordedMessage,
+  type AnyRecordedMessageMetadata,
   type AppendToStreamOptions,
   type BeforeEventStoreCommitHandler,
   type CombinedReadEventMetadata,
@@ -25,6 +26,7 @@ import {
   type ExpectedStreamVersion,
   type JSONSerializer,
   type Event as Message,
+  type Message as AnyMessage,
   type ObservabilityContext,
   type ReadEvent,
   type ReadEventMetadataWithGlobalPosition,
@@ -284,14 +286,30 @@ async function getLastStreamPosition(
   return expectedStreamVersion;
 }
 
+type RecordedMessageMetadata_0_43_0 = AnyRecordedMessageMetadata & {
+  schemaVersion?: string;
+};
+
+type ReadEventMetadataWithGlobalPosition_0_43_0 =
+  ReadEventMetadataWithGlobalPosition & { schemaVersion?: string };
+
+type ReadStreamResult_0_43_0<EventType extends Event> = {
+  currentStreamVersion: ReadStreamResult<EventType>['currentStreamVersion'];
+  events: Omit<
+    ReadEvent<EventType, ReadEventMetadataWithGlobalPosition_0_43_0>,
+    'schemaVersion'
+  >[];
+  streamExists: boolean;
+};
+
 const buildMessageInsertQuery = (
-  messages: RecordedMessage[],
+  messages: RecordedMessage<AnyMessage, RecordedMessageMetadata_0_43_0>[],
   expectedStreamVersion: bigint,
   streamId: string,
   partition: string | null | undefined,
   databaseSchemaName?: string,
 ): SQL => {
-  const values = messages.map((message: RecordedMessage) => {
+  const values = messages.map((message) => {
     if (
       message.metadata?.streamPosition == null ||
       typeof message.metadata.streamPosition !== 'bigint'
@@ -346,9 +364,7 @@ export const readStream_0_43_0_rc_2 = async <
     databaseSchemaName?: string;
     serializer: JSONSerializer;
   },
-): Promise<
-  ReadStreamResult<EventType, ReadEventMetadataWithGlobalPosition>
-> => {
+): Promise<ReadStreamResult_0_43_0<EventType>> => {
   const { serializer } = options;
   const fromCondition: SQL = options.from
     ? SQL`AND stream_position >= ${options.from}`
@@ -370,15 +386,15 @@ export const readStream_0_43_0_rc_2 = async <
         ORDER BY stream_position ASC`,
   );
 
-  const messages: ReadEvent<EventType, ReadEventMetadataWithGlobalPosition>[] =
-    results.map((row) => {
+  const messages: ReadStreamResult_0_43_0<EventType>['events'] = results.map(
+    (row) => {
       const rawEvent = {
         type: row.message_type,
         data: serializer.deserialize(row.message_data),
         metadata: serializer.deserialize(row.message_metadata),
       } as unknown as EventPayloadType;
 
-      const metadata: ReadEventMetadataWithGlobalPosition = {
+      const metadata: ReadEventMetadataWithGlobalPosition_0_43_0 = {
         schemaVersion: '1',
         ...('metadata' in rawEvent ? (rawEvent.metadata ?? {}) : {}),
         messageId: row.message_id,
@@ -393,12 +409,13 @@ export const readStream_0_43_0_rc_2 = async <
         kind: 'Event',
         metadata: metadata as CombinedReadEventMetadata<
           EventPayloadType,
-          ReadEventMetadataWithGlobalPosition
+          ReadEventMetadataWithGlobalPosition_0_43_0
         >,
       };
 
       return upcastRecordedMessage(event, options?.schema?.versioning);
-    });
+    },
+  );
 
   return messages.length > 0
     ? {

@@ -32,7 +32,10 @@ import { sqlite3EventStoreDriver } from '../../../../sqlite3';
 import type { ProductItemAdded } from '../../../../testing/shoppingCart.domain';
 import { getSQLiteEventStore } from '../../../../eventStore/SQLiteEventStore';
 import { createEventStoreSchema } from '../../../../eventStore/schema';
-import { schemaMigrationFor } from '../../../../eventStore/schema/migrations';
+import {
+  migration_0_43_0_numericMessageSchemaVersionFor,
+  schemaMigrationFor,
+} from '../../../../eventStore/schema/migrations';
 
 void describe('createEventStoreSchema', () => {
   let pool: Sqlite3Pool;
@@ -134,7 +137,10 @@ void describe('createEventStoreSchema with configured database schemas', () => {
         databaseSchemaName: 'events',
         tableName: 'dmb_migrations',
       }),
-      [schemaMigrationFor(schemaOptions).name],
+      [
+        migration_0_43_0_numericMessageSchemaVersionFor(schemaOptions).name,
+        schemaMigrationFor(schemaOptions).name,
+      ],
     );
   });
 
@@ -160,6 +166,7 @@ void describe('createEventStoreSchema with configured database schemas', () => {
       const dryRunResult = await eventStore.schema.migrate({ dryRun });
 
       assertDeepEqual(dryRunResult.applied, [
+        migration_0_43_0_numericMessageSchemaVersionFor(schemaOptions),
         schemaMigrationFor(schemaOptions),
       ]);
       assertFalse(await configuredTableExists('events', 'emt_streams'));
@@ -169,14 +176,20 @@ void describe('createEventStoreSchema with configured database schemas', () => {
 
       const { applied } = await eventStore.schema.migrate();
 
-      assertDeepEqual(applied, [schemaMigrationFor(schemaOptions)]);
+      assertDeepEqual(applied, [
+        migration_0_43_0_numericMessageSchemaVersionFor(schemaOptions),
+        schemaMigrationFor(schemaOptions),
+      ]);
       assertTrue(await configuredTableExists('events', 'emt_streams'));
       assertDeepEqual(
         await migrationNames({
           databaseSchemaName: 'infrastructure',
           tableName: 'emmett_migrations',
         }),
-        [schemaMigrationFor(schemaOptions).name],
+        [
+          migration_0_43_0_numericMessageSchemaVersionFor(schemaOptions).name,
+          schemaMigrationFor(schemaOptions).name,
+        ],
       );
     });
   }

@@ -38,9 +38,9 @@ const rejectNonNumericSchemaVersionsSQL = SQL`
       IF EXISTS (
           SELECT 1
           FROM unnest(v_message_schema_versions) AS message(schema_version)
-          WHERE schema_version !~ '^[0-9]+$'
+          WHERE schema_version !~ '^0*[1-9][0-9]*$'
       ) THEN
-          RAISE EXCEPTION 'Message schema versions must be numeric, got: %', v_message_schema_versions;
+          RAISE EXCEPTION 'Message schema versions must be whole numbers of 1 or more, got: %', v_message_schema_versions;
       END IF;
 `;
 

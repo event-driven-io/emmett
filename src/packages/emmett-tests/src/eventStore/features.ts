@@ -14,6 +14,7 @@ import {
   STREAM_DOES_NOT_EXIST,
   reactor,
   STREAM_EXISTS,
+  ValidationError,
   type Event,
   type EventStore,
   type ExpectedStreamVersion,
@@ -760,55 +761,44 @@ export function testSchemaVersion(
       expect(events[0]!.metadata).not.toHaveProperty('schemaVersion');
     });
 
-    it('Appends an event with schema version 0 without validating it', async () => {
-      const streamName = randomUUID();
-      const versionZero = event<
-        Event<
-          'ProductItemAdded',
-          { productItem: PricedProductItem },
-          undefined,
-          0
-        >
-      >('ProductItemAdded', { productItem }, 0);
+    for (const { criterion, metadataSchemaVersion, schemaVersion } of [
+      {
+        criterion: 'Rejects an append with schema version 0',
+        metadataSchemaVersion: '2',
+        schemaVersion: 0,
+      },
+      {
+        criterion: 'Rejects an append with schema version -1',
+        metadataSchemaVersion: '2',
+        schemaVersion: -1,
+      },
+      {
+        criterion: 'Rejects an append with schema version 1.5',
+        metadataSchemaVersion: '2',
+        schemaVersion: 1.5,
+      },
+      {
+        criterion:
+          'Rejects an append with metadata version 0 when the top-level one is missing',
+        metadataSchemaVersion: '0',
+        schemaVersion: undefined,
+      },
+    ]) {
+      it(criterion, async () => {
+        const streamName = randomUUID();
 
-      await eventStore.appendToStream(streamName, [versionZero]);
+        await assertThrowsAsync(
+          () =>
+            eventStore.appendToStream(streamName, [
+              withMetadataSchemaVersion(metadataSchemaVersion, schemaVersion),
+            ]),
+          (error) => error instanceof ValidationError,
+        );
 
-      const { events } = await eventStore.readStream(streamName);
-      expect(events).toEqual([
-        {
-          type: 'ProductItemAdded',
-          data: { productItem },
-          kind: 'Event',
-          schemaVersion: 0,
-          metadata: recordedMetadata(streamName, 0n),
-        },
-      ]);
-    });
-
-    it('Appends an event with schema version -1 without validating it', async () => {
-      const streamName = randomUUID();
-      const versionMinusOne = event<
-        Event<
-          'ProductItemAdded',
-          { productItem: PricedProductItem },
-          undefined,
-          -1
-        >
-      >('ProductItemAdded', { productItem }, -1);
-
-      await eventStore.appendToStream(streamName, [versionMinusOne]);
-
-      const { events } = await eventStore.readStream(streamName);
-      expect(events).toEqual([
-        {
-          type: 'ProductItemAdded',
-          data: { productItem },
-          kind: 'Event',
-          schemaVersion: 1,
-          metadata: recordedMetadata(streamName, 0n),
-        },
-      ]);
-    });
+        const { events } = await eventStore.readStream(streamName);
+        expect(events).toEqual([]);
+      });
+    }
 
     it('Reads the schema version returned by the upcaster', async () => {
       const streamName = randomUUID();

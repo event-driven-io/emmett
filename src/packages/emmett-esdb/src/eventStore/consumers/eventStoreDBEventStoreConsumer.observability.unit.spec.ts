@@ -17,6 +17,7 @@ const makeMessage = (
 ) => ({
   type,
   kind: 'Event' as const,
+  schemaVersion: 1 as const,
   data: {},
   metadata: {
     globalPosition: 1n,

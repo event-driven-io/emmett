@@ -22,6 +22,7 @@ import {
   MessagingSystemName,
   projections,
   type Event,
+  type RecordedMessage,
 } from '@event-driven-io/emmett';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -398,6 +399,95 @@ void describe('SQLiteEventStore', () => {
     ]);
 
     assertDeepEqual(streamPositions, [1n, 2n, 3n]);
+  });
+
+  void it('inline projections and the onBeforeCommit hook receive the appended messages with their top-level schema version', async () => {
+    type ClientMetadata = { clientId: string; schemaVersion?: string };
+    type ClientProductItemAdded = Event<
+      'ProductItemAdded',
+      { productItem: PricedProductItem },
+      ClientMetadata
+    >;
+    type VersionedProductItemAdded = Event<
+      'ProductItemAdded',
+      { productItem: PricedProductItem },
+      ClientMetadata,
+      2
+    >;
+    const projected: RecordedMessage[] = [];
+    const hooked: RecordedMessage[] = [];
+    const eventStore = getSQLiteEventStore({
+      driver: sqlite3EventStoreDriver,
+      schema: {
+        autoMigration: 'CreateOrUpdate',
+      },
+      fileName,
+      projections: projections.inline([
+        sqliteProjection<ClientProductItemAdded>({
+          name: 'schema_version_projection',
+          canHandle: ['ProductItemAdded'],
+          handle: (events) => {
+            projected.push(...events);
+            return Promise.resolve();
+          },
+        }),
+      ]),
+      hooks: {
+        onBeforeCommit: (messages) => {
+          hooked.push(...messages);
+        },
+      },
+    });
+    const productItem: PricedProductItem = {
+      productId: '123',
+      quantity: 10,
+      price: 3,
+    };
+    const shoppingCartId = `shopping_cart-${uuid()}`;
+    const versioned: VersionedProductItemAdded = {
+      type: 'ProductItemAdded',
+      data: { productItem },
+      metadata: { clientId: 'versioned' },
+      schemaVersion: 2,
+    };
+    const unversioned: ClientProductItemAdded = {
+      type: 'ProductItemAdded',
+      data: { productItem },
+      metadata: { clientId: 'unversioned' },
+    };
+    const versionedInMetadata: ClientProductItemAdded = {
+      type: 'ProductItemAdded',
+      data: { productItem },
+      metadata: { clientId: 'metadata', schemaVersion: '2' },
+    };
+
+    await eventStore.appendToStream(shoppingCartId, [
+      versioned,
+      unversioned,
+      versionedInMetadata,
+    ]);
+    const { events } = await eventStore.readStream(shoppingCartId);
+
+    assertDeepEqual(
+      events.map((event) => event.schemaVersion),
+      [2, 1, 2],
+    );
+    assertTrue(events.every((event) => !('schemaVersion' in event.metadata)));
+    const beforeCommit = events.map(
+      ({
+        metadata: {
+          globalPosition: _globalPosition,
+          checkpoint: _checkpoint,
+          ...metadata
+        },
+        ...event
+      }) => ({
+        ...event,
+        metadata,
+      }),
+    );
+    assertDeepEqual(projected, beforeCommit);
+    assertDeepEqual(hooked, beforeCommit);
   });
 
   void it('should record observability while appending', async () => {

@@ -21,7 +21,9 @@ type ProductItemAddedV1 = Event<
 // addedAt is a Date. The event type name stays the same across versions.
 type ProductItemAdded = Event<
   'ProductItemAdded',
-  { productItem: { productId: string; quantity: number }; addedAt: Date }
+  { productItem: { productId: string; quantity: number }; addedAt: Date },
+  undefined,
+  2
 >;
 
 // The events the domain works with, and the shapes the stream can hold: a
@@ -29,20 +31,23 @@ type ProductItemAdded = Event<
 type ShoppingCartEvent = ProductItemAdded;
 type StoredShoppingCartEvent = ProductItemAddedV1 | ProductItemAdded;
 
-const upcast = (event: StoredShoppingCartEvent): ShoppingCartEvent => {
-  if ('productItem' in event.data)
-    return { type: 'ProductItemAdded', data: event.data };
-
-  return {
-    type: 'ProductItemAdded',
-    data: {
-      productItem: {
-        productId: event.data.productId,
-        quantity: event.data.quantity,
-      },
-      addedAt: new Date(event.data.addedAt),
-    },
-  };
+const upcast = (storedEvent: StoredShoppingCartEvent): ShoppingCartEvent => {
+  switch (storedEvent.schemaVersion) {
+    case 2:
+      return storedEvent;
+    default:
+      return {
+        type: 'ProductItemAdded',
+        data: {
+          productItem: {
+            productId: storedEvent.data.productId,
+            quantity: storedEvent.data.quantity,
+          },
+          addedAt: new Date(storedEvent.data.addedAt),
+        },
+        schemaVersion: 2,
+      };
+  }
 };
 // #endregion decider-upcasting
 
@@ -62,6 +67,7 @@ const evolve = (
   ],
 });
 
+// #region decider-versioned-event
 const decide = (
   command: AddProductItem,
   _state: ShoppingCart,
@@ -71,7 +77,9 @@ const decide = (
     productItem: command.data,
     addedAt: new Date('2024-03-01T09:00:00.000Z'),
   },
+  schemaVersion: 2,
 });
+// #endregion decider-versioned-event
 
 // #region decider-upcasting-register
 const handle = DeciderCommandHandler<
@@ -87,12 +95,14 @@ const handle = DeciderCommandHandler<
 });
 // #endregion decider-upcasting-register
 
-const downcast = (event: ShoppingCartEvent): StoredShoppingCartEvent => ({
+const downcast = (
+  decidedEvent: ShoppingCartEvent,
+): StoredShoppingCartEvent => ({
   type: 'ProductItemAdded',
   data: {
-    productId: event.data.productItem.productId,
-    quantity: event.data.productItem.quantity,
-    addedAt: event.data.addedAt.toISOString(),
+    productId: decidedEvent.data.productItem.productId,
+    quantity: decidedEvent.data.productItem.quantity,
+    addedAt: decidedEvent.data.addedAt.toISOString(),
   },
 });
 
@@ -129,6 +139,7 @@ void describe('DeciderCommandHandler schema versioning', () => {
           productItem: { productId: 'hat', quantity: 2 },
           addedAt: new Date('2024-02-20T14:00:00.000Z'),
         },
+        schemaVersion: 2,
       },
     ]);
 
@@ -170,11 +181,27 @@ void describe('DeciderCommandHandler schema versioning', () => {
     const stored =
       await eventStore.readStream<ProductItemAddedV1>(shoppingCartId);
 
-    expect(stored.events.map((event) => event.data)).toEqual([
+    expect(stored.events).toEqual([
       {
-        productId: 'socks',
-        quantity: 3,
-        addedAt: '2024-03-01T09:00:00.000Z',
+        type: 'ProductItemAdded',
+        kind: 'Event',
+        schemaVersion: 1,
+        data: {
+          productId: 'socks',
+          quantity: 3,
+          addedAt: '2024-03-01T09:00:00.000Z',
+        },
+        metadata: {
+          messageId: expect.any(String) as unknown,
+          streamName: shoppingCartId,
+          streamPosition: 1n,
+          globalPosition: expect.any(String) as unknown,
+          checkpoint: expect.any(String) as unknown,
+          causationId: expect.any(String) as unknown,
+          correlationId: expect.any(String) as unknown,
+          spanId: expect.any(String) as unknown,
+          traceId: expect.any(String) as unknown,
+        },
       },
     ]);
   });
