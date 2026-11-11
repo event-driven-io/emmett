@@ -3,6 +3,7 @@ import { assertDeepEqual } from '../../testing';
 import type { Event, RecordedMessage } from '../../typing';
 import { upcastRecordedMessage } from './upcasting';
 
+// #region event-schema-version-types
 type ProductItemAddedV1 = Event<'ProductItemAdded', { productId: string }>;
 
 type ProductItemAddedV2 = Event<
@@ -11,6 +12,7 @@ type ProductItemAddedV2 = Event<
   undefined,
   2
 >;
+// #endregion event-schema-version-types
 
 type UnversionedProductItemAdded = Event<
   'ProductItemAdded',
@@ -42,11 +44,13 @@ const storedVersion2: RecordedMessage<ProductItemAddedV2> = {
 
 describe('Upcasting schema version', () => {
   it('takes the schema version returned by the upcaster', () => {
+    // #region upcast-to-schema-version
     const upcast = (event: ProductItemAddedV1): ProductItemAddedV2 => ({
       type: 'ProductItemAdded',
       data: { productItem: { productId: event.data.productId } },
       schemaVersion: 2,
     });
+    // #endregion upcast-to-schema-version
 
     const result = upcastRecordedMessage(storedVersion1, { upcast });
 
@@ -60,12 +64,14 @@ describe('Upcasting schema version', () => {
   });
 
   it('sets version 1 when the upcaster returns only type and data', () => {
+    // #region upcast-without-schema-version
     const upcast = (
       event: ProductItemAddedV1,
     ): UnversionedProductItemAdded => ({
       type: 'ProductItemAdded',
       data: { productItem: { productId: event.data.productId } },
     });
+    // #endregion upcast-without-schema-version
 
     const result = upcastRecordedMessage(storedVersion1, { upcast });
 
