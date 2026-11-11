@@ -420,39 +420,174 @@ void describe('appendEvent', () => {
     assertFalse(result.success);
   });
 
-  void it('stores the schema version from event metadata', async () => {
+  void it('stores the appended schema version in the column', async () => {
     const streamId = uuid();
+    const event: Event<
+      'ProductItemAdded',
+      { productItem: PricedProductItem },
+      { meta: string },
+      2
+    > = {
+      type: 'ProductItemAdded',
+      data: { productItem: { productId: '1', quantity: 2, price: 30 } },
+      metadata: { meta: 'data1' },
+      schemaVersion: 2,
+    };
 
-    await appendToStream(connection, streamId, 'shopping_cart', [
-      {
-        type: 'ProductItemAdded',
-        data: { productItem: { productId: '1', quantity: 2, price: 30 } },
-        metadata: { meta: 'data1', schemaVersion: '2' },
-      },
-    ]);
+    await appendToStream(connection, streamId, 'shopping_cart', [event]);
 
-    const { rows } = await execute.query<{ message_schema_version: string }>(
-      SQL`SELECT message_schema_version FROM emt_messages WHERE stream_id = ${streamId}`,
-    );
+    const { rows } = await readStoredVersions(streamId);
 
     assertDeepEqual(
       rows.map((row) => row.message_schema_version),
-      ['2'],
+      [2],
     );
   });
 
-  void it('stores schema version 1 when event metadata has no schema version', async () => {
+  void it('stores schema version 1 when event has no schema version', async () => {
     const streamId = uuid();
 
     await appendToStream(connection, streamId, 'shopping_cart', events);
 
-    const { rows } = await execute.query<{ message_schema_version: string }>(
-      SQL`SELECT message_schema_version FROM emt_messages WHERE stream_id = ${streamId} ORDER BY stream_position`,
-    );
+    const { rows } = await readStoredVersions(streamId);
 
     assertDeepEqual(
       rows.map((row) => row.message_schema_version),
-      ['1', '1'],
+      [1, 1],
     );
   });
+
+  void it('stores no schema version in the raw metadata', async () => {
+    const streamId = uuid();
+    const messageId = uuid();
+    const event: Event<
+      'ProductItemAdded',
+      { productItem: PricedProductItem },
+      { meta: string; schemaVersion: string },
+      2
+    > = {
+      type: 'ProductItemAdded',
+      data: { productItem: { productId: '1', quantity: 2, price: 30 } },
+      metadata: { meta: 'data1', schemaVersion: '3' },
+      schemaVersion: 2,
+    };
+
+    await appendToStream(connection, streamId, 'shopping_cart', [event], {
+      messageIdGenerator: () => messageId,
+    });
+
+    const { rows } = await readStoredVersions(streamId);
+
+    assertDeepEqual(
+      rows.map((row) => JSON.parse(row.message_metadata) as unknown),
+      [
+        {
+          streamName: streamId,
+          messageId,
+          streamPosition: '1',
+          meta: 'data1',
+        },
+      ],
+    );
+  });
+
+  void it('takes the version from user metadata when the event has no top-level version', async () => {
+    const streamId = uuid();
+    const event: Event<
+      'ProductItemAdded',
+      { productItem: PricedProductItem },
+      { meta: string; schemaVersion: string }
+    > = {
+      type: 'ProductItemAdded',
+      data: { productItem: { productId: '1', quantity: 2, price: 30 } },
+      metadata: { meta: 'data1', schemaVersion: '2' },
+    };
+
+    await appendToStream(connection, streamId, 'shopping_cart', [event]);
+
+    const { rows } = await readStoredVersions(streamId);
+
+    assertDeepEqual(
+      rows.map((row) => row.message_schema_version),
+      [2],
+    );
+  });
+
+  void it('the before-commit hook receives the top-level version', async () => {
+    const streamId = uuid();
+    const messageIds = [uuid(), uuid(), uuid()];
+    let nextMessageId = 0;
+    const productItem = { productId: '1', quantity: 2, price: 30 };
+    const versioned: Event<
+      'ProductItemAdded',
+      { productItem: PricedProductItem },
+      { meta: string },
+      2
+    > = {
+      type: 'ProductItemAdded',
+      data: { productItem },
+      metadata: { meta: 'data1' },
+      schemaVersion: 2,
+    };
+    const unversioned: ProductItemAdded = {
+      type: 'ProductItemAdded',
+      data: { productItem },
+      metadata: { meta: 'data2' },
+    };
+    const versionedOnlyInMetadata: Event<
+      'ProductItemAdded',
+      { productItem: PricedProductItem },
+      { meta: string; schemaVersion: string }
+    > = {
+      type: 'ProductItemAdded',
+      data: { productItem },
+      metadata: { meta: 'data3', schemaVersion: '2' },
+    };
+    let messagesFromHook: RecordedMessage[] = [];
+
+    await appendToStream(
+      connection,
+      streamId,
+      'shopping_cart',
+      [versioned, unversioned, versionedOnlyInMetadata],
+      {
+        messageIdGenerator: () => messageIds[nextMessageId++]!,
+        onBeforeCommit: (messages) => {
+          messagesFromHook = messages;
+        },
+      },
+    );
+
+    assertDeepEqual<unknown[]>(
+      messagesFromHook,
+      [
+        { meta: 'data1', schemaVersion: 2 },
+        { meta: 'data2', schemaVersion: 1 },
+        { meta: 'data3', schemaVersion: 2 },
+      ].map(({ meta, schemaVersion }, index) => ({
+        type: 'ProductItemAdded',
+        kind: 'Event',
+        data: { productItem },
+        schemaVersion,
+        metadata: {
+          meta,
+          messageId: messageIds[index],
+          correlationId: undefined,
+          causationId: undefined,
+          traceId: undefined,
+          spanId: undefined,
+          streamName: streamId,
+          streamPosition: BigInt(index + 1),
+        },
+      })),
+    );
+  });
+
+  const readStoredVersions = (streamId: string) =>
+    execute.query<{
+      message_schema_version: number;
+      message_metadata: string;
+    }>(
+      SQL`SELECT message_schema_version, message_metadata FROM emt_messages WHERE stream_id = ${streamId} ORDER BY stream_position`,
+    );
 });

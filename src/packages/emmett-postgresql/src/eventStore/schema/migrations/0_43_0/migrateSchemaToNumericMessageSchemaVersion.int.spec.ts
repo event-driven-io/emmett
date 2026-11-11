@@ -23,37 +23,34 @@ import { afterEach, beforeEach, describe, it } from 'vitest';
 import {
   sharedPostgreSQLDatabase,
   type PostgreSQLTestDatabase,
-} from '../../testing/postgreSQLTestDatabase';
-import { functionExists } from '../../testing/schemaObjects';
-import { pgEventStoreDriver } from '../../pg';
-import { appendToStream } from './appendToStream';
+} from '../../../../testing/postgreSQLTestDatabase';
+import { functionExists } from '../../../../testing/schemaObjects';
+import { pgEventStoreDriver } from '../../../../pg';
+import { appendToStream } from '../../appendToStream';
 import {
   eventStoreDatabaseSchema,
   type EventStoreDatabaseSchemaOptions,
-} from './eventStoreDatabaseSchema';
+} from '../../eventStoreDatabaseSchema';
 import { migrateSchemaToNumericMessageSchemaVersion } from './migrateSchemaToNumericMessageSchemaVersion';
-import {
-  eventStoreSchemaMigrationsFor,
-  schemaMigrationFor,
-} from './migrations';
-import { migrations_0_36_0 } from './migrations/0_36_0';
-import { migrations_0_38_7 } from './migrations/0_38_7';
-import { appendToStream as appendToStream_0_38_7 } from './migrations/0_38_7/legacyApi';
-import { migrations_0_42_0 } from './migrations/0_42_0';
-import { schema_0_42_0 } from './migrations/0_42_0/0_42_0.snapshot';
+import { eventStoreSchemaMigrationsFor, schemaMigrationFor } from '..';
+import { migrations_0_36_0 } from '../0_36_0';
+import { migrations_0_38_7 } from '../0_38_7';
+import { appendToStream as appendToStream_0_38_7 } from '../0_38_7/legacyApi';
+import { migrations_0_42_0 } from '../0_42_0';
+import { schema_0_42_0 } from '../0_42_0/0_42_0.snapshot';
 import {
   appendToStream_0_43_0_rc_2,
   migrations_0_43_0_rc_2,
   readStream_0_43_0_rc_2,
-} from './migrations/0_43_0/legacyApi';
-import { migration_0_44_0_numericMessageSchemaVersionFor } from './migrations/0_44_0/0_44_0.migration';
-import { migrations_0_44_0 } from './migrations/0_44_0';
+} from './legacyApi';
+import { migration_0_44_0_numericMessageSchemaVersionFor } from '../0_44_0/0_44_0.migration';
+import { migrations_0_44_0 } from '../0_44_0';
 import {
   PostgreSQLEventStoreCheckpoint,
   readMessagesBatch,
-} from './readMessagesBatch';
-import { readStream } from './readStream';
-import { defaultTag } from './typing';
+} from '../../readMessagesBatch';
+import { readStream } from '../../readStream';
+import { defaultTag } from '../../typing';
 
 type ProductItemAdded = Event<
   'ProductItemAdded',
@@ -339,10 +336,8 @@ void describe('Numeric message schema version migrations', () => {
     },
   ];
 
-  const expectedEvents = async (
+  const recordedMetadataRows = async (
     streamId: string,
-    schemaVersions: number[],
-    reader: 'current' | 'rc2',
     databaseSchemaName?: string,
   ) => {
     const { rows } = await pool.execute.query<{
@@ -353,49 +348,53 @@ void describe('Numeric message schema version migrations', () => {
     }>(
       SQL`SELECT message_id, stream_position, global_position, transaction_id FROM ${SQL.identifier(schemaOf(databaseSchemaName))}.emt_messages WHERE stream_id = ${streamId} ORDER BY stream_position`,
     );
-    return rows.map((row, index) => {
+    return rows.map((row) => {
       const globalPosition =
         PostgreSQLEventStoreCheckpoint.toProcessorCheckpoint({
           transactionId: BigInt(row.transaction_id),
           globalPosition: BigInt(row.global_position),
         });
-      const recorded = {
+      return {
         messageId: row.message_id,
         streamName: streamId,
         streamPosition: BigInt(row.stream_position),
         globalPosition,
         checkpoint: globalPosition,
       };
-      return reader === 'current'
-        ? {
-            type: 'ProductItemAdded',
-            kind: 'Event' as const,
-            data: productItemData(streamId),
-            schemaVersion: schemaVersions[index]!,
-            metadata: recorded,
-          }
-        : {
-            type: 'ProductItemAdded',
-            kind: 'Event' as const,
-            data: productItemData(streamId),
-            metadata: {
-              schemaVersion: String(schemaVersions[index]!),
-              ...recorded,
-            },
-          };
     });
   };
 
-  const waitForLockWaiter = async (queryPattern: string) => {
-    for (let attempt = 0; attempt < 100; attempt++) {
-      const { rows } = await pool.execute.query<{ waiting: string }>(
-        SQL`SELECT count(*) AS waiting FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE ${queryPattern}`,
-      );
-      if (Number(rows[0]!.waiting) >= 1) return;
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    throw new Error(`No backend running ${queryPattern} waits for a lock`);
-  };
+  const expectedEvents = async (
+    streamId: string,
+    schemaVersions: number[],
+    databaseSchemaName?: string,
+  ) =>
+    (await recordedMetadataRows(streamId, databaseSchemaName)).map(
+      (metadata, index) => ({
+        type: 'ProductItemAdded',
+        kind: 'Event' as const,
+        data: productItemData(streamId),
+        schemaVersion: schemaVersions[index]!,
+        metadata,
+      }),
+    );
+
+  const expectedEventsOfFrozenRead = async (
+    streamId: string,
+    schemaVersions: number[],
+    databaseSchemaName?: string,
+  ) =>
+    (await recordedMetadataRows(streamId, databaseSchemaName)).map(
+      (recorded, index) => ({
+        type: 'ProductItemAdded',
+        kind: 'Event' as const,
+        data: productItemData(streamId),
+        metadata: {
+          schemaVersion: String(schemaVersions[index]!),
+          ...recorded,
+        },
+      }),
+    );
 
   const frozenRead = (streamId: string, databaseSchemaName?: string) =>
     readStream_0_43_0_rc_2(pool.execute, streamId, { databaseSchemaName });
@@ -573,11 +572,11 @@ void describe('Numeric message schema version migrations', () => {
         assertEqual(2, await versionOf(streamId));
         assertDeepEqual(
           (await readStream(pool.execute, streamId)).events,
-          await expectedEvents(streamId, [2], 'current'),
+          await expectedEvents(streamId, [2]),
         );
         assertDeepEqual(
           (await frozenRead(streamId)).events,
-          await expectedEvents(streamId, [2], 'rc2'),
+          await expectedEventsOfFrozenRead(streamId, [2]),
         );
       });
 
@@ -613,7 +612,7 @@ void describe('Numeric message schema version migrations', () => {
         assertEqual(2, await versionOf(streamId, databaseSchemaName));
         assertDeepEqual(
           (await frozenRead(streamId, databaseSchemaName)).events,
-          await expectedEvents(streamId, [2], 'rc2', databaseSchemaName),
+          await expectedEventsOfFrozenRead(streamId, [2], databaseSchemaName),
         );
       });
     });
@@ -681,7 +680,7 @@ void describe('Numeric message schema version migrations', () => {
 
       assertDeepEqual(
         (await frozenRead(streamId)).events,
-        await expectedEvents(streamId, [1, 2], 'rc2'),
+        await expectedEventsOfFrozenRead(streamId, [1, 2]),
       );
     });
 
@@ -775,55 +774,6 @@ void describe('Numeric message schema version migrations', () => {
       assertEqual(2, await versionOf(streamId));
     });
 
-    void it('a 0.43.0-rc.2 append waits for the migration and succeeds', async () => {
-      await buildStoreWithTextColumn();
-      const blocker = dumbo({
-        driver: pgDumboDriver,
-        connectionString: database.connectionString,
-      });
-      const appender = dumbo({
-        driver: pgDumboDriver,
-        connectionString: database.connectionString,
-      });
-      const streamId = newStreamId();
-      try {
-        let finishHolding: () => void = () => undefined;
-        const lockHeld = new Promise<void>(
-          (resolve) => (finishHolding = resolve),
-        );
-        const holding = blocker.withTransaction(async ({ execute }) => {
-          await execute.command(
-            SQL`LOCK TABLE emt_messages IN ACCESS SHARE MODE`,
-          );
-          await lockHeld;
-          return { success: true, result: undefined };
-        });
-        await new Promise((resolve) => setTimeout(resolve, 200));
-
-        const migration = migrate();
-        await waitForLockWaiter('%ALTER COLUMN message_schema_version%');
-        const appending = appender.withConnection((connection) =>
-          appendToStream_0_43_0_rc_2(
-            connection,
-            streamId,
-            'shopping_cart',
-            [event_0_43_0_rc_2(streamId, '2')],
-            { messageIdGenerator: () => crypto.randomUUID() },
-          ),
-        );
-        await waitForLockWaiter('%emt_append_to_stream%');
-        finishHolding();
-        await holding;
-        await migration;
-        assertTrue((await appending).success);
-      } finally {
-        await blocker.close();
-        await appender.close();
-      }
-
-      assertEqual(2, await versionOf(streamId));
-    });
-
     void it('0.43.0 and 0.43.0-rc.2 append to an INT column after the migration', async () => {
       await build_16_1_store();
       await migrate();
@@ -835,7 +785,7 @@ void describe('Numeric message schema version migrations', () => {
       assertEqual('integer', await readColumnType());
       assertDeepEqual(
         (await readStream(pool.execute, streamId)).events,
-        await expectedEvents(streamId, [2, 2], 'current'),
+        await expectedEvents(streamId, [2, 2]),
       );
       assertEqual(2, await versionOf(streamId));
     });

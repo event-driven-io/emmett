@@ -25,6 +25,7 @@ void describe('CaughtUpTransformStream', () => {
   ): ReadEvent<ShoppingCartOpened, ReadEventMetadataWithGlobalPosition> => ({
     type: 'ShoppingCartOpened',
     kind: 'Event',
+    schemaVersion: 1,
     data: { cartId: 'cartId' },
     metadata: {
       messageId: uuid(),

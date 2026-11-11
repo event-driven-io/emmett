@@ -1,6 +1,6 @@
 # Numeric message schema version
 
-Revision: 14
+Revision: 21
 
 ## Problem Statement
 
@@ -26,8 +26,8 @@ The projection definition version is already a `number` in the API and an intege
 - **Version**: the message schema version (`schemaVersion`). Releases are named by number or as "the current release". The version that a driver reports for its database objects is called the store schema version.
 - **Old append function**: the PostgreSQL function `emt_append_to_stream`, which takes the versions as `text[]`. **New append function**: `emt_append_to_stream_v_0_43_0`, which takes them as `int[]`.
 - **Schema version migration** (`migrateSchemaToNumericMessageSchemaVersion`): the on-demand PostgreSQL migration. The **tetris migration**, which rebuilds the messages table into the fresh-install layout, is moved out of this change to https://github.com/event-driven-io/emmett/issues/428 (Q128). **Mandatory migration**: the schema version migration as prepared in the PostgreSQL 0.44.0 set.
-- **SQLite rebuild**: the automatic SQLite migration of the current release that rebuilds the messages table with an `INTEGER` column.
-- **Automatic migrations of the current release**: every migration the current release adds to a driver's 0.43.0 set. In PostgreSQL that is the migration that adds the new append function and gives the old one the converting body, in SQLite the SQLite rebuild, and in both drivers their variants for a custom database schema.
+- **SQLite column swap**: the automatic SQLite migration of the current release that replaces the `TEXT` column with an `INTEGER` column: it adds the column, fills it, drops the old one and renames the added one (Q130).
+- **Automatic migrations of the current release**: every migration the current release adds to a driver's 0.43.0 set. In PostgreSQL that is the migration that adds the new append function and gives the old one the converting body, in SQLite the SQLite column swap, and in both drivers their variants for a custom database schema.
 - A bare `0.43.0` means released 0.43.0. Three names belong to the current release although they say 0.43.0: the store schema version `0.43.0`, the 0.43.0 migration sets (which hold the released migrations and the automatic migrations of the current release), and `emt_append_to_stream_v_0_43_0`, which released 0.43.0 instances never call.
 
 ### Messages carry a numeric schema version
@@ -71,7 +71,7 @@ flowchart LR
   C --> R
 ```
 
-SQLite is the exception: after the SQLite rebuild the column always holds a number, so it reads the column only.
+SQLite is the exception: after the SQLite column swap the column always holds a number, so it reads the column only.
 
 After the version is resolved, every read removes `schemaVersion` from `metadata`. A recorded message shows only the top-level number, also for old events whose stored metadata still contains the old string.
 
@@ -114,15 +114,15 @@ The migration computes each row's new value as follows. The user can pass their 
 COALESCE(<user case>, <numeric column value>, <numeric metadata.schemaVersion>, 1)
 ```
 
-### SQLite rebuild
+### SQLite column swap
 
-SQLite cannot change a column type in place, and column order does not matter there. An automatic migration in the current release rebuilds the messages table with an `INT` column. Each row gets its numeric `metadata.schemaVersion`, or `1`. The old column value is never used, because it is either junk (0.42.x) or a copy of `metadata.schemaVersion ?? '1'` (0.43.0). The stored metadata of old events is left as it is.
+SQLite cannot change a column type in place, and column order does not matter there. An automatic migration in the current release adds an `INTEGER NOT NULL DEFAULT 1` column, fills it, drops the old column and renames the added one to `message_schema_version`. The table is not rebuilt. The column ends up last, after `created`. Each row gets its numeric `metadata.schemaVersion`, or `1`. The old column value is never used, because it is either junk (0.42.x) or a copy of `metadata.schemaVersion ?? '1'` (0.43.0). The stored metadata of old events is left as it is.
 
 ### Release
 
 The work is split in two:
 
-- **Ships now, in the current 0.43.0 line.** The numeric top-level `schemaVersion` in all stores, the new PostgreSQL append function and the converting old one, reads handling both `TEXT` and `INT` columns, the PostgreSQL metadata copy, the SQLite rebuild, the new `CREATE TABLE` layout, and the on-demand PostgreSQL schema version migration. The new automatic migrations join the existing 0.43.0 migration sets of each driver.
+- **Ships now, in the current 0.43.0 line.** The numeric top-level `schemaVersion` in all stores, the new PostgreSQL append function and the converting old one, reads handling both `TEXT` and `INT` columns, the PostgreSQL metadata copy, the SQLite column swap, the new `CREATE TABLE` layout, and the on-demand PostgreSQL schema version migration. The new automatic migrations join the existing 0.43.0 migration sets of each driver.
 - **Prepared for 0.44.0 and left unplugged.** One migration in the PostgreSQL 0.44.0 set, next to the existing checkpoint cleanup: the schema version migration made mandatory (the same migration as the on-demand one, with the user `CASE` taken from the migration options). It has a comment saying to double-check it before the 0.44.0 release. The old `emt_append_to_stream` stays, with the converting body. The 0.44.0 set stays out of the automatic list until that release, so the migration can still be changed or moved to 0.45.0.
 
 ## Acceptance criteria
@@ -181,9 +181,10 @@ Append and read, for each store (PostgreSQL, SQLite, MongoDB, EventStoreDB, in-m
    6.6. GIVEN stored messages without a stored version and with `metadata.schemaVersion` `'02'`, `'2.0'`, `'-1'`, `' 2'` and the JSON number `2` WHEN they are read THEN `schemaVersion` is `2`, `1`, `1`, `1` and `2`.
    6.7. GIVEN a PostgreSQL `TEXT` column holding `'99999999999'` WHEN the row is read THEN `schemaVersion` is `99999999999`.
    6.8. GIVEN EventStoreDB events written before this release, one without `metadata.schemaVersion`, one with `'2'` and one with `'v2'` WHEN they are read THEN `schemaVersion` is `1`, `2` and `1`, AND `metadata` has no `schemaVersion`.
-7. User appends values that are not positive integers, so that appends do not add validation.
-   7.1. GIVEN an empty stream in any store WHEN an event with `schemaVersion: 0` is appended and the stream is read THEN the append succeeds AND the recorded event has `schemaVersion: 0`.
-   7.2. GIVEN an empty stream in any store WHEN an event with `schemaVersion: -1` is appended and the stream is read THEN the append succeeds AND the recorded event has `schemaVersion: 1`.
+7. User appends values that are not positive integers, so that no store keeps a version below 1 (Q132).
+   7.1. GIVEN an empty stream in any store WHEN an event with `schemaVersion: 0` is appended THEN the append fails with a `ValidationError` AND the stream has no events.
+   7.2. GIVEN an empty stream in any store WHEN an event with `schemaVersion: -1` or `1.5` is appended THEN the append fails with a `ValidationError` AND the stream has no events.
+   7.3. GIVEN an empty stream in any store WHEN an event without a top-level `schemaVersion` and with `metadata.schemaVersion: '0'` is appended THEN the append fails with a `ValidationError` AND the stream has no events.
 
 Upcasting and downcasting
 
@@ -214,7 +215,6 @@ Blue/green compatibility (PostgreSQL)
     13.2. GIVEN a store after the schema version migration WHEN the frozen 0.43.0 API appends an event with `metadata.schemaVersion: 'v2'` THEN the append fails with an error AND the stream has no new event.
     13.3. GIVEN events appended by the current release with versions `1` and `2` AND then the schema version migration WHEN the frozen 0.43.0 API reads the stream THEN the events have `metadata.schemaVersion` `'1'` and `'2'`.
     13.4. Moved to #428 (tetris migration).
-    13.5. GIVEN the schema version migration is changing the column WHEN the frozen 0.43.0 API appends an event with `metadata.schemaVersion: '2'` at the same time THEN the append succeeds after the migration AND the column holds `2`.
     13.6. Moved to #428 (tetris migration).
 
 PostgreSQL append functions
@@ -226,6 +226,7 @@ PostgreSQL append functions
     14.4. GIVEN a store upgraded to the current release AND the old append function dropped WHEN the current release appends THEN the append succeeds.
     14.5. GIVEN a store upgraded to the current release AND another function named `emt_append_to_stream_v_0_43_0` with a different argument list WHEN the current release appends THEN the append succeeds.
     14.6. GIVEN a `TEXT` column after the automatic migrations of the current release WHEN the frozen 0.43.0 API appends an event with `metadata.schemaVersion: '99999999999'` THEN the append fails with an error AND the stream has no new event.
+    14.7. GIVEN a `TEXT` column after the automatic migrations of the current release WHEN the frozen 0.43.0 API appends an event with `metadata.schemaVersion: '0'` THEN the append fails with an error AND the stream has no new event (Q133).
 
 PostgreSQL existing stores without an on-demand migration
 
@@ -259,7 +260,7 @@ PostgreSQL tetris migration (on demand)
 
 18. Moved out of this change to https://github.com/event-driven-io/emmett/issues/428 (Q128).
 
-SQLite rebuild
+SQLite column swap
 
 19. User upgrades an existing SQLite store to the current release, so that the column becomes numeric with correct values.
     19.1. GIVEN a 0.42.x store whose column holds stream versions `0`, `1` and `2` WHEN the automatic migration runs THEN the column is `INTEGER` AND all three rows hold `1`.
@@ -274,9 +275,10 @@ New stores
 
 20. User creates a new store with the current release, so that the version is numeric from the start.
     20.1. GIVEN an empty PostgreSQL database WHEN the event store schema is created THEN `message_schema_version` is `INT` and placed after the 8-byte columns and before the 1-byte columns.
-    20.2. GIVEN an empty SQLite database WHEN the event store schema is created THEN `message_schema_version` is `INTEGER`.
+    20.2. GIVEN an empty SQLite database WHEN the event store schema is created THEN `message_schema_version` is `INTEGER NOT NULL DEFAULT 1` and placed after `created`.
     20.3. GIVEN a new store WHEN a message with `schemaVersion: 2` is appended THEN the column holds `2`.
     20.4. GIVEN a new PostgreSQL store WHEN the frozen 0.43.0 API appends an event with `metadata.schemaVersion: '2'` and then one with `'v2'` THEN the first append succeeds and the column holds `2` AND the second fails with an error and the stream has no new event.
+    20.5. GIVEN a new PostgreSQL store WHEN the frozen 0.43.0 API appends an event with `metadata.schemaVersion: '0'` THEN the append fails with an error AND the stream has no new event (Q133).
 
 Projection definition version
 
@@ -286,7 +288,7 @@ Projection definition version
 Documentation
 
 22. Developer reads the upcasting documentation, so that they can declare versioned messages and switch on `schemaVersion`.
-    22.1. GIVEN the command handler versioning section WHEN it is read THEN it shows versioned message types with the version type parameter, the helper's version argument, and an upcaster switching on `schemaVersion`, all backed by tested snippets, AND it says the factories take a single message type, because a union of versions as the type argument does not require the version.
+    22.1. GIVEN the command handler versioning section WHEN it is read THEN it shows versioned message types with the version type parameter, events created as object literals with `schemaVersion`, and an upcaster switching on `schemaVersion`, all backed by tested snippets, AND it says that the optional factories take the version as their last argument and take a single message type, because a union of versions as the type argument does not require the version (Q135).
 
 PostgreSQL migrations prepared for 0.44.0 (unplugged)
 
@@ -310,8 +312,8 @@ Custom database schema
 - **Message types.** `Message`, `Event` and `Command` get a fourth, last type parameter for the schema version literal. Its default is `number` when the type name is the generic `string` (the bare `Event` used as a constraint), and `1` when the type name is a literal. The read-only `schemaVersion` property sits next to `kind`. It is optional when the version is `number` or `1`, and required for any other declared version. `Message` passes the parameter to both `Event` and `Command`. An explicit version `1` is the same type as no version. The typing was checked in the `unversioned-schema-version-typing` PoC. `CreateEventType` and `CreateCommandType` get the same fourth parameter and property, so they mix with `Event` and `Command` in versioned unions.
 - **Recorded messages.** `RecordedMessage` makes `schemaVersion` a required `number`. `schemaVersion` is removed from `CommonRecordedMessageMetadata`. The default schema version constant becomes the number `1`.
 - **Helpers.** `event()`, `command()` and `message()` take the version as the last positional argument, as a plain number. It is required when the type declares a version other than `1`, and optional otherwise. For a type declared without a version or with version `1`, the optional argument is `1`. A versioned command without declared metadata accepts both `[type, data, version]` and `[type, data, metadata | undefined, version]`, so the default `{ now }` metadata can still be passed. Events have no extra form. The helper sets `schemaVersion` on the result only when it is given, and does not touch metadata. The helper types behind these signatures, including `MessageSchemaVersionOf`, are not exported from the package. The typing was checked in `type-surface-research/bare-number-with-command-metadata/`.
-- **Read rule.** PostgreSQL resolves the version as: stored value if numeric, else numeric `metadata.schemaVersion`, else `1`. MongoDB, EventStoreDB and the in-memory store resolve it as: stored value if numeric, else `1`. A value stored as a number is numeric when it is a whole number of `0` or more, and is taken as it is: `-1` and `1.5` count as missing. A string is numeric when it is made of digits only, and it reads as that number: `'2'` is `2`, `'02'` is `2`. Any other string, such as `'2.0'`, `'-1'`, `' 2'` or `'v2'`, is non-numeric and counts as missing. So an appended `-1` is stored, and reads as `1` in every store. A digits-only value too large for an `INT`, such as `'99999999999'`, fails the cast: a migration stops with an error, and the user maps the value with their `CASE`. A 0.43.0 append that sends it fails with an error. A read does not fail: it returns the parsed number, which can lose precision above 2^53. The same rule applies in the migration `COALESCE` and in the converting body of the old append function, where a non-numeric value fails the append. PostgreSQL reads select `message_schema_version::text`, so one parser handles both `TEXT` and `INT` columns, until `TEXT` support is removed. A JSON number in the metadata follows the number rule, so `2` reads as `2`. SQLite reads the column only. Every store removes `schemaVersion` from `metadata` on read. The shared parts of this rule live in core code that drivers call.
-- **Append rule.** Every store persists the top-level `schemaVersion`. When it is missing, the store takes `metadata.schemaVersion` if it is numeric by the read rule, else `1` (Q122). The top-level value always wins. No validation of the value.
+- **Read rule.** PostgreSQL resolves the version as: stored value if numeric, else numeric `metadata.schemaVersion`, else `1`. MongoDB, EventStoreDB and the in-memory store resolve it as: stored value if numeric, else `1`. A value stored as a number is numeric when it is a whole number of `0` or more, and is taken as it is: `-1` and `1.5` count as missing. A string is numeric when it is made of digits only, and it reads as that number: `'2'` is `2`, `'02'` is `2`. Any other string, such as `'2.0'`, `'-1'`, `' 2'` or `'v2'`, is non-numeric and counts as missing. Reads stay backward compatible: a `-1` or `0` stored by 0.43.0-rc.2 or older reads by this rule in every store, so `-1` reads as `1` and `0` as `0` (Q132). A digits-only value too large for an `INT`, such as `'99999999999'`, fails the cast: a migration stops with an error, and the user maps the value with their `CASE`. SQLite's column swap uses SQLite's own `CAST` to `INTEGER` with no range check, since SQLite stores 64-bit integers (Q129). A 0.43.0 append that sends it fails with an error. A read does not fail: it returns the parsed number, which can lose precision above 2^53. The same rule applies in the migration `COALESCE` and in the converting body of the old append function, where a non-numeric value fails the append. PostgreSQL reads select `message_schema_version::text`, so one parser handles both `TEXT` and `INT` columns, until `TEXT` support is removed. A JSON number in the metadata follows the number rule, so `2` reads as `2`. SQLite reads the column only. Every store removes `schemaVersion` from `metadata` on read. The shared parts of this rule live in core code that drivers call.
+- **Append rule.** Every store persists the top-level `schemaVersion`. When it is missing, the store takes `metadata.schemaVersion` if it is numeric by the read rule, else `1` (Q122). The top-level value always wins. The version to append, from either source, must be a whole number of `1` or more; otherwise the append fails with Emmett's `ValidationError` and stores nothing (Q132). The check is in the shared core function every store calls, with no extra query. In PostgreSQL, 0.43.0-rc.2 and older instances append through the old function's converting body, which rejects a version below 1 with the same digits check it already runs for non-numeric values (Q94, Q120, Q133). MongoDB, EventStoreDB and SQLite have no database-side append code, so appends from 0.43.0-rc.2 or older are not checked there.
 - **Blue/green copy.** Only PostgreSQL appends also write the version as a string into the stored metadata as `schemaVersion`, for 0.43.0 readers. It is temporary.
 - **Upcast and downcast.** The shared versioning helpers take `schemaVersion` from the function's result when it is present, and set `1` otherwise. The upcast and downcast types do not change beyond the message types. A stricter type rule that required the version in versioned results was checked (`type-surface-research/versioning-result-version/`) and rejected, because it forced `as const` or intersection annotations on downcasters.
 - **PostgreSQL storage.** The `CREATE TABLE` for messages declares `message_schema_version INT NOT NULL`, placed after `created` and before `is_archived`. Existing stores keep `TEXT` until the user runs an on-demand migration. Reads and appends work with both column types.
@@ -321,13 +323,13 @@ Custom database schema
   - Tetris migration: moved to https://github.com/event-driven-io/emmett/issues/428 (Q128).
   - The user `CASE` (`messageSchemaVersionMapping`) is a SQL fragment concatenated as the first `COALESCE` argument. It is evaluated per row and can use any column. When it is not given, the `COALESCE` starts with the numeric column value.
   - It is idempotent. It checks itself whether it has to run and does nothing otherwise. It runs unless `message_schema_version` is `INT`, and does nothing when the schema has no messages table. This does not depend on Dumbo's record of applied migrations or on its hash check, which is an additional check. It runs through the regular migration run like the other migrations. It sets `ignoreHashMismatch: true`, because the user `CASE` is part of the SQL Dumbo hashes, and Dumbo has no option to hash other SQL. A second run with a different `CASE` is then skipped by Dumbo instead of failing.
-- **SQLite storage.** The `CREATE TABLE` declares `message_schema_version INTEGER NOT NULL`. An automatic migration added to the SQLite 0.43.0 set rebuilds the messages table and fills the column with numeric `metadata.schemaVersion`, or `1`. The old column value is not used. The stored metadata JSON is copied unchanged. SQLite does not support blue/green with 0.43.0.
+- **SQLite storage.** The `CREATE TABLE` declares `message_schema_version INTEGER NOT NULL DEFAULT 1` after `created`, the layout the column swap leaves. An automatic migration added to the SQLite 0.43.0 set swaps the column: `ADD COLUMN`, `UPDATE` with numeric `metadata.schemaVersion`, or `1`, `DROP COLUMN`, `RENAME COLUMN`. It needs SQLite 3.35 or later for `DROP COLUMN`. It also runs on a fresh database, where the 0.43.0 migrations run before the `CREATE TABLE`, so fresh and migrated stores have one layout (Q130). The old column value is not used. The stored metadata JSON is left unchanged. SQLite does not support blue/green with 0.43.0.
 - **PostgreSQL and SQLite `kind`.** Reads map the `message_kind` column: `'C'` reads as `kind: 'Command'`, anything else as `'Event'` (Q119).
 - **MongoDB.** The version is stored as a top-level field on the stored message, next to `type`, `data` and `metadata`. `kind` is stored on append and defaults to `'Event'` on read (Q79).
 - **EventStoreDB.** The version is stored in the event metadata under `schemaVersion`. That one key is both the stored value and what a 0.43.0 reader would see. `kind` is stored in the event metadata and lifted to the top level on read, with `'Event'` as the default (Q80). On read it is removed from `metadata`, as the committed EventStoreDB step already does.
 - **In-memory.** The version is kept as a top-level field on the stored message.
 - **Migration SQL.** Each migration holds its own SQL text, as the released migrations do. It never builds it from the code that creates the current schema, so a later change to the current schema cannot change a released migration's hash.
-- **Migration versions.** Both SQL drivers keep reporting store schema version 0.43.0. The new automatic migrations (PostgreSQL append functions, SQLite rebuild) are added to each driver's 0.43.0 set under new names.
+- **Migration versions.** Both SQL drivers keep reporting store schema version 0.43.0. The new automatic migrations (PostgreSQL append functions, SQLite column swap) are added to each driver's 0.43.0 set under new names.
 - **Custom database schema.** Stores with a custom `databaseSchemaName` get the same changes. Each new automatic migration has a variant that takes the database schema options, and that variant joins the short migration list used for custom schemas in both drivers. The on-demand migrations and the mandatory migration take the database schema options too.
 - **Prepared 0.44.0 migrations.** The PostgreSQL 0.44.0 set gets one migration next to the existing checkpoint cleanup: the mandatory migration, reusing the schema version migration and taking the user `CASE` from the optional `messageSchemaVersionMapping` in its migration options, with `ignoreHashMismatch: true` for the same reason as the on-demand one. It carries a comment to double-check it before the 0.44.0 release. The old `emt_append_to_stream` stays, with the converting body. The set stays out of the automatic list. Once it is plugged in, reads and appends no longer meet a `TEXT` column, and 0.43.0 instances can still read and append.
 - **Projection definition version.** No change.
@@ -344,7 +346,6 @@ Custom database schema
 
 ## Out of Scope
 
-- Validating `schemaVersion` values on append.
 - Extracting digits from non-numeric values (`'v2'` becomes `1` unless the user `CASE` maps it).
 - The tetris migration: https://github.com/event-driven-io/emmett/issues/428.
 - A CLI command for the on-demand migrations.

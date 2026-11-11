@@ -8,6 +8,7 @@ import {
   assertThatArray,
   assertTrue,
   bigIntProcessorCheckpoint,
+  DefaultMessageSchemaVersion,
   isErrorConstructor,
   type CombinedReadEventMetadata,
   type Event,
@@ -157,6 +158,8 @@ export const SQLiteProjectionSpec = {
                 allEvents.push({
                   ...event,
                   kind: 'Event',
+                  schemaVersion:
+                    event.schemaVersion ?? DefaultMessageSchemaVersion,
                   metadata: {
                     ...metadata,
                     ...('metadata' in event ? (event.metadata ?? {}) : {}),

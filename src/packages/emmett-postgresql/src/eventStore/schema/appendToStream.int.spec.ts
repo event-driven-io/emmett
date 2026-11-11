@@ -469,7 +469,7 @@ void describe('appendEvent', () => {
       SQL`SELECT message_schema_version, message_metadata FROM emt_messages WHERE stream_id = ${streamId} ORDER BY stream_position`,
     );
 
-  void it('a new store holds the appended version in the column', async () => {
+  void it('stores the appended schema version in the column', async () => {
     const streamId = uuid();
     const event: Event<
       'ProductItemAdded',
@@ -589,7 +589,7 @@ void describe('appendEvent', () => {
     ]);
   });
 
-  void it('hooks and inline projections receive the top-level version', async () => {
+  void it('the before-commit hook receives the top-level version', async () => {
     const streamId = uuid();
     const messageIds = [uuid(), uuid(), uuid()];
     let nextMessageId = 0;

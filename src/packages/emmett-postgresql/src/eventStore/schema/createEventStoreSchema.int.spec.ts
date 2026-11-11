@@ -46,37 +46,6 @@ type ProductItemAdded = Event<
   }
 >;
 
-const readMessagesColumns = async (pool: PgPool, databaseSchemaName: string) =>
-  Object.fromEntries(
-    (
-      await pool.execute.query<{
-        column_name: string;
-        data_type: string;
-        ordinal_position: number;
-      }>(
-        SQL`SELECT column_name, data_type, ordinal_position FROM information_schema.columns WHERE table_schema = ${databaseSchemaName} AND table_name = 'emt_messages'`,
-      )
-    ).rows.map((column) => [column.column_name, column]),
-  );
-
-const assertIntSchemaVersionColumnAfterCreated = async (
-  pool: PgPool,
-  databaseSchemaName: string,
-) => {
-  const columns = await readMessagesColumns(pool, databaseSchemaName);
-  const schemaVersion = columns['message_schema_version']!;
-
-  assertEqual('integer', schemaVersion.data_type);
-  assertEqual(
-    columns['created']!.ordinal_position + 1,
-    schemaVersion.ordinal_position,
-  );
-  assertEqual(
-    columns['is_archived']!.ordinal_position - 1,
-    schemaVersion.ordinal_position,
-  );
-};
-
 void describe('createEventStoreSchema', () => {
   let database: PostgreSQLTestDatabase;
   let pool: PgPool;
@@ -131,10 +100,6 @@ void describe('createEventStoreSchema', () => {
         await tableExists(pool.execute, 'emt_messages_emt_default_archived'),
       );
     });
-  });
-
-  void it('a new store has an INT schema version column after created and before is_archived', async () => {
-    await assertIntSchemaVersionColumnAfterCreated(pool, 'public');
   });
 
   void describe('creates functions', () => {
@@ -307,6 +272,13 @@ void describe('createEventStoreSchema with configured database schemas', () => {
       await functionExists(pool.execute, 'emt_append_to_stream', 'events'),
     );
     assertTrue(
+      await functionExists(
+        pool.execute,
+        'emt_append_to_stream_v_0_43_0',
+        'events',
+      ),
+    );
+    assertTrue(
       await functionExists(pool.execute, 'emt_add_partition', 'events'),
     );
 
@@ -314,23 +286,6 @@ void describe('createEventStoreSchema with configured database schemas', () => {
     assertFalse(await tableExists(pool.execute, 'dmb_migrations', 'public'));
     assertFalse(
       await functionExists(pool.execute, 'emt_append_to_stream', 'public'),
-    );
-  });
-
-  void it('a new store has an INT schema version column after created and before is_archived in the schema configured by the user', async () => {
-    const databaseSchemaName = 'numeric_schema_version';
-    await createEventStoreSchema({
-      pool,
-      schema: { databaseSchemaName },
-    });
-
-    await assertIntSchemaVersionColumnAfterCreated(pool, databaseSchemaName);
-    assertTrue(
-      await functionExists(
-        pool.execute,
-        'emt_append_to_stream_v_0_43_0',
-        databaseSchemaName,
-      ),
     );
   });
 

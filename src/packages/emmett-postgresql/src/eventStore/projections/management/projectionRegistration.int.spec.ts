@@ -1,6 +1,7 @@
 import { dumbo, SQL, type SQLExecutor } from '@event-driven-io/dumbo';
 import { pgDumboDriver, type PgPool } from '@event-driven-io/dumbo/pg';
 import {
+  assertDeepEqual,
   assertEqual,
   assertFalse,
   assertIsNotNull,
@@ -167,6 +168,42 @@ void describe('projectionRegistration', () => {
       assertIsNotNull(info);
       assertEqual(info.registration.projection.name, projectionName);
       assertEqual(info.registration.projection.canHandle.length, 2);
+    });
+
+    void it('stores the registered projection version 2 as the integer 2', async () => {
+      const projectionName = `test_integer_version_${Date.now()}`;
+
+      await registerProjection(pool.execute, {
+        partition: defaultTag,
+        status: 'active',
+        registration: {
+          type: 'inline',
+          projection: {
+            name: projectionName,
+            version: 2,
+            canHandle: ['EventA'],
+            handle: async () => {},
+          },
+        },
+      });
+
+      const { rows } = await pool.execute.query<{
+        name: string;
+        version: number;
+        partition: string;
+        status: string;
+      }>(
+        SQL`SELECT name, version, partition, status FROM emt_projections WHERE name = ${projectionName}`,
+      );
+
+      assertDeepEqual(rows, [
+        {
+          name: projectionName,
+          version: 2,
+          partition: defaultTag,
+          status: 'active',
+        },
+      ]);
     });
 
     void it('does NOT update existing projection when registering new version', async () => {

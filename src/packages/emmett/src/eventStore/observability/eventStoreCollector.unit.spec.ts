@@ -30,6 +30,7 @@ const makeEvents = (types: string[]) =>
     type,
     data: {},
     kind: 'Event' as const,
+    schemaVersion: 1 as const,
     metadata: {} as AnyRecordedMessageMetadata,
   }));
 

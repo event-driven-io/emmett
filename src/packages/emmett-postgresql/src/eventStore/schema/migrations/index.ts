@@ -13,6 +13,7 @@ import {
 } from './0_43_0/0_43_0.migration';
 
 export { eventStoreSchemaSQL, schemaSQL };
+export * from './0_43_0/migrateSchemaToNumericMessageSchemaVersion';
 
 export const currentPostgreSQLEventStoreSchemaVersion = '0.43.0';
 

@@ -1,4 +1,4 @@
-import { JSONSerializer } from '@event-driven-io/dumbo';
+import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
   InMemorySQLiteDatabase,
   sqlite3Connection,
@@ -17,6 +17,7 @@ import {
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import { createEventStoreSchema } from '../../../../eventStore/schema';
+import { defaultTag } from '../../../../eventStore/schema/typing';
 import { appendToStream } from '../../../../eventStore/schema/appendToStream';
 import { readStream } from '../../../../eventStore/schema/readStream';
 
@@ -120,27 +121,50 @@ void describe('appendEvent', () => {
     assertFalse(result.streamExists);
   });
 
-  void it('reads the schema version from event metadata', async () => {
+  void it('reads the schema version from the column', async () => {
     const streamId = uuid();
-    await appendToStream(connection, streamId, 'shopping_cart', [
-      {
-        type: 'ProductItemAdded',
-        data: { productItem: { productId: '1', quantity: 2, price: 30 } },
-        metadata: { meta: 'data1', schemaVersion: '2' },
-      },
-    ]);
+    const event: Event<
+      'ProductItemAdded',
+      { productItem: PricedProductItem },
+      { meta: string },
+      2
+    > = {
+      type: 'ProductItemAdded',
+      data: { productItem: { productId: '1', quantity: 2, price: 30 } },
+      metadata: { meta: 'data1' },
+      schemaVersion: 2,
+    };
+    await appendToStream(connection, streamId, 'shopping_cart', [event]);
 
     const result = await readStream(connection.execute, streamId, {
       serializer,
     });
 
     assertDeepEqual(
-      result.events.map((e) => e.metadata.schemaVersion),
-      ['2'],
+      result.events.map((e) => e.schemaVersion),
+      [2],
     );
   });
 
-  void it('reads schema version 1 when event metadata has no schema version', async () => {
+  void it('reads the kind of a stored command', async () => {
+    const streamId = uuid();
+    await connection.execute.command(
+      SQL`INSERT INTO emt_messages
+        (stream_id, stream_position, partition, message_kind, message_data, message_metadata, message_schema_version, message_type, message_id)
+        VALUES (${streamId}, 1, ${defaultTag}, 'C', '{}', '{}', 1, 'AddProductItem', ${uuid()})`,
+    );
+
+    const result = await readStream(connection.execute, streamId, {
+      serializer,
+    });
+
+    assertDeepEqual(
+      result.events.map((e) => e.kind),
+      ['Command'],
+    );
+  });
+
+  void it('reads schema version 1 when the event was appended without a schema version', async () => {
     const streamId = uuid();
     await appendToStream(connection, streamId, 'shopping_cart', events);
 
@@ -149,31 +173,33 @@ void describe('appendEvent', () => {
     });
 
     assertDeepEqual(
-      result.events.map((e) => e.metadata.schemaVersion),
-      ['1', '1'],
+      result.events.map((e) => e.schemaVersion),
+      [1, 1],
     );
   });
 
   void it('upcasts events based on their schema version', async () => {
-    type VersionedMetadata = { meta: string; schemaVersion?: string };
     type ProductItemAddedV1 = Event<
       'ProductItemAdded',
       PricedProductItem,
-      VersionedMetadata
+      { meta: string },
+      1
     >;
     type ProductItemAddedV2 = Event<
       'ProductItemAdded',
       { productItem: PricedProductItem },
-      VersionedMetadata
+      { meta: string },
+      2
     >;
     type StoredProductItemAdded = ProductItemAddedV1 | ProductItemAddedV2;
 
     const upcast = (event: StoredProductItemAdded): ProductItemAddedV2 => {
-      switch (event.metadata.schemaVersion) {
-        case '1':
+      switch (event.schemaVersion) {
+        case 1:
           return {
             ...event,
-            data: { productItem: (event as ProductItemAddedV1).data },
+            data: { productItem: event.data },
+            schemaVersion: 2,
           };
         default:
           return event as ProductItemAddedV2;
@@ -199,7 +225,8 @@ void describe('appendEvent', () => {
         {
           type: 'ProductItemAdded',
           data: { productItem },
-          metadata: { meta: 'data2', schemaVersion: '2' },
+          metadata: { meta: 'data2' },
+          schemaVersion: 2,
         },
       ],
     );

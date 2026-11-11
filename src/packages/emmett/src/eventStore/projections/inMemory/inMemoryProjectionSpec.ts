@@ -18,10 +18,11 @@ import {
   assertTrue,
   type ThenThrows,
 } from '../../../testing';
-import type {
-  CombinedReadEventMetadata,
-  Event,
-  ReadEvent,
+import {
+  DefaultMessageSchemaVersion,
+  type CombinedReadEventMetadata,
+  type Event,
+  type ReadEvent,
 } from '../../../typing';
 import type {
   InMemoryEventStore,
@@ -97,6 +98,8 @@ export const InMemoryProjectionSpec = {
               allEvents.push({
                 ...event,
                 kind: 'Event',
+                schemaVersion:
+                  event.schemaVersion ?? DefaultMessageSchemaVersion,
                 metadata: {
                   ...metadata,
                   ...('metadata' in event ? (event.metadata ?? {}) : {}),

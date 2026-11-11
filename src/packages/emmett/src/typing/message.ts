@@ -10,6 +10,7 @@ import type {
 import type { ProcessorCheckpoint } from '../processors';
 import {
   splitMetadataAndSchemaVersion,
+  type MessageSchemaVersionOf,
   type WithSchemaVersionArgument,
 } from './messageSchemaVersion';
 
@@ -87,15 +88,15 @@ export type RecordedMessage<
     AnyRecordedMessageMetadata,
 > = CombineMetadata<MessageType, MessageMetaDataType> & {
   kind: NonNullable<MessageKindOf<Message>>;
+  schemaVersion: MessageSchemaVersionOf<MessageType>;
 };
 
-export const DefaultMessageSchemaVersion = '1';
+export const DefaultMessageSchemaVersion = 1;
 
 export type CommonRecordedMessageMetadata = Readonly<{
   messageId: string;
   streamPosition: StreamPosition;
   streamName: string;
-  schemaVersion?: string;
   checkpoint?: ProcessorCheckpoint | null;
   correlationId?: string;
   causationId?: string;
