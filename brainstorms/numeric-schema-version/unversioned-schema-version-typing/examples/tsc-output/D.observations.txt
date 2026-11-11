@@ -1,6 +1,0 @@
-report.ts(14,3): error TS2322: Type '2' is not assignable to type '1'.
-report.ts(17,14): error TS2322: Type 'V2' is not assignable to type 'Event<"ProductItemAdded">'.
-  Type 'V2' is not assignable to type 'VersionProp<"ProductItemAdded", 1>'.
-    Types of property 'schemaVersion' are incompatible.
-      Type '2 | undefined' is not assignable to type '1 | undefined'.
-        Type '2' is not assignable to type '1'.
