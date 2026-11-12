@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/emmett-fastify",
-  "version": "0.43.0-rc.2",
+  "version": "0.43.0-rc.3",
   "type": "module",
   "description": "Emmett - Event Sourcing development made simple",
   "scripts": {
@@ -58,7 +58,7 @@
   },
   "devDependencies": {},
   "peerDependencies": {
-    "@event-driven-io/emmett": "0.43.0-rc.2",
+    "@event-driven-io/emmett": "0.43.0-rc.3",
     "fastify": "^5.12.7",
     "@opentelemetry/api": ">=1.10.0 <1.11.0"
   }
