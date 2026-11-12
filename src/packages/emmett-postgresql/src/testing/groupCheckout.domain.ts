@@ -336,7 +336,10 @@ const finished = (
         type: 'GroupCheckoutCompleted',
         data: {
           groupCheckoutId,
-          completedCheckouts: Array.from(guestStayAccounts.values()),
+          completedCheckouts: checkoutsWith(
+            guestStayAccounts,
+            GuestStayStatus.Completed,
+          ),
           completedAt: now,
         },
       }
@@ -365,7 +368,7 @@ const areAnyOngoingCheckouts = (
 ) => [...guestStayAccounts.values()].some((status) => !isAlreadyClosed(status));
 
 const areAllCompleted = (guestStayAccounts: Map<string, GuestStayStatus>) =>
-  [...guestStayAccounts.values()].some(
+  [...guestStayAccounts.values()].every(
     (status) => status === GuestStayStatus.Completed,
   );
 
