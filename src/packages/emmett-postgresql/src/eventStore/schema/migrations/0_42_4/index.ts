@@ -49,7 +49,7 @@ END $$;
 `);
 
 export const migration_0_42_4_addMessagesPollIndexes: SQLMigration =
-  sqlMigration('emt:postgresql:eventstore:0.42.4:add-messages-poll-indexes', [
+  sqlMigration('emt:postgresql:eventstore:0.42.5:add-messages-poll-indexes', [
     migration_0_42_4_addMessagesPollIndexesSQL,
   ]);
 
@@ -297,7 +297,7 @@ END $$;
 
 export const migration_0_42_4_forwardCompatibleCheckpoints: SQLMigration =
   sqlMigration(
-    'emt:postgresql:eventstore:0.42.4:forward-compatible-checkpoints',
+    'emt:postgresql:eventstore:0.42.5:forward-compatible-checkpoints',
     [
       rawSql(noLegacySubscriptionBridgeSQL),
       rawSql(legacySubscriptionBridgeSQL),
