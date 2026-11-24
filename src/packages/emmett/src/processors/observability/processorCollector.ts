@@ -99,7 +99,16 @@ export const processorCollector = (
     EmmettMetrics.processor.lagEvents,
   );
 
+  const eventAppendingCount = observability.meter.counter(
+    EmmettMetrics.event.appendingCount,
+  );
+
   return {
+    registerEventTypes: (eventTypes: readonly string[]): void => {
+      for (const eventType of eventTypes)
+        eventAppendingCount.add(0, { [A.event.type]: eventType });
+    },
+
     startScope: <
       MessageType extends Message = Message,
       MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,

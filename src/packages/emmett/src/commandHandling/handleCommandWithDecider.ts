@@ -60,7 +60,7 @@ export const DeciderCommandHandler = <
   >,
 ) => {
   commandHandlerCollector(commandObservability(options)).registerCommandTypes(
-    options.commandType ?? options.name,
+    options.commandType,
   );
 
   return async <Store extends EventStore>(

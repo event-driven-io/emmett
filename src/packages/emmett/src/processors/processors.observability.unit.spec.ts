@@ -1222,3 +1222,93 @@ describe('processor failure observability', () => {
       });
   });
 });
+
+describe('processor event counts', () => {
+  const countsByEventType = (
+    counters: {
+      name: string;
+      value: number;
+      attributes?: Record<string, unknown>;
+    }[],
+  ) =>
+    counters
+      .filter((c) => c.name === EmmettMetrics.event.appendingCount)
+      .reduce<Record<string, number>>((totals, c) => {
+        const type = String(c.attributes?.[A.event.type]);
+        totals[type] = (totals[type] ?? 0) + c.value;
+        return totals;
+      }, {});
+
+  it('counts every event type the processor handles at zero when it starts', async () => {
+    await given((config) =>
+      reactor({
+        processorId: 'counted',
+        canHandle: ['OrderPlaced', 'ItemAdded'],
+        eachMessage: () => Promise.resolve(),
+        observability: config,
+      }),
+    )
+      .when(async (processor, { meter }) => {
+        await processor.start({});
+        return meter.counters;
+      })
+      .then(({ result }) => {
+        assertDeepEqual(countsByEventType(result), {
+          OrderPlaced: 0,
+          ItemAdded: 0,
+        });
+      });
+  });
+
+  it('counts the first append of a handled event type in the series created at zero', async () => {
+    await given((config) => ({
+      processor: reactor({
+        processorId: 'counted',
+        canHandle: ['OrderPlaced', 'ItemAdded'],
+        eachMessage: () => Promise.resolve(),
+        observability: config,
+      }),
+      eventStore: getInMemoryEventStore({ observability: config }),
+    }))
+      .when(async ({ processor, eventStore }, { meter }) => {
+        await processor.start({});
+        await eventStore.appendToStream('orders-1', [
+          { type: 'OrderPlaced', data: {} },
+        ]);
+        return meter.counters;
+      })
+      .then(({ result }) => {
+        assertDeepEqual(countsByEventType(result), {
+          OrderPlaced: 1,
+          ItemAdded: 0,
+        });
+        assertDeepEqual(
+          result
+            .filter(
+              (c) =>
+                c.name === EmmettMetrics.event.appendingCount &&
+                c.attributes?.[A.event.type] === 'OrderPlaced',
+            )
+            .map((c) => c.value),
+          [0, 1],
+        );
+      });
+  });
+
+  it('counts nothing at zero when the processor has no event types to handle', async () => {
+    await given((config) =>
+      reactor({
+        processorId: 'uncounted',
+        eachMessage: () => Promise.resolve(),
+        observability: config,
+      }),
+    )
+      .when(async (processor, { meter }) => {
+        await processor.start({});
+        return meter.counters;
+      })
+      .then(({ result }) => {
+        assertDeepEqual(countsByEventType(result), {});
+      });
+  });
+});

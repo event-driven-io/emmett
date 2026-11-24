@@ -1162,6 +1162,8 @@ export const reactor = <
           isActive = true;
           isClosed = false;
 
+          collector.registerEventTypes(canHandle ?? []);
+
           if (closeSignal) closeSignal();
           closeSignal = onShutdown(() => close(callerOptions));
 

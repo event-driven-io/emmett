@@ -30,9 +30,7 @@ import type { AnyReadEventMetadata, Event, ReadEvent } from '../../typing';
 export type EventStoreObservabilityConfig = Pick<
   EmmettObservabilityConfig,
   'tracer' | 'meter' | 'logger' | 'contextGenerator' | 'attributeTarget'
-> & {
-  eventTypes?: readonly string[];
-};
+>;
 
 export type ResolvedEventStoreObservability = {
   tracer: Tracer;
@@ -41,7 +39,6 @@ export type ResolvedEventStoreObservability = {
   contextGenerator: ObservabilityContextGenerator;
   attributeTarget: AttributeTarget;
   attributePrefix?: 'emmett';
-  eventTypes?: readonly string[];
 };
 
 export const eventStoreObservability = (
@@ -61,7 +58,6 @@ export const eventStoreObservability = (
       observability?.contextGenerator ?? defaultObservabilityContextGenerator,
     attributeTarget: observability?.attributeTarget ?? 'both',
     attributePrefix: 'emmett',
-    eventTypes: options?.observability?.eventTypes ?? [],
   };
 };
 
@@ -92,10 +88,6 @@ export const eventStoreCollector = (
   const eventAppendingCount = observability.meter.counter(
     EmmettMetrics.event.appendingCount,
   );
-  for (const eventType of observability.eventTypes ?? []) {
-    eventReadingCount.add(0, { [A.event.type]: eventType });
-    eventAppendingCount.add(0, { [A.event.type]: eventType });
-  }
   const streamAggregatingDuration = observability.meter.histogram(
     EmmettMetrics.stream.aggregatingDuration,
   );
