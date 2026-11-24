@@ -56,7 +56,7 @@ export const configureApplication = (
   } = options;
 
   // disabling default etag behaviour
-  // to use etags in if-match and if-not-match headers
+  // to use etags in if-match and if-none-match headers
   application.set('etag', enableDefaultExpressEtag ?? false);
 
   // add json middleware
