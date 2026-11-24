@@ -7,7 +7,9 @@ import type { Context } from 'hono';
 
 export const HeaderNames = {
   IF_MATCH: 'if-match',
+  /** @deprecated Reads a header that clients do not send, use `IF_NONE_MATCH` */
   IF_NOT_MATCH: 'if-not-match',
+  IF_NONE_MATCH: 'if-none-match',
   ETag: 'etag',
 };
 
@@ -54,6 +56,10 @@ export const getETagFromIfMatch = (context: Context): ETag => {
   return etag as ETag;
 };
 
+export const getETagFromIfNoneMatch = (context: Context): ETag | undefined =>
+  context.req.header(HeaderNames.IF_NONE_MATCH) as ETag | undefined;
+
+/** @deprecated Reads the `if-not-match` header and throws when it is missing, use `getETagFromIfNoneMatch` */
 export const getETagFromIfNotMatch = (context: Context): ETag => {
   const etag = context.req.header(HeaderNames.IF_NOT_MATCH);
 

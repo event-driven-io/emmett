@@ -523,19 +523,20 @@ Use `ApiE2ESpecification` when a test needs to execute setup requests before the
 
 ### ETags
 
-| Export                    | Description                                                                  |
-| ------------------------- | ---------------------------------------------------------------------------- |
-| `HeaderNames`             | Header-name constants for `if-match`, `if-not-match`, and `etag`             |
-| `ETag`, `WeakETag`        | Branded ETag string types                                                    |
-| `WeakETagRegex`           | Regular expression used by the weak ETag parser                              |
-| `ETagErrors`              | Error identifiers for missing and invalid ETag headers                       |
-| `toWeakETag`              | Formats a number, bigint, or string as a weak ETag                           |
-| `isWeakETag`              | Type guard for weak ETags                                                    |
-| `getWeakETagValue`        | Returns the value inside a weak ETag or throws a concurrency error           |
-| `getETagFromIfMatch`      | Reads `If-Match` or throws a concurrency error when the header is absent     |
-| `getETagFromIfNotMatch`   | Reads `If-Not-Match` or throws a concurrency error when the header is absent |
-| `getETagValueFromIfMatch` | Unwraps a weak `If-Match` value and returns any other ETag value unchanged   |
-| `setETag`                 | Sets the response `ETag` header                                              |
+| Export                    | Description                                                                                                          |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `HeaderNames`             | Header-name constants for `if-match`, `if-none-match`, `etag`, and the deprecated `if-not-match`                     |
+| `ETag`, `WeakETag`        | Branded ETag string types                                                                                            |
+| `WeakETagRegex`           | Regular expression used by the weak ETag parser                                                                      |
+| `ETagErrors`              | Error identifiers for missing and invalid ETag headers                                                               |
+| `toWeakETag`              | Formats a number, bigint, or string as a weak ETag                                                                   |
+| `isWeakETag`              | Type guard for weak ETags                                                                                            |
+| `getWeakETagValue`        | Returns the value inside a weak ETag or throws a concurrency error                                                   |
+| `getETagFromIfMatch`      | Reads `If-Match` or throws a concurrency error when the header is absent                                             |
+| `getETagFromIfNoneMatch`  | Reads `If-None-Match` and returns `undefined` when the header is absent                                              |
+| `getETagFromIfNotMatch`   | Deprecated: reads `If-Not-Match`, which clients do not send, or throws a concurrency error when the header is absent |
+| `getETagValueFromIfMatch` | Unwraps a weak `If-Match` value and returns any other ETag value unchanged                                           |
+| `setETag`                 | Sets the response `ETag` header                                                                                      |
 
 ### Middleware
 

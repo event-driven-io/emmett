@@ -7,7 +7,9 @@ import type { Request, Response } from 'express';
 
 export const HeaderNames = {
   IF_MATCH: 'if-match',
+  /** @deprecated Reads a header that clients do not send, use `IF_NONE_MATCH` */
   IF_NOT_MATCH: 'if-not-match',
+  IF_NONE_MATCH: 'if-none-match',
   ETag: 'etag',
 };
 
@@ -54,6 +56,13 @@ export const getETagFromIfMatch = (request: Request): ETag => {
   return etag as ETag;
 };
 
+export const getETagFromIfNoneMatch = (request: Request): ETag | undefined => {
+  const etag = request.headers[HeaderNames.IF_NONE_MATCH];
+
+  return (Array.isArray(etag) ? etag[0] : etag) as ETag | undefined;
+};
+
+/** @deprecated Reads the `if-not-match` header and throws when it is missing, use `getETagFromIfNoneMatch` */
 export const getETagFromIfNotMatch = (request: Request): ETag => {
   const etag = request.headers[HeaderNames.IF_NOT_MATCH];
 

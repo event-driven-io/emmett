@@ -237,20 +237,21 @@ The `eTag` option on success and Problem Details responses sets an explicit ETag
 
 ### ETag Functions and Types
 
-| Export                             | Type or result              | Behaviour                                                                             |
-| ---------------------------------- | --------------------------- | ------------------------------------------------------------------------------------- |
-| `HeaderNames`                      | Header-name constants       | Contains `if-match`, `if-not-match`, and `etag`.                                      |
-| `ETag`                             | Branded `string`            | Represents an ETag value.                                                             |
-| `WeakETag`                         | Branded `` `W/${string}` `` | Represents a weak ETag value.                                                         |
-| `WeakETagRegex`                    | `RegExp`                    | Matches the weak ETag format accepted by `getWeakETagValue`.                          |
-| `ETagErrors`                       | String enum                 | Contains invalid-format and missing-header error identifiers.                         |
-| `toWeakETag(value)`                | `WeakETag`                  | Formats a number, bigint, or string as a weak ETag.                                   |
-| `isWeakETag(etag)`                 | Type guard                  | Tests an ETag with `WeakETagRegex`.                                                   |
-| `getWeakETagValue(etag)`           | `string`                    | Returns the value inside a weak ETag or throws a concurrency `EmmettError`.           |
-| `getETagFromIfMatch(request)`      | `ETag`                      | Reads `If-Match` or throws a concurrency `EmmettError` when the header is absent.     |
-| `getETagFromIfNotMatch(request)`   | `ETag`                      | Reads `if-not-match` or throws a concurrency `EmmettError` when the header is absent. |
-| `getETagValueFromIfMatch(request)` | `string`                    | Unwraps a weak `If-Match` value and returns any other ETag value unchanged.           |
-| `setETag(response, etag)`          | `void`                      | Sets the response `ETag` header.                                                      |
+| Export                             | Type or result              | Behaviour                                                                                                                     |
+| ---------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `HeaderNames`                      | Header-name constants       | Contains `if-match`, `if-none-match`, `etag`, and the deprecated `if-not-match`.                                              |
+| `ETag`                             | Branded `string`            | Represents an ETag value.                                                                                                     |
+| `WeakETag`                         | Branded `` `W/${string}` `` | Represents a weak ETag value.                                                                                                 |
+| `WeakETagRegex`                    | `RegExp`                    | Matches the weak ETag format accepted by `getWeakETagValue`.                                                                  |
+| `ETagErrors`                       | String enum                 | Contains invalid-format and missing-header error identifiers.                                                                 |
+| `toWeakETag(value)`                | `WeakETag`                  | Formats a number, bigint, or string as a weak ETag.                                                                           |
+| `isWeakETag(etag)`                 | Type guard                  | Tests an ETag with `WeakETagRegex`.                                                                                           |
+| `getWeakETagValue(etag)`           | `string`                    | Returns the value inside a weak ETag or throws a concurrency `EmmettError`.                                                   |
+| `getETagFromIfMatch(request)`      | `ETag`                      | Reads `If-Match` or throws a concurrency `EmmettError` when the header is absent.                                             |
+| `getETagFromIfNoneMatch(request)`  | `ETag \| undefined`         | Reads the standard `If-None-Match` header and returns `undefined` when it is absent.                                          |
+| `getETagFromIfNotMatch(request)`   | `ETag`                      | Deprecated: reads `if-not-match`, which clients do not send, or throws a concurrency `EmmettError` when the header is absent. |
+| `getETagValueFromIfMatch(request)` | `string`                    | Unwraps a weak `If-Match` value and returns any other ETag value unchanged.                                                   |
+| `setETag(response, etag)`          | `void`                      | Sets the response `ETag` header.                                                                                              |
 
 ## Include Trace IDs in Responses
 
