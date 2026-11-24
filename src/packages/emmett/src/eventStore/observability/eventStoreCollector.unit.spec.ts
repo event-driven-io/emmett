@@ -368,6 +368,52 @@ describe('eventStoreCollector', () => {
   });
 });
 
+describe('eventStoreCollector event counts', () => {
+  const eventTypes = ['OrderPlaced', 'ItemAdded'];
+
+  it('everyEventTypeIsCountedAtZeroBeforeItsFirstAppend', async () => {
+    await given((config) =>
+      eventStoreCollector(
+        eventStoreObservability({ observability: { ...config, eventTypes } }),
+      ),
+    )
+      .when(() => undefined)
+      .then(({ metrics }) => {
+        metrics
+          .haveCounterNamed(EmmettMetrics.event.appendingCount)
+          .recordedValues([0, 0])
+          .hasAttribute(A.event.type, 'OrderPlaced');
+      });
+  });
+
+  it('everyEventTypeIsCountedAtZeroBeforeItsFirstRead', async () => {
+    await given((config) =>
+      eventStoreCollector(
+        eventStoreObservability({ observability: { ...config, eventTypes } }),
+      ),
+    )
+      .when(() => undefined)
+      .then(({ metrics }) => {
+        metrics
+          .haveCounterNamed(EmmettMetrics.event.readingCount)
+          .recordedValues([0, 0])
+          .hasAttribute(A.event.type, 'OrderPlaced');
+      });
+  });
+
+  it('noEventTypeIsCountedAtZeroWhenNoneIsKnown', async () => {
+    await given((config) =>
+      eventStoreCollector(eventStoreObservability({ observability: config })),
+    )
+      .when(() => undefined)
+      .then(({ metrics }) => {
+        expect(() =>
+          metrics.haveCounterNamed(EmmettMetrics.event.appendingCount),
+        ).toThrow();
+      });
+  });
+});
+
 describe('eventStoreObservability', () => {
   it('uses default observability when reading a stream', async () => {
     await given((observability) => {

@@ -3,6 +3,7 @@ import type { Command, Event } from '../typing';
 import type { Decider } from '../typing/decider';
 import {
   CommandHandler,
+  registerKnownCommandTypes,
   type BeforeAllContext,
   type CommandHandlerOptions,
   type CommandHandlerResult,
@@ -45,7 +46,29 @@ export type DeciderCommandHandlerOptions<
     >;
   };
 
-export const DeciderCommandHandler =
+export const DeciderCommandHandler = <
+  State,
+  CommandType extends Command,
+  StreamEvent extends Event,
+  EventPayloadType extends Event = StreamEvent,
+>(
+  options: DeciderCommandHandlerOptions<
+    State,
+    CommandType,
+    StreamEvent,
+    EventPayloadType
+  >,
+) => {
+  registerKnownCommandTypes(options);
+  return deciderCommandHandlerFor<
+    State,
+    CommandType,
+    StreamEvent,
+    EventPayloadType
+  >(options);
+};
+
+const deciderCommandHandlerFor =
   <
     State,
     CommandType extends Command,

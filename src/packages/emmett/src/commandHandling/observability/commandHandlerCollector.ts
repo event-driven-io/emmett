@@ -94,6 +94,9 @@ export const commandHandlerCollector = (
   const commandHandlingDuration = observability.meter.histogram(
     EmmettMetrics.command.handlingDuration,
   );
+  const commandHandlingCount = observability.meter.counter(
+    EmmettMetrics.command.handlingCount,
+  );
   const startCommandScope = <T>(
     name: string,
     fn: (scope: ObservabilityScope) => Promise<T>,
@@ -108,6 +111,15 @@ export const commandHandlerCollector = (
   };
 
   return {
+    registerCommandTypes: (commandTypes: readonly string[]): void => {
+      for (const commandType of commandTypes)
+        for (const status of ['success', 'failure'])
+          commandHandlingCount.add(0, {
+            [A.command.status]: status,
+            [A.command.type]: commandType,
+          });
+    },
+
     startScope: <T>(
       context: CommandHandlerCollectorContext,
       fn: (scope: ObservabilityScope) => Promise<T>,
@@ -159,12 +171,17 @@ export const commandHandlerCollector = (
               );
             throw err;
           } finally {
-            commandHandlingDuration.record(Date.now() - start, {
+            const metricAttributes = {
               [A.command.status]: status,
               ...(typeof context.commandType === 'string'
                 ? { [A.command.type]: context.commandType }
                 : {}),
-            });
+            };
+            commandHandlingDuration.record(
+              Date.now() - start,
+              metricAttributes,
+            );
+            commandHandlingCount.add(1, metricAttributes);
           }
         },
         withOperationAttributes(options, {

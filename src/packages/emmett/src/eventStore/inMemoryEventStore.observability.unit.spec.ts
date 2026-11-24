@@ -1,5 +1,9 @@
-import { testObservabilityContextGenerator } from '@event-driven-io/almanac';
+import {
+  ObservabilitySpec,
+  testObservabilityContextGenerator,
+} from '@event-driven-io/almanac';
 import { describe, expect, it } from 'vitest';
+import { EmmettMetrics } from '../observability/attributes';
 import { getInMemoryEventStore } from './inMemoryEventStore';
 
 describe('inMemoryEventStore observability context', () => {
@@ -149,5 +153,19 @@ describe('inMemoryEventStore observability context', () => {
     const { events } = await eventStore.readStream('shopping_cart-1');
 
     expect(events[0]!.metadata.causationId).toBe('triggering-message');
+  });
+
+  it('everyEventTypeIsCountedAtZeroBeforeItsFirstAppend', () => {
+    return ObservabilitySpec.for()((observability) =>
+      getInMemoryEventStore({
+        observability: { ...observability, eventTypes: ['ProductItemAdded'] },
+      }),
+    )
+      .when(() => undefined)
+      .then(({ metrics }) => {
+        metrics
+          .haveCounterNamed(EmmettMetrics.event.appendingCount)
+          .recordedValues([0]);
+      });
   });
 });

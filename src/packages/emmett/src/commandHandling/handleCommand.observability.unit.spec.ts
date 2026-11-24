@@ -866,4 +866,92 @@ describe('handler observability', () => {
         });
     });
   });
+
+  void describe('command counts', () => {
+    const commandTypes = ['AddItem', 'RemoveItem'];
+
+    void it('everyCommandTypeIsCountedAtZeroBeforeItsFirstCommand', () => {
+      return given((observability) =>
+        CommandHandler<Cart, ItemAdded>({
+          evolve: (state) => state,
+          initialState: () => ({ count: 0 }),
+          commandType: commandTypes,
+          observability,
+        }),
+      )
+        .when(() => undefined)
+        .then(({ metrics }) => {
+          metrics
+            .haveCounterNamed(EmmettMetrics.command.handlingCount)
+            .recordedValues([0, 0, 0, 0])
+            .hasAttributes({
+              [EmmettAttributes.command.type]: 'AddItem',
+              [EmmettAttributes.command.status]: 'success',
+            });
+        });
+    });
+
+    void it('countsACommandThatSucceeds', () => {
+      return given((observability) =>
+        CommandHandler<Cart, ItemAdded>({
+          evolve: (state) => state,
+          initialState: () => ({ count: 0 }),
+          commandType: 'AddItem',
+          observability,
+        }),
+      )
+        .when((handler) =>
+          handler(getInMemoryEventStore(), uuid(), () => [
+            { type: 'ItemAdded', data: { productId: 'p1' } },
+          ]),
+        )
+        .then(({ metrics }) => {
+          metrics
+            .haveCounterNamed(EmmettMetrics.command.handlingCount)
+            .recordedValues([0, 0, 1])
+            .hasValue(1);
+        });
+    });
+
+    void it('countsACommandThatFailsInTheSeriesCreatedAtZero', () => {
+      return given((observability) =>
+        CommandHandler<Cart, ItemAdded>({
+          evolve: (state) => state,
+          initialState: () => ({ count: 0 }),
+          commandType: 'AddItem',
+          observability,
+        }),
+      )
+        .when(async (handler) => {
+          try {
+            await handler(getInMemoryEventStore(), uuid(), () => {
+              throw new Error('business rule violated');
+            });
+          } catch {
+            // expected
+          }
+        })
+        .then(({ metrics }) => {
+          metrics
+            .haveCounterNamed(EmmettMetrics.command.handlingCount)
+            .recordedValues([0, 0, 1]);
+        });
+    });
+
+    void it('countsNothingAtZeroWhenNoCommandTypeIsKnown', () => {
+      return given((observability) =>
+        CommandHandler<Cart, ItemAdded>({
+          evolve: (state) => state,
+          initialState: () => ({ count: 0 }),
+          observability,
+        }),
+      )
+        .when(() => undefined)
+        .then(({ metrics }) => {
+          expect(() =>
+            metrics.haveCounterNamed(EmmettMetrics.command.handlingCount),
+          ).toThrow();
+        });
+    });
+  });
 });

@@ -78,6 +78,7 @@ export const EmmettAttributes = {
 export const EmmettMetrics = {
   command: {
     handlingDuration: 'emmett.command.handling.duration',
+    handlingCount: 'emmett.command.handling.count',
   },
   event: {
     appendingCount: 'emmett.event.appending.count',

@@ -118,7 +118,7 @@ export type CommandHandlerFunction<State, StreamEvent extends Event> = (
   state: State,
 ) => StreamEvent | StreamEvent[] | Promise<StreamEvent | StreamEvent[]>;
 
-export const CommandHandler =
+const commandHandlerFor =
   <
     State,
     StreamEvent extends Event,
@@ -363,6 +363,29 @@ const toAppendOptions = <
       : {}),
     ...(options.observability ? { observability: options.observability } : {}),
   };
+};
+
+export const registerKnownCommandTypes = (
+  options: Pick<CommandHandlerOptions<unknown, Event>, 'commandType' | 'name'> &
+    Pick<CommandHandlerOptions<unknown, Event>, 'observability'>,
+): void => {
+  const known = options.commandType ?? options.name;
+  if (!known) return;
+
+  commandHandlerCollector(commandObservability(options)).registerCommandTypes(
+    Array.isArray(known) ? known : [known],
+  );
+};
+
+export const CommandHandler = <
+  State,
+  StreamEvent extends Event,
+  EventPayloadType extends Event = StreamEvent,
+>(
+  options: CommandHandlerOptions<State, StreamEvent, EventPayloadType>,
+) => {
+  registerKnownCommandTypes(options);
+  return commandHandlerFor<State, StreamEvent, EventPayloadType>(options);
 };
 
 const handlerNames = <State, StreamEvent extends Event>(
