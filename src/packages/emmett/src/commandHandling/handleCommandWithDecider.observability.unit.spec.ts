@@ -1,6 +1,7 @@
 import { ObservabilitySpec } from '@event-driven-io/almanac';
 import { randomUUID } from 'node:crypto';
 import { describe, it } from 'vitest';
+import { assertDeepEqual } from '../testing';
 import { getInMemoryEventStore } from '../eventStore';
 import { EmmettAttributes, EmmettMetrics } from '../observability/attributes';
 import type { Event } from '../typing';
@@ -77,7 +78,7 @@ describe('DeciderCommandHandler observability', () => {
       });
   });
 
-  void it('everyCommandTypeIsCountedAtZeroBeforeItsFirstCommand', () => {
+  void it('registers the command type series at zero once, when the handler is set up', () => {
     return given((observability) =>
       DeciderCommandHandler<Cart, CartCommand, CartEvent>({
         evolve,
@@ -87,11 +88,17 @@ describe('DeciderCommandHandler observability', () => {
         observability,
       }),
     )
-      .when(() => undefined)
-      .then(({ metrics }) => {
-        metrics
-          .haveCounterNamed(EmmettMetrics.command.handlingCount)
-          .recordedValues([0, 0, 0, 0]);
+      .when(async (handler, { meter }) => {
+        await handler(getInMemoryEventStore(), randomUUID(), {
+          type: 'AddItem',
+          data: { productId: 'p1' },
+        });
+        return meter.counters
+          .filter((c) => c.name === EmmettMetrics.command.handlingCount)
+          .map((c) => c.value);
+      })
+      .then(({ result }) => {
+        assertDeepEqual(result, [0, 0, 0, 0, 1]);
       });
   });
 });

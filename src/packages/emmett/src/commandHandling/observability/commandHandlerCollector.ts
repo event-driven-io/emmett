@@ -111,12 +111,14 @@ export const commandHandlerCollector = (
   };
 
   return {
-    registerCommandTypes: (commandTypes: readonly string[]): void => {
-      for (const commandType of commandTypes)
+    registerCommandTypes: (
+      commandType: string | string[] | undefined,
+    ): void => {
+      for (const type of [commandType ?? []].flat())
         for (const status of ['success', 'failure'])
           commandHandlingCount.add(0, {
             [A.command.status]: status,
-            [A.command.type]: commandType,
+            [A.command.type]: type,
           });
     },
 
@@ -171,17 +173,18 @@ export const commandHandlerCollector = (
               );
             throw err;
           } finally {
-            const metricAttributes = {
+            commandHandlingDuration.record(Date.now() - start, {
               [A.command.status]: status,
               ...(typeof context.commandType === 'string'
                 ? { [A.command.type]: context.commandType }
                 : {}),
-            };
-            commandHandlingDuration.record(
-              Date.now() - start,
-              metricAttributes,
-            );
-            commandHandlingCount.add(1, metricAttributes);
+            });
+            const commandTypes = [context.commandType ?? []].flat();
+            for (const type of commandTypes.length > 0 ? commandTypes : [null])
+              commandHandlingCount.add(1, {
+                [A.command.status]: status,
+                ...(type !== null ? { [A.command.type]: type } : {}),
+              });
           }
         },
         withOperationAttributes(options, {

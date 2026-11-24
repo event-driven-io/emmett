@@ -155,7 +155,7 @@ describe('inMemoryEventStore observability context', () => {
     expect(events[0]!.metadata.causationId).toBe('triggering-message');
   });
 
-  it('everyEventTypeIsCountedAtZeroBeforeItsFirstAppend', () => {
+  it('counts every known event type at zero before its first append', () => {
     return ObservabilitySpec.for()((observability) =>
       getInMemoryEventStore({
         observability: { ...observability, eventTypes: ['ProductItemAdded'] },

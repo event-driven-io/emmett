@@ -118,15 +118,18 @@ export type CommandHandlerFunction<State, StreamEvent extends Event> = (
   state: State,
 ) => StreamEvent | StreamEvent[] | Promise<StreamEvent | StreamEvent[]>;
 
-const commandHandlerFor =
-  <
-    State,
-    StreamEvent extends Event,
-    EventPayloadType extends Event = StreamEvent,
-  >(
-    options: CommandHandlerOptions<State, StreamEvent, EventPayloadType>,
-  ) =>
-  async <Store extends EventStore>(
+export const CommandHandler = <
+  State,
+  StreamEvent extends Event,
+  EventPayloadType extends Event = StreamEvent,
+>(
+  options: CommandHandlerOptions<State, StreamEvent, EventPayloadType>,
+) => {
+  commandHandlerCollector(commandObservability(options)).registerCommandTypes(
+    options.commandType ?? options.name,
+  );
+
+  return async <Store extends EventStore>(
     store: Store,
     id: string,
     handle:
@@ -328,6 +331,7 @@ const commandHandlerFor =
     await afterAll?.(result, { streamName, handleOptions });
     return result;
   };
+};
 
 const withSession = <EventStoreType extends EventStore, T = unknown>(
   eventStore: EventStoreType,
@@ -363,29 +367,6 @@ const toAppendOptions = <
       : {}),
     ...(options.observability ? { observability: options.observability } : {}),
   };
-};
-
-export const registerKnownCommandTypes = (
-  options: Pick<CommandHandlerOptions<unknown, Event>, 'commandType' | 'name'> &
-    Pick<CommandHandlerOptions<unknown, Event>, 'observability'>,
-): void => {
-  const known = options.commandType ?? options.name;
-  if (!known) return;
-
-  commandHandlerCollector(commandObservability(options)).registerCommandTypes(
-    Array.isArray(known) ? known : [known],
-  );
-};
-
-export const CommandHandler = <
-  State,
-  StreamEvent extends Event,
-  EventPayloadType extends Event = StreamEvent,
->(
-  options: CommandHandlerOptions<State, StreamEvent, EventPayloadType>,
-) => {
-  registerKnownCommandTypes(options);
-  return commandHandlerFor<State, StreamEvent, EventPayloadType>(options);
 };
 
 const handlerNames = <State, StreamEvent extends Event>(

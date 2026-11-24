@@ -371,7 +371,7 @@ describe('eventStoreCollector', () => {
 describe('eventStoreCollector event counts', () => {
   const eventTypes = ['OrderPlaced', 'ItemAdded'];
 
-  it('everyEventTypeIsCountedAtZeroBeforeItsFirstAppend', async () => {
+  it('counts every known event type at zero before its first append', async () => {
     await given((config) =>
       eventStoreCollector(
         eventStoreObservability({ observability: { ...config, eventTypes } }),
@@ -386,7 +386,7 @@ describe('eventStoreCollector event counts', () => {
       });
   });
 
-  it('everyEventTypeIsCountedAtZeroBeforeItsFirstRead', async () => {
+  it('counts every known event type at zero before its first read', async () => {
     await given((config) =>
       eventStoreCollector(
         eventStoreObservability({ observability: { ...config, eventTypes } }),
@@ -401,7 +401,7 @@ describe('eventStoreCollector event counts', () => {
       });
   });
 
-  it('noEventTypeIsCountedAtZeroWhenNoneIsKnown', async () => {
+  it('counts no event type at zero when none is known', async () => {
     await given((config) =>
       eventStoreCollector(eventStoreObservability({ observability: config })),
     )

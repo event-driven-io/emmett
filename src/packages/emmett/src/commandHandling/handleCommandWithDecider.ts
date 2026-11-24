@@ -3,12 +3,12 @@ import type { Command, Event } from '../typing';
 import type { Decider } from '../typing/decider';
 import {
   CommandHandler,
-  registerKnownCommandTypes,
   type BeforeAllContext,
   type CommandHandlerOptions,
   type CommandHandlerResult,
   type HandleOptions,
 } from './handleCommand';
+import { commandHandlerCollector, commandObservability } from './observability';
 import {
   append,
   composeMiddleware,
@@ -59,30 +59,11 @@ export const DeciderCommandHandler = <
     EventPayloadType
   >,
 ) => {
-  registerKnownCommandTypes(options);
-  return deciderCommandHandlerFor<
-    State,
-    CommandType,
-    StreamEvent,
-    EventPayloadType
-  >(options);
-};
+  commandHandlerCollector(commandObservability(options)).registerCommandTypes(
+    options.commandType ?? options.name,
+  );
 
-const deciderCommandHandlerFor =
-  <
-    State,
-    CommandType extends Command,
-    StreamEvent extends Event,
-    EventPayloadType extends Event = StreamEvent,
-  >(
-    options: DeciderCommandHandlerOptions<
-      State,
-      CommandType,
-      StreamEvent,
-      EventPayloadType
-    >,
-  ) =>
-  async <Store extends EventStore>(
+  return async <Store extends EventStore>(
     eventStore: Store,
     id: string,
     commands: CommandType | CommandType[],
@@ -116,6 +97,8 @@ const deciderCommandHandlerFor =
     // attribute.
     const result = await CommandHandler<State, StreamEvent, EventPayloadType>({
       ...rest,
+      commandType: undefined,
+      name: undefined,
       middleware: beforeAll
         ? {
             beforeAll: (_handlers, context) =>
@@ -133,4 +116,5 @@ const deciderCommandHandlerFor =
     });
     return result;
   };
+};
 // #endregion command-handler

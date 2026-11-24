@@ -15,7 +15,7 @@ import {
   EmmettMetrics,
   MessagingSystemName,
 } from '../observability/attributes';
-import { assertDeepEqual } from '../testing';
+import { assertDeepEqual, assertEqual } from '../testing';
 import type { Event } from '../typing';
 import { CommandHandler } from './handleCommand';
 
@@ -868,89 +868,116 @@ describe('handler observability', () => {
   });
 
   void describe('command counts', () => {
-    const commandTypes = ['AddItem', 'RemoveItem'];
+    const countsBySeries = (
+      counters: {
+        name: string;
+        value: number;
+        attributes?: Record<string, unknown>;
+      }[],
+    ) =>
+      counters
+        .filter((c) => c.name === EmmettMetrics.command.handlingCount)
+        .reduce<Record<string, number>>((totals, c) => {
+          const series = `${String(c.attributes?.[EmmettAttributes.command.type])}:${String(c.attributes?.[EmmettAttributes.command.status])}`;
+          totals[series] = (totals[series] ?? 0) + c.value;
+          return totals;
+        }, {});
 
-    void it('everyCommandTypeIsCountedAtZeroBeforeItsFirstCommand', () => {
+    const cartHandler = (
+      observability: Parameters<typeof CommandHandler>[0]['observability'],
+      commandType?: string | string[],
+    ) =>
+      CommandHandler<Cart, ItemAdded>({
+        evolve: (state) => state,
+        initialState: () => ({ count: 0 }),
+        ...(commandType ? { commandType } : {}),
+        observability,
+      });
+
+    const failing = () => {
+      throw new Error('business rule violated');
+    };
+
+    void it('counts every known command type at zero for success and failure before its first command', () => {
       return given((observability) =>
-        CommandHandler<Cart, ItemAdded>({
-          evolve: (state) => state,
-          initialState: () => ({ count: 0 }),
-          commandType: commandTypes,
-          observability,
-        }),
+        cartHandler(observability, ['AddItem', 'RemoveItem']),
       )
-        .when(() => undefined)
-        .then(({ metrics }) => {
-          metrics
-            .haveCounterNamed(EmmettMetrics.command.handlingCount)
-            .recordedValues([0, 0, 0, 0])
-            .hasAttributes({
-              [EmmettAttributes.command.type]: 'AddItem',
-              [EmmettAttributes.command.status]: 'success',
-            });
+        .when((_handler, { meter }) => meter.counters)
+        .then(({ result }) => {
+          assertDeepEqual(countsBySeries(result), {
+            'AddItem:success': 0,
+            'AddItem:failure': 0,
+            'RemoveItem:success': 0,
+            'RemoveItem:failure': 0,
+          });
         });
     });
 
-    void it('countsACommandThatSucceeds', () => {
-      return given((observability) =>
-        CommandHandler<Cart, ItemAdded>({
-          evolve: (state) => state,
-          initialState: () => ({ count: 0 }),
-          commandType: 'AddItem',
-          observability,
-        }),
-      )
-        .when((handler) =>
-          handler(getInMemoryEventStore(), uuid(), () => [
+    void it('counts a succeeded command in the series created at zero', () => {
+      return given((observability) => cartHandler(observability, 'AddItem'))
+        .when(async (handler, { meter }) => {
+          await handler(getInMemoryEventStore(), uuid(), () => [
             { type: 'ItemAdded', data: { productId: 'p1' } },
-          ]),
-        )
-        .then(({ metrics }) => {
-          metrics
-            .haveCounterNamed(EmmettMetrics.command.handlingCount)
-            .recordedValues([0, 0, 1])
-            .hasValue(1);
-        });
-    });
-
-    void it('countsACommandThatFailsInTheSeriesCreatedAtZero', () => {
-      return given((observability) =>
-        CommandHandler<Cart, ItemAdded>({
-          evolve: (state) => state,
-          initialState: () => ({ count: 0 }),
-          commandType: 'AddItem',
-          observability,
-        }),
-      )
-        .when(async (handler) => {
-          try {
-            await handler(getInMemoryEventStore(), uuid(), () => {
-              throw new Error('business rule violated');
-            });
-          } catch {
-            // expected
-          }
+          ]);
+          return meter.counters;
         })
-        .then(({ metrics }) => {
-          metrics
-            .haveCounterNamed(EmmettMetrics.command.handlingCount)
-            .recordedValues([0, 0, 1]);
+        .then(({ result }) => {
+          assertDeepEqual(countsBySeries(result), {
+            'AddItem:success': 1,
+            'AddItem:failure': 0,
+          });
         });
     });
 
-    void it('countsNothingAtZeroWhenNoCommandTypeIsKnown', () => {
+    void it('counts the first failed command in the failure series created at zero', () => {
+      return given((observability) => cartHandler(observability, 'AddItem'))
+        .when(async (handler, { meter }) => {
+          await handler(getInMemoryEventStore(), uuid(), failing).catch(
+            () => undefined,
+          );
+          return meter.counters;
+        })
+        .then(({ result }) => {
+          assertDeepEqual(countsBySeries(result), {
+            'AddItem:success': 0,
+            'AddItem:failure': 1,
+          });
+          assertEqual(
+            result.find(
+              (c) =>
+                c.name === EmmettMetrics.command.handlingCount &&
+                c.attributes?.[EmmettAttributes.command.status] === 'failure',
+            )?.value,
+            0,
+          );
+        });
+    });
+
+    void it('counts a call that handles several command types under each of its own types', () => {
       return given((observability) =>
-        CommandHandler<Cart, ItemAdded>({
-          evolve: (state) => state,
-          initialState: () => ({ count: 0 }),
-          observability,
-        }),
+        cartHandler(observability, ['AddItem', 'RemoveItem']),
       )
-        .when(() => undefined)
-        .then(({ metrics }) => {
-          expect(() =>
-            metrics.haveCounterNamed(EmmettMetrics.command.handlingCount),
-          ).toThrow();
+        .when(async (handler, { meter }) => {
+          await handler(getInMemoryEventStore(), uuid(), failing).catch(
+            () => undefined,
+          );
+          return meter.counters;
+        })
+        .then(({ result }) => {
+          assertDeepEqual(countsBySeries(result), {
+            'AddItem:success': 0,
+            'AddItem:failure': 1,
+            'RemoveItem:success': 0,
+            'RemoveItem:failure': 1,
+          });
+        });
+    });
+
+    void it('counts nothing at zero when no command type is known', () => {
+      return given((observability) => cartHandler(observability))
+        .when((_handler, { meter }) => meter.counters)
+        .then(({ result }) => {
+          assertDeepEqual(countsBySeries(result), {});
         });
     });
   });
