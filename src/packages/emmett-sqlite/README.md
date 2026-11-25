@@ -295,7 +295,7 @@ const consumer = eventStore.consumer<ShoppingCartEvent>({
     backoff: {
       initialInMs: 100, // Wait before the first poll that finds nothing (default: 100ms)
       multiplier: 2, // Growth of the wait after each poll that finds nothing (default: 2)
-      maxInMs: 1000, // Longest wait (default: 1000ms)
+      maxInMs: 250, // Longest wait (default: 250ms)
     },
   },
 });
