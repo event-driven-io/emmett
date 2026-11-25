@@ -993,7 +993,13 @@ describe('processor failure observability', () => {
           attemptLinks: messageSpans.map((span) => span.startOptions.links),
           attemptErrors: messageSpans.map((span) => span.error),
           attemptLogs: messageSpans.map((span) =>
-            span.logs.map((log) => [log.metadata.level, log.name]),
+            span.logs.map((log) => ({
+              level: log.metadata.level,
+              name: log.name,
+              body: log.data.body,
+              attempt: log.data.attributes?.[A.processor.retryAttempt],
+              error: log.data.error,
+            })),
           ),
         };
       })
@@ -1031,7 +1037,15 @@ describe('processor failure observability', () => {
         ]);
         assertDeepEqual(attempt.attemptErrors, [failure, undefined]);
         assertDeepEqual(attempt.attemptLogs, [
-          [['error', 'emmett.processor.message.exception']],
+          [
+            {
+              level: 'warn',
+              name: 'emmett.processor.message.retry',
+              body: 'Processor retrying: message handling failed',
+              attempt: 1,
+              error: failure,
+            },
+          ],
           [],
         ]);
         metrics
@@ -1072,6 +1086,16 @@ describe('processor failure observability', () => {
         spans
           .hasSingleSpanNamed('processor.handle')
           .hasError(failure)
+          .logged('warn', 'Processor retrying: batch handling failed', {
+            ...processorIds,
+            [A.processor.batchSize]: 1,
+            [A.processor.retryAttempt]: 1,
+          })
+          .logged('error', 'Processor stopped: batch handling failed', {
+            ...processorIds,
+            [A.processor.batchSize]: 1,
+          })
+          .loggedCount(2)
           .hasAttributes({
             [A.scope.type]: 'processor',
             [A.scope.main]: true,

@@ -490,6 +490,11 @@ const withScopedMessageStore = <HandlerContext>(
 };
 
 export const defaultProcessorVersion = 1;
+
+const defaultProcessorRetries = 10;
+
+const retriesOf = (retryOptions: AsyncRetryOptions): number =>
+  retryOptions.retries ?? defaultProcessorRetries;
 export const defaultProcessorPartition = defaultTag;
 
 export const getProcessorInstanceId = (processorId: string): string =>
@@ -578,6 +583,59 @@ export const reactor = <
       ? { [EmmettAttributes.processor.checkpointBefore]: lastCheckpoint }
       : {};
 
+  let attemptNumber = 0;
+
+  let lastDecision: { error: unknown; retry: boolean } | undefined;
+
+  const willRetry = (error: unknown): boolean => {
+    if (lastDecision !== undefined && lastDecision.error === error)
+      return lastDecision.retry;
+
+    const retry =
+      retryOptions !== undefined &&
+      !isClosed &&
+      attemptNumber <= retriesOf(retryOptions) &&
+      (retryOptions.shouldRetryError?.(error) ?? true);
+    lastDecision = { error, retry };
+
+    return retry;
+  };
+
+  const retriedAttempt = (error: unknown): number | undefined =>
+    willRetry(error) ? attemptNumber : undefined;
+
+  const failureLog = (
+    event: string,
+    failure: string,
+    err: unknown,
+    attributes: Record<string, unknown>,
+  ): LogEvent => {
+    const attempt = retriedAttempt(err);
+
+    return attempt === undefined
+      ? LogEvent(
+          `${event}.exception`,
+          {
+            body: `Processor stopped: ${failure}`,
+            error: err as Error,
+            attributes,
+          },
+          { level: 'error' },
+        )
+      : LogEvent(
+          `${event}.retry`,
+          {
+            body: `Processor retrying: ${failure}`,
+            error: err as Error,
+            attributes: {
+              ...attributes,
+              [EmmettAttributes.processor.retryAttempt]: attempt,
+            },
+          },
+          { level: 'warn' },
+        );
+  };
+
   const batchHandlingFailed = (
     messages: RecordedMessage<MessageType, MessageMetadataType>[],
     err: unknown,
@@ -586,25 +644,17 @@ export const reactor = <
     const last = messages[messages.length - 1]
       ? getCheckpoint(messages[messages.length - 1]!)
       : null;
-    return LogEvent(
-      'emmett.processor.batch.exception',
-      {
-        body: 'Processor stopped: batch handling failed',
-        error: err as Error,
-        attributes: {
-          ...processorIds,
-          [EmmettAttributes.processor.batchSize]: messages.length,
-          ...(first !== null
-            ? { [EmmettAttributes.processor.batch.checkpoint.first]: first }
-            : {}),
-          ...(last !== null
-            ? { [EmmettAttributes.processor.batch.checkpoint.last]: last }
-            : {}),
-          ...checkpointBefore(),
-        },
-      },
-      { level: 'error' },
-    );
+    return failureLog('emmett.processor.batch', 'batch handling failed', err, {
+      ...processorIds,
+      [EmmettAttributes.processor.batchSize]: messages.length,
+      ...(first !== null
+        ? { [EmmettAttributes.processor.batch.checkpoint.first]: first }
+        : {}),
+      ...(last !== null
+        ? { [EmmettAttributes.processor.batch.checkpoint.last]: last }
+        : {}),
+      ...checkpointBefore(),
+    });
   };
 
   const messageHandlingFailed = (
@@ -612,29 +662,26 @@ export const reactor = <
     err: unknown,
   ): LogEvent => {
     const meta = message.metadata as Record<string, unknown>;
-    return LogEvent(
-      'emmett.processor.message.exception',
+    return failureLog(
+      'emmett.processor.message',
+      'message handling failed',
+      err,
       {
-        body: 'Processor stopped: message handling failed',
-        error: err as Error,
-        attributes: {
-          ...processorIds,
-          [EmmettAttributes.event.type]: message.type,
-          ...(meta.messageId !== undefined
-            ? { [MessagingAttributes.message.id]: meta.messageId }
-            : {}),
-          ...(meta.streamName !== undefined
-            ? { [EmmettAttributes.stream.name]: meta.streamName }
-            : {}),
-          ...(meta.streamPosition !== undefined
-            ? {
-                [EmmettAttributes.stream.position]: Number(meta.streamPosition),
-              }
-            : {}),
-          ...checkpointBefore(),
-        },
+        ...processorIds,
+        [EmmettAttributes.event.type]: message.type,
+        ...(meta.messageId !== undefined
+          ? { [MessagingAttributes.message.id]: meta.messageId }
+          : {}),
+        ...(meta.streamName !== undefined
+          ? { [EmmettAttributes.stream.name]: meta.streamName }
+          : {}),
+        ...(meta.streamPosition !== undefined
+          ? {
+              [EmmettAttributes.stream.position]: Number(meta.streamPosition),
+            }
+          : {}),
+        ...checkpointBefore(),
       },
-      { level: 'error' },
     );
   };
 
@@ -961,15 +1008,10 @@ export const reactor = <
       scope.log(
         failedBatch
           ? batchHandlingFailed(failedBatch, err)
-          : LogEvent(
-              'emmett.processor.exception',
-              {
-                body: 'Processor stopped: processing failed',
-                error: err as Error,
-                attributes: { ...processorIds, ...checkpointBefore() },
-              },
-              { level: 'error' },
-            ),
+          : failureLog('emmett.processor', 'processing failed', err, {
+              ...processorIds,
+              ...checkpointBefore(),
+            }),
       );
       throw err;
     }
@@ -1001,6 +1043,7 @@ export const reactor = <
   ): Promise<BatchMessageHandlerResult> => {
     let result: BatchMessageHandlerResult = undefined;
     let lastAttemptThrew = false;
+    attemptNumber = 0;
 
     try {
       await asyncRetry(
@@ -1009,6 +1052,8 @@ export const reactor = <
 
           isActive = true;
           lastAttemptThrew = false;
+          attemptNumber++;
+          lastDecision = undefined;
           let attempt: BatchMessageHandlerResult;
           try {
             attempt = await attemptBatch(messages, partialContext, scope);
@@ -1028,8 +1073,8 @@ export const reactor = <
         },
         {
           ...retryOptions,
-          shouldRetryError: (error) =>
-            !isClosed && (retryOptions.shouldRetryError?.(error) ?? true),
+          retries: retriesOf(retryOptions),
+          shouldRetryError: willRetry,
         },
       );
     } catch (error) {
