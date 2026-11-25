@@ -4,6 +4,7 @@ import {
   JSONSerializer,
   parseBigIntProcessorCheckpoint,
   pollingMessageSource,
+  type PollingBackoffOptions,
   type AnyMessage,
   type JSONSerializationOptions,
   type Message,
@@ -19,6 +20,7 @@ export type SQLiteMessageSourceOptions = {
   pool: Dumbo;
   batchSize?: number;
   pullingFrequencyInMs?: number;
+  backoff?: PollingBackoffOptions;
   databaseSchemaName?: string;
 } & JSONSerializationOptions;
 
@@ -26,6 +28,7 @@ export const sqliteMessageSource = <MessageType extends Message = AnyMessage>({
   pool,
   batchSize,
   pullingFrequencyInMs,
+  backoff,
   serialization,
   databaseSchemaName,
 }: SQLiteMessageSourceOptions): MessageSource<
@@ -67,6 +70,7 @@ export const sqliteMessageSource = <MessageType extends Message = AnyMessage>({
       pullingFrequencyInMs:
         pullingFrequencyInMs ??
         DefaultSQLiteEventStoreProcessorPullingFrequencyInMs,
+      backoff,
     },
   );
 };

@@ -1,6 +1,7 @@
 import type { Dumbo } from '@event-driven-io/dumbo';
 import {
   pollingMessageSource,
+  type PollingBackoffOptions,
   type AnyMessage,
   type Message,
   type MessageSource,
@@ -20,6 +21,7 @@ export type PostgreSQLMessageSourceOptions = {
   pool: Dumbo;
   batchSize?: number;
   pullingFrequencyInMs?: number;
+  backoff?: PollingBackoffOptions;
   partition?: string;
   databaseSchemaName?: string;
 };
@@ -30,6 +32,7 @@ export const postgreSQLMessageSource = <
   pool,
   batchSize,
   pullingFrequencyInMs,
+  backoff,
   partition,
   databaseSchemaName,
 }: PostgreSQLMessageSourceOptions): MessageSource<
@@ -73,5 +76,6 @@ export const postgreSQLMessageSource = <
     pullingFrequencyInMs:
       pullingFrequencyInMs ??
       DefaultPostgreSQLEventStoreProcessorPullingFrequencyInMs,
+    backoff,
   });
 };
