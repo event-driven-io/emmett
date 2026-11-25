@@ -2,8 +2,10 @@ import { dumbo, SQL, type Dumbo } from '@event-driven-io/dumbo';
 import {
   assertDeepEqual,
   assertEqual,
+  projections,
   type Event,
 } from '@event-driven-io/emmett';
+import { postgreSQLProjection } from '../projections';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
@@ -204,6 +206,69 @@ void describe('PostgreSQL processor transaction handling', () => {
         events.map(({ data }) => data),
         [{ guestId }, { guestId: otherGuestId }],
       );
+    },
+  );
+
+  void it(
+    'runs the inline projections and the commit hook of the store for appends through the handler context',
+    withDeadline,
+    async () => {
+      // Given
+      const guestId = uuid();
+      const reactionStream = `reaction-${guestId}`;
+      const appendResult = await eventStore.appendToStream(
+        `guestStay-${guestId}`,
+        [{ type: 'GuestCheckedIn', data: { guestId } }],
+      );
+      const projected: string[] = [];
+      const hooked: string[] = [];
+      let handled = false;
+
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString,
+        projections: projections.inline([
+          postgreSQLProjection<GuestCheckedOut>({
+            name: `reactions_${uuid().replaceAll('-', '_')}`,
+            canHandle: ['GuestCheckedOut'],
+            handle: (events) => {
+              projected.push(...events.map((event) => event.data.guestId));
+            },
+          }),
+        ]),
+        hooks: {
+          onBeforeCommit: (messages): void => {
+            hooked.push(...messages.map((message) => message.type));
+          },
+        },
+      });
+      const consumer = store.consumer();
+      consumer.reactor<GuestStayEvent>({
+        processorId: uuid(),
+        canHandle: ['GuestCheckedIn'],
+        stopAfter: (event) =>
+          event.metadata.globalPosition ===
+          appendResult.lastEventGlobalPosition,
+        eachMessage: async (event, context) => {
+          await context.session.messageStore.appendToStream(reactionStream, [
+            { type: 'GuestCheckedOut', data: { guestId: event.data.guestId } },
+          ]);
+          handled = true;
+        },
+      });
+
+      // When
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+        await store.close();
+      }
+
+      // Then
+      assertEqual(true, handled);
+      assertDeepEqual([guestId], projected);
+      assertEqual(true, hooked.includes('GuestCheckedOut'));
     },
   );
 });

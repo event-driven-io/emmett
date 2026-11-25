@@ -103,16 +103,19 @@ const wrapEventStore = <Store extends EventStore>(
 };
 
 const sessionsRecordingAppendedEvents = <Store extends EventStore>(
-  sessionFactory: EventStoreSessionFactory<Store>,
+  sessionFactory: EventStoreSessionFactory<Store, unknown>,
   appendedEvents: Map<string, TestEventStream>,
-): EventStoreSessionFactory<Store> => ({
+): EventStoreSessionFactory<Store, unknown> => ({
   withSession: <T = unknown>(
     callback: (session: EventStoreSession<Store>) => Promise<T>,
+    options?: unknown,
   ): Promise<T> =>
-    sessionFactory.withSession((session) =>
-      callback({
-        ...session,
-        eventStore: wrapEventStore(session.eventStore, appendedEvents),
-      }),
+    sessionFactory.withSession(
+      (session) =>
+        callback({
+          ...session,
+          eventStore: wrapEventStore(session.eventStore, appendedEvents),
+        }),
+      options,
     ),
 });

@@ -12,7 +12,10 @@ import {
   type SchemaComponentMigrateOptions,
   type SQLMigration,
 } from '@event-driven-io/dumbo';
-import type { AnySQLiteConnection } from '@event-driven-io/dumbo/sqlite';
+import type {
+  AnySQLiteConnection,
+  SQLiteTransaction,
+} from '@event-driven-io/dumbo/sqlite';
 import {
   assertExpectedVersionMatchesCurrent,
   bigIntProcessorCheckpoint,
@@ -53,6 +56,7 @@ import {
 } from './consumers';
 import type {
   AnySQLiteEventStoreDriver,
+  InferDumboConnectionFromEventStoreDriver,
   InferDumboOptionsFromEventStoreDriver,
   PoolOrConnectionOptions,
 } from './eventStoreDriver';
@@ -85,10 +89,44 @@ export type EventHandler<E extends Event = Event> = (
 
 export const SQLiteEventStoreDefaultStreamVersion = 0n;
 
-export interface SQLiteEventStore
+/**
+ * Runs a session on a connection or in a transaction. The session's store keeps
+ * the inline projections, hooks and observability of the store it came from.
+ *
+ * - `connection`: each append runs in its own transaction on the caller's
+ *   connection. The session does not create the event store schema.
+ * - `transaction`: appends join the caller's transaction, so they commit or
+ *   roll back with it. Its pool or connection has to allow nested transactions.
+ *   The session does not create the event store schema.
+ * - `transaction: true`: the session opens a transaction for its whole
+ *   callback, commits it when the callback resolves and rolls it back when it
+ *   throws, so appends to many streams commit together. Keep the callback
+ *   short: other writers wait for it, and PostgreSQL consumers do not read
+ *   events appended after it started until it ends.
+ */
+export type SQLiteEventStoreSessionOptions<
+  EventStoreDriver extends AnySQLiteEventStoreDriver =
+    AnySQLiteEventStoreDriver,
+> =
+  | { connection: InferDumboConnectionFromEventStoreDriver<EventStoreDriver> }
+  | {
+      transaction:
+        | SQLiteTransaction<
+            InferDumboConnectionFromEventStoreDriver<EventStoreDriver>
+          >
+        | true;
+    };
+
+export interface SQLiteEventStore<
+  EventStoreDriver extends AnySQLiteEventStoreDriver =
+    AnySQLiteEventStoreDriver,
+>
   extends
     EventStore<SQLiteReadEventMetadata>,
-    EventStoreSessionFactory<SQLiteEventStore> {
+    EventStoreSessionFactory<
+      SQLiteEventStore<EventStoreDriver>,
+      SQLiteEventStoreSessionOptions<EventStoreDriver>
+    > {
   appendToStream<
     EventType extends Event,
     EventPayloadType extends Event = EventType,
@@ -177,7 +215,7 @@ export const getSQLiteEventStore = <
   Driver extends AnySQLiteEventStoreDriver = AnySQLiteEventStoreDriver,
 >(
   options: SQLiteEventStoreOptions<Driver>,
-): SQLiteEventStore => {
+): SQLiteEventStore<Driver> => {
   let autoGenerateSchema = false;
 
   const serializer = JSONSerializer.from(options);
@@ -345,7 +383,7 @@ export const getSQLiteEventStore = <
       readOptions?.observability,
     );
 
-  const eventStore: SQLiteEventStore = {
+  const eventStore: SQLiteEventStore<Driver> = {
     async aggregateStream<
       State,
       EventType extends Event,
@@ -543,14 +581,17 @@ export const getSQLiteEventStore = <
     },
 
     async withSession<T = unknown>(
-      callback: (session: EventStoreSession<SQLiteEventStore>) => Promise<T>,
+      callback: (
+        session: EventStoreSession<SQLiteEventStore<Driver>>,
+      ) => Promise<T>,
+      sessionOptions?: SQLiteEventStoreSessionOptions<Driver>,
     ): Promise<T> {
       const { transactionOptions } = dumboOptions as {
         transactionOptions?: DatabaseTransactionOptions;
       };
 
-      return await pool.withConnection(async (connection) => {
-        const sessionStore = getSQLiteEventStore({
+      const sessionStore = (connection: AnySQLiteConnection) =>
+        getSQLiteEventStore({
           ...options,
           pool: dumbo({
             driver: options.driver.dumboDriver,
@@ -565,13 +606,36 @@ export const getSQLiteEventStore = <
           serialization: options.serialization,
         });
 
-        await ensureSchemaExists();
-
+      if (sessionOptions && 'connection' in sessionOptions)
         return callback({
-          eventStore: sessionStore,
+          eventStore: sessionStore(sessionOptions.connection),
           close: () => Promise.resolve(),
         });
-      });
+
+      if (sessionOptions && sessionOptions.transaction !== true)
+        return callback({
+          eventStore: sessionStore(sessionOptions.transaction.connection),
+          close: () => Promise.resolve(),
+        });
+
+      await ensureSchemaExists();
+
+      if (sessionOptions?.transaction === true)
+        return pool.withConnection((connection) =>
+          connection.withTransaction(() =>
+            callback({
+              eventStore: sessionStore(connection),
+              close: () => Promise.resolve(),
+            }),
+          ),
+        );
+
+      return pool.withConnection((connection) =>
+        callback({
+          eventStore: sessionStore(connection),
+          close: () => Promise.resolve(),
+        }),
+      );
     },
 
     close: () => pool.close(),

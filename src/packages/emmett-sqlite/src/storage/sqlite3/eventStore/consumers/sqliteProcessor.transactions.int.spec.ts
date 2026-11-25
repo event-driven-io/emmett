@@ -1,3 +1,4 @@
+import { collectingMeter } from '@event-driven-io/almanac';
 import { JSONSerializer } from '@event-driven-io/dumbo';
 import { sqlite3Pool } from '@event-driven-io/dumbo/sqlite3';
 import {
@@ -6,6 +7,9 @@ import {
   assertDeepEqual,
   assertEqual,
   assertTrue,
+  EmmettAttributes,
+  EmmettMetrics,
+  projections,
   WorkflowHandler,
   workflowStreamName,
   type WorkflowOptions,
@@ -31,6 +35,7 @@ import {
   type SQLiteEventStore,
 } from '../../../../eventStore/SQLiteEventStore';
 import { readProcessorCheckpoint } from '../../../../eventStore/schema/readProcessorCheckpoint';
+import { sqliteProjection } from '../../../../eventStore/projections';
 import { sqliteEventStoreConsumer } from '../../../../eventStore/consumers/sqliteEventStoreConsumer';
 
 const withDeadline = { timeout: 30000 };
@@ -344,6 +349,108 @@ void describe('SQLite processor transaction handling', () => {
           ({ data }) => data,
         ),
         [{ attempt: 2 }],
+      );
+    },
+  );
+
+  void it(
+    'runs the inline projections and the commit hook of the store for appends through the handler context',
+    withDeadline,
+    async () => {
+      // Given
+      const id = uuid();
+      const reactionStream = `reaction-${id}`;
+      const projected: string[] = [];
+      const hooked: string[] = [];
+
+      const store = getSQLiteEventStore({
+        ...config,
+        projections: projections.inline([
+          sqliteProjection<Event<'Reacted', { id: string }>>({
+            name: `reactions-${id}`,
+            canHandle: ['Reacted'],
+            handle: (events) => {
+              projected.push(...events.map((event) => event.data.id));
+              return Promise.resolve();
+            },
+          }),
+        ]),
+        hooks: {
+          onBeforeCommit: (messages) => {
+            hooked.push(...messages.map((message) => message.type));
+          },
+        },
+      });
+      const consumer = store.consumer();
+      consumer.reactor({
+        processorId: `reacting-${id}`,
+        canHandle: ['Triggered'],
+        stopAfter: (message) => message.type === 'Triggered',
+        eachMessage: async (_message, context) => {
+          await context.session.messageStore.appendToStream(reactionStream, [
+            { type: 'Reacted', data: { id } },
+          ]);
+        },
+      });
+      await eventStore.appendToStream(`trigger-${id}`, [
+        { type: 'Triggered', data: {} },
+      ]);
+
+      // When
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+        await store.close();
+      }
+
+      // Then
+      assertDeepEqual([id], projected);
+      assertTrue(hooked.includes('Reacted'));
+    },
+  );
+
+  void it(
+    'records the observability of the store for appends through the handler context',
+    withDeadline,
+    async () => {
+      // Given
+      const id = uuid();
+      const meter = collectingMeter();
+      const store = getSQLiteEventStore({
+        ...config,
+        observability: { meter },
+      });
+      const consumer = store.consumer();
+      consumer.reactor({
+        processorId: `observed-${id}`,
+        canHandle: ['Triggered'],
+        stopAfter: (message) => message.type === 'Triggered',
+        eachMessage: async (_message, context) => {
+          await context.session.messageStore.appendToStream(`reaction-${id}`, [
+            { type: 'Reacted', data: { id } },
+          ]);
+        },
+      });
+      await eventStore.appendToStream(`trigger-${id}`, [
+        { type: 'Triggered', data: {} },
+      ]);
+
+      // When
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+        await store.close();
+      }
+
+      // Then
+      assertTrue(
+        meter.counters.some(
+          (counter) =>
+            counter.name === EmmettMetrics.event.appendingCount &&
+            counter.attributes?.[EmmettAttributes.event.type] === 'Reacted',
+        ),
       );
     },
   );

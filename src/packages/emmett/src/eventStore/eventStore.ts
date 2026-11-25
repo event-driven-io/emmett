@@ -92,9 +92,13 @@ export type EventStoreSession<EventStoreType extends EventStore> = {
   close: () => Promise<void>;
 };
 
-export interface EventStoreSessionFactory<EventStoreType extends EventStore> {
+export interface EventStoreSessionFactory<
+  EventStoreType extends EventStore,
+  SessionOptions = never,
+> {
   withSession<T = unknown>(
     callback: (session: EventStoreSession<EventStoreType>) => Promise<T>,
+    options?: SessionOptions,
   ): Promise<T>;
 }
 // #endregion event-store
