@@ -30,7 +30,11 @@ import type {
   PartialHandlerContext,
   RecordedMessage,
 } from '../typing';
-import { asyncAwaiter, type AsyncAwaiter } from '../utils';
+import {
+  asyncAwaiter,
+  type AsyncAwaiter,
+  type AsyncRetryOptions,
+} from '../utils';
 import type {
   MessageSource,
   MessageSourceMessage,
@@ -67,6 +71,7 @@ export type MessageConsumerOptions<
   processors?: Array<MessageProcessor<ConsumerMessageType, any, any>>;
   until?: MessageConsumerUntilCondition;
   defaultTimeout?: number;
+  processorDefaults?: { retry?: AsyncRetryOptions };
 };
 
 export type MessageConsumer<
@@ -284,6 +289,21 @@ export const consumer = <
     };
   };
 
+  const withProcessorDefaults = (processorOptions: unknown): unknown => {
+    const merged = withMergedObservability(processorOptions);
+    const retry = options.processorDefaults?.retry;
+
+    if (
+      retry === undefined ||
+      typeof merged !== 'object' ||
+      merged === null ||
+      ('retry' in merged && merged.retry !== undefined)
+    )
+      return merged;
+
+    return { ...merged, retry };
+  };
+
   // A processor that fails to initialise is closed there and then, so the
   // teardown that follows the failed start must not close it a second time and
   // run its onClose hook twice.
@@ -371,17 +391,17 @@ export const consumer = <
     reactor: withMessageProcessorFactory(
       register,
       options.reactorFactory,
-      withMergedObservability,
+      withProcessorDefaults,
     ),
     projector: withMessageProcessorFactory(
       register,
       options.projectorFactory,
-      withMergedObservability,
+      withProcessorDefaults,
     ),
     workflowProcessor: withMessageProcessorFactory(
       register,
       options.workflowProcessorFactory,
-      withMergedObservability,
+      withProcessorDefaults,
     ),
     start: () => {
       if (isRunning) {

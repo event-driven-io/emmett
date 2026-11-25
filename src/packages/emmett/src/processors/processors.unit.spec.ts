@@ -26,6 +26,69 @@ import {
 
 type TestEvent = Event<'test', { counter: number }>;
 
+type Metadata = ReadEventMetadata & {
+  globalPosition: bigint;
+  streamPosition: bigint;
+};
+
+const message = (counter: number): RecordedMessage<TestEvent, Metadata> => ({
+  type: 'test',
+  kind: 'Event',
+  schemaVersion: 1,
+  data: { counter },
+  metadata: {
+    streamName: 'test',
+    messageId: uuid(),
+    checkpoint: bigIntProcessorCheckpoint(BigInt(counter)),
+    globalPosition: BigInt(counter),
+    streamPosition: BigInt(counter),
+  },
+});
+
+const database = ({ rollsBackErrors }: { rollsBackErrors: boolean }) => {
+  let committed: ProcessorCheckpoint | null = null;
+  let written: ProcessorCheckpoint | null = null;
+
+  const checkpointer: Checkpointer<TestEvent, Metadata> = {
+    read: () => Promise.resolve({ lastCheckpoint: committed }),
+    store: (options) => {
+      written = bigIntProcessorCheckpoint(
+        options.message.metadata.globalPosition,
+      );
+      return Promise.resolve({ success: true, newCheckpoint: written });
+    },
+  };
+
+  const processingScope: MessageProcessingScope = async (
+    handler,
+    partialContext,
+  ) => {
+    written = committed;
+    const result = await defaultProcessingMessageProcessingScope(
+      handler,
+      partialContext,
+    );
+    if (!rollsBackErrors || !MessageProcessor.result.isError(result))
+      committed = written;
+    return result;
+  };
+
+  return { checkpointer, processingScope };
+};
+
+const failingOnTheSecondMessage = (handled: number[], times: number) => {
+  let failures = 0;
+
+  return (received: RecordedMessage<TestEvent, Metadata>) => {
+    handled.push(received.data.counter);
+    if (received.data.counter !== 2 || failures === times)
+      return Promise.resolve();
+
+    failures++;
+    return Promise.reject(new EmmettError('boom'));
+  };
+};
+
 void describe('Processors', () => {
   void describe('reactor', () => {
     void it('should create reactor with default options', () => {
@@ -1558,70 +1621,6 @@ void describe('Processors', () => {
   });
 
   void describe('a processor started again after its handler failed', () => {
-    type Metadata = ReadEventMetadata & {
-      globalPosition: bigint;
-      streamPosition: bigint;
-    };
-
-    const message = (
-      counter: number,
-    ): RecordedMessage<TestEvent, Metadata> => ({
-      type: 'test',
-      kind: 'Event',
-      schemaVersion: 1,
-      data: { counter },
-      metadata: {
-        streamName: 'test',
-        messageId: uuid(),
-        checkpoint: bigIntProcessorCheckpoint(BigInt(counter)),
-        globalPosition: BigInt(counter),
-        streamPosition: BigInt(counter),
-      },
-    });
-
-    const database = ({ rollsBackErrors }: { rollsBackErrors: boolean }) => {
-      let committed: ProcessorCheckpoint | null = null;
-      let written: ProcessorCheckpoint | null = null;
-
-      const checkpointer: Checkpointer<TestEvent, Metadata> = {
-        read: () => Promise.resolve({ lastCheckpoint: committed }),
-        store: (options) => {
-          written = bigIntProcessorCheckpoint(
-            options.message.metadata.globalPosition,
-          );
-          return Promise.resolve({ success: true, newCheckpoint: written });
-        },
-      };
-
-      const processingScope: MessageProcessingScope = async (
-        handler,
-        partialContext,
-      ) => {
-        written = committed;
-        const result = await defaultProcessingMessageProcessingScope(
-          handler,
-          partialContext,
-        );
-        if (!rollsBackErrors || !MessageProcessor.result.isError(result))
-          committed = written;
-        return result;
-      };
-
-      return { checkpointer, processingScope };
-    };
-
-    const failingOnceOnTheSecondMessage = (handled: number[]) => {
-      let failed = false;
-
-      return (received: RecordedMessage<TestEvent, Metadata>) => {
-        handled.push(received.data.counter);
-        if (received.data.counter !== 2 || failed) return Promise.resolve();
-
-        failed = true;
-        return Promise.reject(new EmmettError('boom'));
-      };
-    };
-
     void it('handles the whole batch again when the processing scope rolled it back', async () => {
       const handled: number[] = [];
       const { checkpointer, processingScope } = database({
@@ -1631,7 +1630,7 @@ void describe('Processors', () => {
         processorId: uuid(),
         processingScope,
         checkpoints: checkpointer,
-        eachMessage: failingOnceOnTheSecondMessage(handled),
+        eachMessage: failingOnTheSecondMessage(handled, 1),
       });
       onTestFinished(() => processor.close());
 
@@ -1652,7 +1651,7 @@ void describe('Processors', () => {
         processorId: uuid(),
         processingScope,
         checkpoints: checkpointer,
-        eachMessage: failingOnceOnTheSecondMessage(handled),
+        eachMessage: failingOnTheSecondMessage(handled, 1),
       });
       onTestFinished(() => processor.close());
 
@@ -1662,6 +1661,123 @@ void describe('Processors', () => {
       await processor.handle([message(1), message(2)], {});
 
       assertDeepEqual(handled, [1, 2, 2]);
+    });
+  });
+  void describe('a processor with a retry policy', () => {
+    const retry = { retries: 2, minTimeout: 1, factor: 1 };
+
+    const retrying = (
+      rollsBackErrors: boolean,
+      handled: number[],
+      failures: number,
+      options: { retry?: typeof retry } = { retry },
+    ) => {
+      const { checkpointer, processingScope } = database({ rollsBackErrors });
+
+      return reactor<TestEvent, Metadata>({
+        processorId: uuid(),
+        processingScope,
+        checkpoints: checkpointer,
+        ...options,
+        eachMessage: failingOnTheSecondMessage(handled, failures),
+      });
+    };
+
+    void it('handles the whole batch again when the processing scope rolled the failed attempt back', async () => {
+      const handled: number[] = [];
+      const processor = retrying(true, handled, 1);
+      onTestFinished(() => processor.close());
+      await processor.start({});
+
+      const result = await processor.handle([message(1), message(2)], {});
+
+      assertEqual(result, undefined);
+      assertDeepEqual(handled, [1, 2, 1, 2]);
+      assertEqual(processor.isActive, true);
+    });
+
+    void it('continues from the failing message when the processing scope kept the writes of the failed attempt', async () => {
+      const handled: number[] = [];
+      const processor = retrying(false, handled, 1);
+      onTestFinished(() => processor.close());
+      await processor.start({});
+
+      const result = await processor.handle([message(1), message(2)], {});
+
+      assertEqual(result, undefined);
+      assertDeepEqual(handled, [1, 2, 2]);
+    });
+
+    void it('stops with the error after the last attempt', async () => {
+      const handled: number[] = [];
+      const processor = retrying(true, handled, Infinity);
+      onTestFinished(() => processor.close());
+      await processor.start({});
+
+      const result = await processor.handle([message(1), message(2)], {});
+
+      assertMatches(result, {
+        type: 'STOP',
+        reason: 'Error during message processing',
+      });
+      assertEqual(MessageProcessor.result.isError(result), true);
+      assertDeepEqual(handled, [1, 2, 1, 2, 1, 2]);
+      assertEqual(processor.isActive, false);
+    });
+
+    void it('stops at the first error without a retry policy', async () => {
+      const handled: number[] = [];
+      const processor = retrying(true, handled, 1, {});
+      onTestFinished(() => processor.close());
+      await processor.start({});
+
+      const result = await processor.handle([message(1), message(2)], {});
+
+      assertEqual(MessageProcessor.result.isError(result), true);
+      assertDeepEqual(handled, [1, 2]);
+    });
+
+    void it('makes no more attempts once the processor is closed', async () => {
+      const handled: number[] = [];
+      const processor = retrying(true, handled, Infinity, {
+        retry: { retries: 5, minTimeout: 100, factor: 1 },
+      });
+      await processor.start({});
+
+      const handling = processor.handle([message(1), message(2)], {});
+      while (!handled.includes(2))
+        await new Promise((resolve) => setTimeout(resolve, 1));
+      await processor.close();
+      const result = await handling;
+
+      assertEqual(MessageProcessor.result.isError(result), true);
+      assertDeepEqual(handled, [1, 2]);
+    });
+    void it('retries a failed batch of a projector', async () => {
+      const handled: number[] = [];
+      const { checkpointer, processingScope } = database({
+        rollsBackErrors: true,
+      });
+      const failing = failingOnTheSecondMessage(handled, 1);
+      const processor = projector<TestEvent, Metadata>({
+        processingScope,
+        checkpoints: checkpointer,
+        retry,
+        projection: {
+          name: uuid(),
+          canHandle: ['test'],
+          handle: async (events) => {
+            for (const event of events) await failing(event);
+          },
+        },
+      });
+      onTestFinished(() => processor.close());
+      await processor.start({});
+
+      const result = await processor.handle([message(1), message(2)], {});
+
+      assertEqual(result, undefined);
+      assertDeepEqual(handled, [1, 2, 1, 2]);
     });
   });
 });
