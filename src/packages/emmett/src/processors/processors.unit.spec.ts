@@ -1,6 +1,7 @@
 import { v7 as uuid } from 'uuid';
 import { beforeEach, describe, it, onTestFinished } from 'vitest';
 import { EmmettError } from '../errors';
+import { ExpectedVersionConflictError } from '../eventStore';
 import {
   assertDeepEqual,
   assertEqual,
@@ -10,7 +11,6 @@ import {
 } from '../testing';
 import { heapUsedAfterCollecting } from '../testing/garbageCollection.testHelpers';
 import type { Event, ReadEventMetadata, RecordedMessage } from '../typing';
-import type { AsyncRetryOptions } from '../utils';
 import { isString } from '../validation';
 import {
   bigIntProcessorCheckpoint,
@@ -23,6 +23,7 @@ import {
   projector,
   reactor,
   type MessageProcessingScope,
+  type ProcessorRetryOptions,
 } from './processors';
 
 type TestEvent = Event<'test', { counter: number }>;
@@ -1671,7 +1672,7 @@ void describe('Processors', () => {
       rollsBackErrors: boolean,
       handled: number[],
       failures: number,
-      options: { retry?: AsyncRetryOptions } = { retry },
+      options: { retry?: ProcessorRetryOptions } = { retry },
     ) => {
       const { checkpointer, processingScope } = database({ rollsBackErrors });
 
@@ -1759,6 +1760,49 @@ void describe('Processors', () => {
       assertDeepEqual(handled, [1, 2]);
       assertEqual(seenErrors.length, 1);
       assertMatches(seenErrors[0], { message: 'boom' });
+    });
+
+    void it('retries a version conflict when retry is onVersionConflict', async () => {
+      const handled: number[] = [];
+      const { checkpointer, processingScope } = database({
+        rollsBackErrors: true,
+      });
+      let conflicted = false;
+      const processor = reactor<TestEvent, Metadata>({
+        processorId: uuid(),
+        processingScope,
+        checkpoints: checkpointer,
+        retry: { onVersionConflict: 1 },
+        eachMessage: (received) => {
+          handled.push(received.data.counter);
+          if (received.data.counter !== 2 || conflicted)
+            return Promise.resolve();
+
+          conflicted = true;
+          return Promise.reject(new ExpectedVersionConflictError(1n, 0n));
+        },
+      });
+      onTestFinished(() => processor.close());
+      await processor.start({});
+
+      const result = await processor.handle([message(1), message(2)], {});
+
+      assertEqual(result, undefined);
+      assertDeepEqual(handled, [1, 2, 1, 2]);
+    });
+
+    void it('does not retry other errors when retry is onVersionConflict', async () => {
+      const handled: number[] = [];
+      const processor = retrying(true, handled, 1, {
+        retry: { onVersionConflict: 1 },
+      });
+      onTestFinished(() => processor.close());
+      await processor.start({});
+
+      const result = await processor.handle([message(1), message(2)], {});
+
+      assertEqual(MessageProcessor.result.isError(result), true);
+      assertDeepEqual(handled, [1, 2]);
     });
 
     void it('makes no more attempts once the processor is closed', async () => {

@@ -9,6 +9,7 @@ import { MessageSourceControlMessage } from '../eventStore/events';
 import {
   type AnyMessageProcessorFactory,
   type ProcessorFactoryDefaults,
+  type ProcessorRetryOptions,
   ConsumerStartPositions,
   type MessageProcessor,
   type ProcessorCheckpoint,
@@ -30,11 +31,7 @@ import type {
   PartialHandlerContext,
   RecordedMessage,
 } from '../typing';
-import {
-  asyncAwaiter,
-  type AsyncAwaiter,
-  type AsyncRetryOptions,
-} from '../utils';
+import { asyncAwaiter, type AsyncAwaiter } from '../utils';
 import type {
   MessageSource,
   MessageSourceMessage,
@@ -71,7 +68,7 @@ export type MessageConsumerOptions<
   processors?: Array<MessageProcessor<ConsumerMessageType, any, any>>;
   until?: MessageConsumerUntilCondition;
   defaultTimeout?: number;
-  processorDefaults?: { retry?: AsyncRetryOptions };
+  processorDefaults?: { retry?: ProcessorRetryOptions };
 };
 
 export type MessageConsumer<
