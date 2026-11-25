@@ -288,6 +288,13 @@ export const MessageProcessor = {
       type: 'STOP',
       ...(options ?? {}),
     }),
+    isError: (result: unknown): boolean =>
+      typeof result === 'object' &&
+      result !== null &&
+      'type' in result &&
+      result.type === 'STOP' &&
+      'error' in result &&
+      result.error !== undefined,
   },
 };
 
@@ -1125,6 +1132,9 @@ export const reactor = <
                 },
                 { ...partialContext, observabilityScope: scope },
               );
+
+              if (MessageProcessor.result.isError(result))
+                lastCheckpoint = null;
 
               notifyCheckpointWaiters();
 

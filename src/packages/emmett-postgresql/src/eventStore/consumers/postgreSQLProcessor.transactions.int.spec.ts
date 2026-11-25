@@ -1,5 +1,9 @@
 import { dumbo, SQL, type Dumbo } from '@event-driven-io/dumbo';
-import { assertEqual, type Event } from '@event-driven-io/emmett';
+import {
+  assertDeepEqual,
+  assertEqual,
+  type Event,
+} from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
@@ -100,6 +104,108 @@ void describe('PostgreSQL processor transaction handling', () => {
         SQL`SELECT COUNT(*)::int AS count FROM emt_messages WHERE stream_id = ${reactionStream}`,
       );
       assertEqual(1, committed.rows[0]!.count);
+    },
+  );
+
+  void it(
+    'rolls back the whole batch and keeps the checkpoint before it when a handler throws',
+    withDeadline,
+    async () => {
+      // Given
+      const guestId = uuid();
+      const otherGuestId = uuid();
+      const reactionStream = `reaction-${guestId}`;
+      const processorId = uuid();
+
+      await eventStore.appendToStream(`guestStay-${guestId}`, [
+        { type: 'GuestCheckedIn', data: { guestId } },
+        { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+      ]);
+
+      const consumer = postgreSQLEventStoreConsumer({ connectionString });
+      consumer.reactor<GuestStayEvent>({
+        processorId,
+        canHandle: ['GuestCheckedIn'],
+        eachMessage: async (event, context) => {
+          await context.session.messageStore.appendToStream(reactionStream, [
+            { type: 'GuestCheckedOut', data: { guestId: event.data.guestId } },
+          ]);
+          if (event.data.guestId === otherGuestId)
+            throw new Error('handler failed');
+        },
+      });
+
+      // When
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      // Then
+      const reactions = await observerPool.execute.query<{ count: number }>(
+        SQL`SELECT COUNT(*)::int AS count FROM emt_messages WHERE stream_id = ${reactionStream}`,
+      );
+      assertEqual(0, reactions.rows[0]!.count);
+
+      const checkpoints = await observerPool.execute.query<{
+        last_processed_checkpoint: string;
+      }>(
+        SQL`SELECT last_processed_checkpoint FROM emt_processors WHERE processor_id = ${processorId}`,
+      );
+      assertEqual(
+        '0000000000000000000',
+        checkpoints.rows[0]?.last_processed_checkpoint,
+      );
+    },
+  );
+  void it(
+    'handles the rolled back batch again when the consumer starts again',
+    withDeadline,
+    async () => {
+      // Given
+      const guestId = uuid();
+      const otherGuestId = uuid();
+      const reactionStream = `reaction-${guestId}`;
+      let failed = false;
+
+      await eventStore.appendToStream(`guestStay-${guestId}`, [
+        { type: 'GuestCheckedIn', data: { guestId } },
+        { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
+      ]);
+
+      const consumer = postgreSQLEventStoreConsumer({
+        connectionString,
+        stopWhen: { noMessagesLeft: true },
+      });
+      consumer.reactor<GuestStayEvent>({
+        processorId: uuid(),
+        canHandle: ['GuestCheckedIn'],
+        eachMessage: async (event, context) => {
+          await context.session.messageStore.appendToStream(reactionStream, [
+            { type: 'GuestCheckedOut', data: { guestId: event.data.guestId } },
+          ]);
+          if (event.data.guestId === otherGuestId && !failed) {
+            failed = true;
+            throw new Error('handler failed');
+          }
+        },
+      });
+
+      // When
+      try {
+        await consumer.start();
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      // Then
+      const { events } = await eventStore.readStream(reactionStream);
+      assertDeepEqual(
+        events.map(({ data }) => data),
+        [{ guestId }, { guestId: otherGuestId }],
+      );
     },
   );
 });

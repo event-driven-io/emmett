@@ -18,7 +18,6 @@ import type {
   Message,
   MessageHandlerContext,
   MessageProcessingScope,
-  MessageProcessor,
   PartialHandlerContext,
   ProcessorHooks,
   ProjectorOptions,
@@ -37,6 +36,7 @@ import {
   getProjectorId,
   getWorkflowId,
   inMemoryCheckpointer,
+  MessageProcessor,
   noopScope,
   projector,
   reactor,
@@ -234,7 +234,7 @@ const sqliteProcessingScope = <
       const connection =
         transaction.connection as InferDumboConnectionFromEventStoreDriver<Driver>;
 
-      return handler({
+      const result = await handler({
         ...partialContext,
         partition: options.partition,
         execute: sqliteTransaction.execute,
@@ -261,6 +261,8 @@ const sqliteProcessingScope = <
         migrationOptions: options.migrationOptions,
         observabilityScope: partialContext?.observabilityScope ?? noopScope,
       });
+
+      return { success: !MessageProcessor.result.isError(result), result };
     });
   };
 

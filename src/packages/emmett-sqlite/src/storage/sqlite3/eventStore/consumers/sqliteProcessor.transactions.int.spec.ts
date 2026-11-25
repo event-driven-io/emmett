@@ -1,6 +1,9 @@
 import { JSONSerializer } from '@event-driven-io/dumbo';
 import { sqlite3Pool } from '@event-driven-io/dumbo/sqlite3';
 import {
+  EmmettError,
+  type Event,
+  assertDeepEqual,
   assertEqual,
   assertTrue,
   workflowStreamName,
@@ -25,6 +28,7 @@ import {
   getSQLiteEventStore,
   type SQLiteEventStore,
 } from '../../../../eventStore/SQLiteEventStore';
+import { readProcessorCheckpoint } from '../../../../eventStore/schema/readProcessorCheckpoint';
 import { sqliteEventStoreConsumer } from '../../../../eventStore/consumers/sqliteEventStoreConsumer';
 
 const withDeadline = { timeout: 30000 };
@@ -145,6 +149,122 @@ void describe('SQLite processor transaction handling', () => {
         }),
       );
       assertEqual('GroupCheckoutInitiated', events[1]!.type);
+    },
+  );
+
+  void it(
+    'rolls back the whole batch and keeps the checkpoint before it when a handler throws',
+    withDeadline,
+    async () => {
+      // Given
+      const id = uuid();
+      const processorId = `failing-${id}`;
+      const succeededStream = `succeeded-${id}`;
+      const failedStream = `failed-${id}`;
+
+      const pool = sqlite3Pool({ fileName, serializer: JSONSerializer });
+      const consumer = sqliteEventStoreConsumer({
+        driver: sqlite3EventStoreDriver,
+        fileName,
+      });
+
+      consumer.reactor<Event<'Triggered', { fail: boolean }>>({
+        processorId,
+        canHandle: ['Triggered'],
+        eachMessage: async (message, context) => {
+          const failing = message.data.fail;
+
+          await context.session.messageStore.appendToStream(
+            failing ? failedStream : succeededStream,
+            [{ type: 'SideEffect', data: {} }],
+          );
+
+          if (failing) throw new EmmettError('handler failed');
+        },
+      });
+
+      await eventStore.appendToStream(`trigger-${id}`, [
+        { type: 'Triggered', data: { fail: false } },
+        { type: 'Triggered', data: { fail: true } },
+      ]);
+
+      // When
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      // Then
+      try {
+        const checkpoint = await readProcessorCheckpoint(pool.execute, {
+          processorId,
+        });
+        assertEqual(null, checkpoint.lastProcessedCheckpoint);
+        assertEqual(
+          0,
+          (await eventStore.readStream(succeededStream)).events.length,
+        );
+        assertEqual(
+          0,
+          (await eventStore.readStream(failedStream)).events.length,
+        );
+      } finally {
+        await pool.close();
+      }
+    },
+  );
+  void it(
+    'handles the rolled back batch again when the consumer starts again',
+    withDeadline,
+    async () => {
+      // Given
+      const id = uuid();
+      const reactionsStream = `reactions-${id}`;
+      let failed = false;
+
+      const consumer = sqliteEventStoreConsumer({
+        driver: sqlite3EventStoreDriver,
+        fileName,
+        stopWhen: { noMessagesLeft: true },
+      });
+
+      consumer.reactor<Event<'Triggered', { id: string; fail: boolean }>>({
+        processorId: `restarted-${id}`,
+        canHandle: ['Triggered'],
+        eachMessage: async (message, context) => {
+          if (message.data.id !== id) return;
+
+          await context.session.messageStore.appendToStream(reactionsStream, [
+            { type: 'Reacted', data: { fail: message.data.fail } },
+          ]);
+
+          if (message.data.fail && !failed) {
+            failed = true;
+            throw new EmmettError('handler failed');
+          }
+        },
+      });
+
+      await eventStore.appendToStream(`trigger-${id}`, [
+        { type: 'Triggered', data: { id, fail: false } },
+        { type: 'Triggered', data: { id, fail: true } },
+      ]);
+
+      // When
+      try {
+        await consumer.start();
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      // Then
+      const { events } = await eventStore.readStream(reactionsStream);
+      assertDeepEqual(
+        events.map(({ data }) => data),
+        [{ fail: false }, { fail: true }],
+      );
     },
   );
 });
