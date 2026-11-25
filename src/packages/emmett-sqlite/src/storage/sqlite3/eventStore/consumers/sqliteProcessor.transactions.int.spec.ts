@@ -267,4 +267,70 @@ void describe('SQLite processor transaction handling', () => {
       );
     },
   );
+  void it(
+    'releases the database lock between the attempts of a retried batch',
+    withDeadline,
+    async () => {
+      // Given
+      const id = uuid();
+      const sideEffectStream = `side-effect-${id}`;
+      const concurrentStream = `concurrent-${id}`;
+      let attempts = 0;
+      let attemptsWhenConcurrentAppendFinished: number | undefined;
+
+      const consumer = sqliteEventStoreConsumer({
+        driver: sqlite3EventStoreDriver,
+        fileName,
+        processorDefaults: {
+          retry: { retries: 2, minTimeout: 1000, factor: 1 },
+        },
+      });
+
+      consumer.reactor<Event<'Triggered', { id: string }>>({
+        processorId: `retried-${id}`,
+        canHandle: ['Triggered'],
+        stopAfter: (message) => message.data.id === id,
+        eachMessage: async (message, context) => {
+          if (message.data.id !== id) return;
+          attempts++;
+
+          await context.session.messageStore.appendToStream(sideEffectStream, [
+            { type: 'SideEffect', data: { attempt: attempts } },
+          ]);
+
+          if (attempts === 1) throw new EmmettError('broker is down');
+        },
+      });
+
+      // When
+      try {
+        const consuming = consumer.start();
+
+        await eventStore.appendToStream(`trigger-${id}`, [
+          { type: 'Triggered', data: { id } },
+        ]);
+
+        while (attempts < 1) await new Promise((r) => setTimeout(r, 10));
+
+        await eventStore.appendToStream(concurrentStream, [
+          { type: 'Concurrent', data: {} },
+        ]);
+        attemptsWhenConcurrentAppendFinished = attempts;
+
+        await consuming;
+      } finally {
+        await consumer.close();
+      }
+
+      // Then
+      assertEqual(1, attemptsWhenConcurrentAppendFinished);
+      assertEqual(2, attempts);
+      assertDeepEqual(
+        (await eventStore.readStream(sideEffectStream)).events.map(
+          ({ data }) => data,
+        ),
+        [{ attempt: 2 }],
+      );
+    },
+  );
 });

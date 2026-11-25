@@ -373,6 +373,65 @@ void describe('consumer', () => {
     }
   });
 
+  void describe('processor defaults', () => {
+    const defaultRetry = { retries: 5, minTimeout: 100 };
+
+    const consumerWithDefaults = () => {
+      const { source } = testSource([]);
+      const received: {
+        factory: string;
+        options: { processor: AnyMessageProcessor; retry?: unknown };
+      }[] = [];
+      const factoryOf =
+        (factory: string) =>
+        (options: { processor: AnyMessageProcessor; retry?: unknown }) => {
+          received.push({ factory, options });
+          return options.processor;
+        };
+
+      const messageConsumer = consumer({
+        source,
+        processorDefaults: { retry: defaultRetry },
+        reactorFactory: factoryOf('reactor'),
+        projectorFactory: factoryOf('projector'),
+        workflowProcessorFactory: factoryOf('workflow'),
+      });
+
+      return { messageConsumer, received };
+    };
+
+    void it('gives the default retry to the processors registered through the consumer', () => {
+      const { messageConsumer, received } = consumerWithDefaults();
+
+      messageConsumer.reactor({ processor: testProcessor('a').processor });
+      messageConsumer.projector({ processor: testProcessor('b').processor });
+      messageConsumer.workflowProcessor({
+        processor: testProcessor('c').processor,
+      });
+
+      assertDeepEqual(
+        received.map(({ factory, options }) => [factory, options.retry]),
+        [
+          ['reactor', defaultRetry],
+          ['projector', defaultRetry],
+          ['workflow', defaultRetry],
+        ],
+      );
+    });
+
+    void it('keeps the retry that a processor sets itself', () => {
+      const { messageConsumer, received } = consumerWithDefaults();
+      const ownRetry = { retries: 0 };
+
+      messageConsumer.reactor({
+        processor: testProcessor('a').processor,
+        retry: ownRetry,
+      });
+
+      assertEqual(received[0]?.options.retry, ownRetry);
+    });
+  });
+
   void it('strips caught up control messages before processor fan out', async () => {
     const { source } = testSource([
       messageAt('1'),

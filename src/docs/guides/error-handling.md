@@ -102,6 +102,35 @@ Or catch the error and return a handler result. `MessageProcessor.result` gives 
 
 Returning nothing accepts the message and moves on. See [Workflows & Sagas](/guides/workflows) for the wider pattern.
 
+### Retry a Transient Failure in a Processor {#processor-retry}
+
+Some failures in a processor clear on their own: a broker that is down for a minute, a database that is briefly unreachable. Turning them into failure events would record an outage as a business fact, and stopping the processor leaves it stopped until someone restarts it. Set `retry` instead, with the same `AsyncRetryOptions` that command handlers take:
+
+```ts
+const consumer = eventStore.consumer({
+  processorDefaults: {
+    retry: { retries: 5, minTimeout: 100, factor: 2 },
+  },
+});
+
+consumer.reactor({
+  processorId: 'payments-forwarder',
+  eachMessage: forwardToBroker,
+});
+
+consumer.reactor({
+  processorId: 'audit',
+  retry: { retries: 0 },
+  eachMessage: audit,
+});
+```
+
+`processorDefaults.retry` applies to every reactor, projector and workflow processor that you register through the consumer, and a processor's own `retry` replaces it, as the `audit` reactor shows. Processors built before the consumer and passed in `processors` keep the options they were built with. A workflow processor also takes `{ onVersionConflict: true }`, which retries only version conflicts, with the same policy as command handlers.
+
+When a handler throws or returns `STOP` with an error, the processor waits, then handles the whole batch again. On PostgreSQL and SQLite, the failed attempt was rolled back, so each attempt starts from the checkpoint before the batch. The wait happens outside the transaction, so on SQLite the database is free for other writers during the back-off. Stores that can't roll back (in-memory, MongoDB, EventStoreDB, D1) keep the writes of the messages that succeeded, and the next attempt continues from the failing message. Each failed attempt is logged. After the last attempt, the processor stops with the error, as it does without a policy. Closing the processor ends the retries.
+
+Handlers already need to tolerate redelivery, as processing is at-least-once. A retry makes that more frequent, so make the handler idempotent, and use `shouldRetryError` to retry only the errors that can clear, as for [command handlers](#retry).
+
 ### Never Reject an Event in a Projection {#projection-errors}
 
 A projection is a special case. It builds a [read model](/guides/projections) from events that are already recorded, and a recorded event is a fact: the projection only interprets it, so it has nothing to reject. If an event carries a value the read model did not expect, throwing does not undo it. The check that should have stopped it belongs in the [business logic](#throw-invariants), before the event was ever recorded; by the time the projection runs, it is too late.
@@ -224,7 +253,7 @@ At the HTTP layer, assert the Problem Details response with `expectError`. See [
 
 ### A Projection or Reactor Stopped Processing {#projection-stopped}
 
-If a read model stops updating and later events go unhandled, an asynchronous handler either threw or returned `STOP`. Both halt the processor, a throw by crashing it and `STOP` by design, so neither gets you past a single event a handler cannot process. Reserve `STOP` for a message the pipeline must genuinely not move past. Otherwise make the handler cope and carry on, as [Never Throw in Asynchronous Event Handlers](#no-throw-async) shows: a projection absorbs the event, a reactor returns a failure event or `SKIP`s the message to advance the checkpoint.
+If a read model stops updating and later events go unhandled, an asynchronous handler either threw or returned `STOP`. Both halt the processor, a throw by crashing it and `STOP` by design, so neither gets you past a single event a handler cannot process. A [`retry` policy](#processor-retry) delays the stop for failures that clear, but once the attempts run out, the processor stops in the same way. Reserve `STOP` for a message the pipeline must genuinely not move past. Otherwise make the handler cope and carry on, as [Never Throw in Asynchronous Event Handlers](#no-throw-async) shows: a projection absorbs the event, a reactor returns a failure event or `SKIP`s the message to advance the checkpoint.
 
 ### A Custom Error Returns 500 {#custom-error-500}
 

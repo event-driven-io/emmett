@@ -52,7 +52,7 @@ export const WorkflowHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions
 export type WorkflowHandlerRetryOptions =
   AsyncRetryOptions | { onVersionConflict: true | number | AsyncRetryOptions };
 
-const fromWorkflowHandlerRetryOptions = (
+export const fromWorkflowHandlerRetryOptions = (
   retryOptions: WorkflowHandlerRetryOptions | undefined,
 ): AsyncRetryOptions => {
   if (retryOptions === undefined) return NoRetries;

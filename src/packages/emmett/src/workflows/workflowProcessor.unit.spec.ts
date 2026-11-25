@@ -15,6 +15,10 @@ import {
 } from '../testing';
 import type { Event, RecordedMessage } from '../typing';
 import { isString } from '../validation';
+import {
+  defaultProcessingMessageProcessingScope,
+  type MessageProcessingScope,
+} from '../processors';
 import { workflowStreamName } from './handleWorkflow';
 import {
   workflowOptions,
@@ -28,6 +32,7 @@ import {
   getWorkflowId,
   workflowOutputHandler,
   workflowProcessor,
+  type WorkflowProcessorContext,
 } from './workflowProcessor';
 
 const recorded = <T extends GroupCheckoutInput>(
@@ -187,6 +192,98 @@ void describe('Workflow Processor', () => {
         'GroupCheckoutWorkflow:InitiateGroupCheckout',
       );
       assertEqual(events[1]!.type, 'GroupCheckoutInitiated');
+    });
+
+    void it('retries only version conflicts when retry is onVersionConflict', async () => {
+      // Given
+      const eventStore = getInMemoryEventStore();
+      let attempts = 0;
+
+      const processor = workflowProcessor({
+        ...workflowOptions,
+        workflow: {
+          ...workflowOptions.workflow,
+          decide: () => {
+            attempts++;
+            throw new EmmettError('decision failed');
+          },
+        },
+        retry: { onVersionConflict: true },
+      });
+
+      await processor.start({ session: { messageStore: eventStore } });
+
+      // When
+      const result = await processor.handle(
+        [
+          recorded<InitiateGroupCheckout>({
+            type: 'InitiateGroupCheckout',
+            data: {
+              groupCheckoutId: randomUUID(),
+              clerkId: 'clerk-1',
+              guestStayAccountIds: [randomUUID()],
+              now: new Date(),
+            },
+          }),
+        ],
+        { session: { messageStore: eventStore } },
+      );
+
+      // Then
+      assertMatches(result, { type: 'STOP' });
+      assertEqual(attempts, 1);
+    });
+
+    void it('retries a failing workflow in a new processing scope', async () => {
+      // Given
+      const eventStore = getInMemoryEventStore();
+      let scopes = 0;
+      const scopesOfAttempts: number[] = [];
+      const countingScope: MessageProcessingScope<WorkflowProcessorContext> = (
+        handler,
+        partialContext,
+      ) => {
+        scopes++;
+        return defaultProcessingMessageProcessingScope(handler, partialContext);
+      };
+
+      const processor = workflowProcessor({
+        ...workflowOptions,
+        workflow: {
+          ...workflowOptions.workflow,
+          decide: (input, state) => {
+            scopesOfAttempts.push(scopes);
+            if (scopesOfAttempts.length === 1)
+              throw new EmmettError('decision failed');
+            return workflowOptions.workflow.decide(input, state);
+          },
+        },
+        processingScope: countingScope,
+        retry: { retries: 2, minTimeout: 1 },
+      });
+
+      await processor.start({ session: { messageStore: eventStore } });
+
+      // When
+      const result = await processor.handle(
+        [
+          recorded<InitiateGroupCheckout>({
+            type: 'InitiateGroupCheckout',
+            data: {
+              groupCheckoutId: randomUUID(),
+              clerkId: 'clerk-1',
+              guestStayAccountIds: [randomUUID()],
+              now: new Date(),
+            },
+          }),
+        ],
+        { session: { messageStore: eventStore } },
+      );
+
+      // Then
+      assertEqual(result, undefined);
+      assertEqual(scopesOfAttempts.length, 2);
+      assertEqual(new Set(scopesOfAttempts).size, 2);
     });
 
     void it('should handle prefixed messages in separated inbox mode', async () => {
