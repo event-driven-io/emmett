@@ -11,6 +11,7 @@ import { EmmettError } from '../errors';
 import { getInMemoryEventStore, type EventStore } from '../eventStore';
 import {
   EmmettAttributes,
+  EmmettMetrics,
   EmmettSpans,
   MessagingSystemName,
 } from '../observability/attributes';
@@ -961,6 +962,135 @@ describe('processor failure observability', () => {
         ).length;
       })
       .then(({ result }) => assertDeepEqual(result, 1));
+  });
+
+  it('a retried batch keeps its attempts in one processor.handle span, with a linked message span per attempt', async () => {
+    const failure = new EmmettError('boom');
+    let attempts = 0;
+
+    await given((config) =>
+      reactor({
+        processorId: 'orders',
+        processorInstanceId: 'orders-1',
+        retry: { retries: 2, minTimeout: 1, factor: 1 },
+        eachMessage: () =>
+          ++attempts === 1 ? Promise.reject(failure) : Promise.resolve(),
+        observability: config,
+      }),
+    )
+      .when(async (reactor, config) => {
+        await reactor.start({});
+        const result = await reactor.handle([failingMessage], {});
+        const messageSpans = config.tracer.spans.filter(
+          (span) => span.name === 'processor.message.OrderPlaced',
+        );
+        return {
+          result,
+          isActive: reactor.isActive,
+          batchContexts: config.tracer.spans
+            .filter((span) => span.name === 'processor.handle')
+            .map((span) => span.ownContext),
+          attemptLinks: messageSpans.map((span) => span.startOptions.links),
+          attemptErrors: messageSpans.map((span) => span.error),
+          attemptLogs: messageSpans.map((span) =>
+            span.logs.map((log) => [log.metadata.level, log.name]),
+          ),
+        };
+      })
+      .then(({ result: attempt, spans, metrics }) => {
+        assertDeepEqual(attempt.result, undefined);
+        assertDeepEqual(attempt.isActive, true);
+        spans
+          .hasSingleSpanNamed('processor.handle')
+          .hasNoError()
+          .noLogs()
+          .hasAttributes({
+            [A.scope.type]: 'processor',
+            [A.scope.main]: true,
+            [A.processor.id]: 'orders',
+            [A.processor.type]: 'reactor',
+            [A.processor.batchSize]: 1,
+            [A.processor.eventTypes]: ['OrderPlaced'],
+            [A.processor.status]: 'ack',
+            [M.system]: MessagingSystemName,
+            [M.batchMessageCount]: 1,
+          });
+        spans
+          .haveSpansNamed('processor.message.OrderPlaced')
+          .hasCount(2)
+          .haveAttributes({
+            [A.scope.type]: 'reactor',
+            [A.processor.id]: 'orders',
+            [A.processor.type]: 'reactor',
+            [M.operationType]: 'process',
+            'messaging.message.id': 'message-1',
+          });
+        assertDeepEqual(attempt.attemptLinks, [
+          attempt.batchContexts,
+          attempt.batchContexts,
+        ]);
+        assertDeepEqual(attempt.attemptErrors, [failure, undefined]);
+        assertDeepEqual(attempt.attemptLogs, [
+          [['error', 'emmett.processor.message.exception']],
+          [],
+        ]);
+        metrics
+          .haveHistogramNamed(EmmettMetrics.processor.processingDuration)
+          .recordedTimes(1)
+          .hasAttributes({
+            [A.processor.id]: 'orders',
+            [A.processor.type]: 'reactor',
+            [A.processor.status]: 'success',
+          });
+      });
+  });
+
+  it('a batch that fails every attempt has one processor.handle span with the error and stops the processor', async () => {
+    const failure = new EmmettError('batch failed');
+
+    await given((config) =>
+      reactor({
+        processorId: 'orders',
+        processorInstanceId: 'orders-1',
+        retry: { retries: 1, minTimeout: 1, factor: 1 },
+        eachBatch: () => Promise.reject(failure),
+        observability: config,
+      }),
+    )
+      .when(async (reactor) => {
+        await reactor.start({});
+        const result = await reactor.handle([failingMessage], {});
+        return { result, isActive: reactor.isActive };
+      })
+      .then(({ result: { result, isActive }, spans, metrics }) => {
+        assertDeepEqual(result, {
+          type: 'STOP',
+          reason: 'Error during message processing',
+          error: failure,
+        });
+        assertDeepEqual(isActive, false);
+        spans
+          .hasSingleSpanNamed('processor.handle')
+          .hasError(failure)
+          .hasAttributes({
+            [A.scope.type]: 'processor',
+            [A.scope.main]: true,
+            [A.processor.id]: 'orders',
+            [A.processor.type]: 'reactor',
+            [A.processor.batchSize]: 1,
+            [A.processor.eventTypes]: ['OrderPlaced'],
+            [M.system]: MessagingSystemName,
+            [M.batchMessageCount]: 1,
+          });
+        metrics
+          .haveHistogramNamed(EmmettMetrics.processor.processingDuration)
+          .recordedTimes(1)
+          .hasAttributes({
+            [A.processor.id]: 'orders',
+            [A.processor.type]: 'reactor',
+            [A.processor.status]: 'failure',
+          });
+      });
   });
 
   it('a failing eachBatch handler logs one error with batch attributes and stops the processor', async () => {
