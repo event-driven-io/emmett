@@ -2,10 +2,12 @@ import { describe, it } from 'vitest';
 import {
   filterProjections,
   projections,
+  type ProjectionDefinition,
   type ProjectionHandlingType,
   type ProjectionRegistration,
 } from '.';
 import { EmmettError } from '../errors';
+import type { Event } from '../typing';
 import {
   assertDeepEqual,
   assertDoesNotThrow,
@@ -167,5 +169,26 @@ void describe('projections', () => {
     assertDeepEqual(projections.async([projection]), [
       { type: 'async', projection },
     ]);
+  });
+
+  void it('registers a projection of a generic event type as async, the same as inline', () => {
+    const registered = <EventType extends Event>(
+      definition: ProjectionDefinition<EventType>,
+    ) => ({
+      inline: projections.inline([definition]),
+      async: projections.async([definition]),
+    });
+    const typedProjection: ProjectionDefinition<
+      Event<'Tested', { id: string }>
+    > = {
+      name: 'typed',
+      canHandle: ['Tested'],
+      handle: () => Promise.resolve(),
+    };
+
+    assertDeepEqual(registered(typedProjection), {
+      inline: [{ type: 'inline', projection: typedProjection }],
+      async: [{ type: 'async', projection: typedProjection }],
+    });
   });
 });

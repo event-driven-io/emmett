@@ -150,7 +150,8 @@ export const asyncProjections = <
   HandlerContext extends ProjectionHandlerContext = ProjectionHandlerContext,
 >(
   definitions: ProjectionDefinition<
-    AnyEvent,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any,
     ReadEventMetadataType,
     HandlerContext
   >[],
