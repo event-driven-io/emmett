@@ -288,7 +288,9 @@ export const MessageProcessor = {
       type: 'STOP',
       ...(options ?? {}),
     }),
-    isError: (result: unknown): boolean =>
+    isError: (
+      result: unknown,
+    ): result is { type: 'STOP'; error: EmmettError } =>
       typeof result === 'object' &&
       result !== null &&
       'type' in result &&
@@ -1023,11 +1025,12 @@ export const reactor = <
         if (isClosed) return;
 
         isActive = true;
-        result = await handleBatch(messages, partialContext);
-        if (!MessageProcessor.result.isError(result)) return;
+        const attempt = await handleBatch(messages, partialContext);
+        result = attempt;
+        if (!MessageProcessor.result.isError(attempt)) return;
 
         await reloadCheckpoint(partialContext);
-        throw new EmmettError('Retrying the failed batch');
+        throw attempt.error;
       },
       {
         ...retryOptions,

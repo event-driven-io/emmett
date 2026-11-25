@@ -10,6 +10,7 @@ import {
 } from '../testing';
 import { heapUsedAfterCollecting } from '../testing/garbageCollection.testHelpers';
 import type { Event, ReadEventMetadata, RecordedMessage } from '../typing';
+import type { AsyncRetryOptions } from '../utils';
 import { isString } from '../validation';
 import {
   bigIntProcessorCheckpoint,
@@ -1670,7 +1671,7 @@ void describe('Processors', () => {
       rollsBackErrors: boolean,
       handled: number[],
       failures: number,
-      options: { retry?: typeof retry } = { retry },
+      options: { retry?: AsyncRetryOptions } = { retry },
     ) => {
       const { checkpointer, processingScope } = database({ rollsBackErrors });
 
@@ -1735,6 +1736,29 @@ void describe('Processors', () => {
 
       assertEqual(MessageProcessor.result.isError(result), true);
       assertDeepEqual(handled, [1, 2]);
+    });
+
+    void it('retries only the errors that shouldRetryError accepts', async () => {
+      const handled: number[] = [];
+      const seenErrors: unknown[] = [];
+      const processor = retrying(true, handled, Infinity, {
+        retry: {
+          ...retry,
+          shouldRetryError: (error) => {
+            seenErrors.push(error);
+            return false;
+          },
+        },
+      });
+      onTestFinished(() => processor.close());
+      await processor.start({});
+
+      const result = await processor.handle([message(1), message(2)], {});
+
+      assertEqual(MessageProcessor.result.isError(result), true);
+      assertDeepEqual(handled, [1, 2]);
+      assertEqual(seenErrors.length, 1);
+      assertMatches(seenErrors[0], { message: 'boom' });
     });
 
     void it('makes no more attempts once the processor is closed', async () => {
