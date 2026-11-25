@@ -17,7 +17,7 @@ import { toBatchSize } from './messageSource';
 export const DefaultPollingBatchSize = 100;
 export const DefaultPollingFrequencyInMs = 50;
 export const DefaultPollingInitialBackoffInMs = 100;
-export const DefaultPollingBackoffCeilingInMs = 1000;
+export const DefaultPollingBackoffCeilingInMs = 250;
 export const DefaultPollingBackoffMultiplier = 2;
 
 export type PollingBackoffOptions = {

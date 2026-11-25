@@ -78,8 +78,8 @@ void describe('nextPollingWaitTime', () => {
   });
 
   void it('doubles the wait while the store has nothing left', () => {
+    assertEqual(nextPollingWaitTime(50, false, 50), 100);
     assertEqual(nextPollingWaitTime(100, false, 50), 200);
-    assertEqual(nextPollingWaitTime(200, false, 50), 400);
   });
 
   void it('never waits longer than the ceiling', () => {
