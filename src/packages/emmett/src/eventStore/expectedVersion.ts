@@ -3,7 +3,6 @@ import {
   EmmettError,
   type EmmettErrorOptions,
 } from '../errors';
-import { NoRetries, type AsyncRetryOptions } from '../utils/retry';
 import { isString } from '../validation';
 import type { Flavour, StreamPosition } from '../typing';
 
@@ -79,35 +78,3 @@ export const isExpectedVersionConflictError = (
     error,
     ExpectedVersionConflictError.Codes.ConcurrencyError,
   );
-
-export const MessageHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
-  {
-    retries: 3,
-    minTimeout: 100,
-    factor: 1.5,
-    shouldRetryError: isExpectedVersionConflictError,
-  };
-
-export type MessageHandlerRetryOptions =
-  AsyncRetryOptions | { onVersionConflict: true | number | AsyncRetryOptions };
-
-export const fromMessageHandlerRetryOptions = (
-  retryOptions: MessageHandlerRetryOptions | undefined,
-): AsyncRetryOptions => {
-  if (retryOptions === undefined) return NoRetries;
-
-  if (!('onVersionConflict' in retryOptions)) return retryOptions;
-
-  const { onVersionConflict } = retryOptions;
-
-  if (onVersionConflict === true)
-    return MessageHandlerStreamVersionConflictRetryOptions;
-
-  if (typeof onVersionConflict === 'number')
-    return {
-      ...MessageHandlerStreamVersionConflictRetryOptions,
-      retries: onVersionConflict,
-    };
-
-  return onVersionConflict;
-};

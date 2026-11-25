@@ -5,7 +5,7 @@ import {
 } from '@event-driven-io/almanac';
 import { v7 as uuid } from 'uuid';
 import { EmmettError } from '../errors';
-import type { MessageHandlerRetryOptions } from '../eventStore';
+import type { MessageHandlerRetryOptions } from '../typing';
 import { MessageSourceControlMessage } from '../eventStore/events';
 import {
   type AnyMessageProcessorFactory,

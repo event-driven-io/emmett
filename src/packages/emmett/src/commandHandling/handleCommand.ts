@@ -1,8 +1,5 @@
 import {
   canCreateEventStoreSession,
-  fromMessageHandlerRetryOptions,
-  MessageHandlerStreamVersionConflictRetryOptions,
-  type MessageHandlerRetryOptions,
   NO_CONCURRENCY_CHECK,
   nulloSessionFactory,
   STREAM_DOES_NOT_EXIST,
@@ -15,6 +12,11 @@ import {
 import type { JSONSerializationOptions } from '../serialization';
 import type { Event } from '../typing';
 import { asyncRetry } from '../utils';
+import {
+  fromMessageHandlerRetryOptions,
+  MessageHandlerStreamVersionConflictRetryOptions,
+  type MessageHandlerRetryOptions,
+} from '../typing';
 import {
   withOperationScope,
   type OperationObservabilityOptions,

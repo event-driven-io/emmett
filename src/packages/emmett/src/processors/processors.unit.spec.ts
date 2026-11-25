@@ -1,10 +1,7 @@
 import { v7 as uuid } from 'uuid';
 import { beforeEach, describe, it, onTestFinished } from 'vitest';
 import { EmmettError } from '../errors';
-import {
-  ExpectedVersionConflictError,
-  type MessageHandlerRetryOptions,
-} from '../eventStore';
+import { ExpectedVersionConflictError } from '../eventStore';
 import {
   assertDeepEqual,
   assertEqual,
@@ -13,7 +10,12 @@ import {
   assertRejects,
 } from '../testing';
 import { heapUsedAfterCollecting } from '../testing/garbageCollection.testHelpers';
-import type { Event, ReadEventMetadata, RecordedMessage } from '../typing';
+import type {
+  Event,
+  MessageHandlerRetryOptions,
+  ReadEventMetadata,
+  RecordedMessage,
+} from '../typing';
 import { isString } from '../validation';
 import {
   bigIntProcessorCheckpoint,

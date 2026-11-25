@@ -7,11 +7,7 @@ import {
 import { v7 as uuid } from 'uuid';
 import type { ProcessorObservabilityConfig } from '.';
 import { EmmettError } from '../errors';
-import {
-  fromMessageHandlerRetryOptions,
-  upcastRecordedMessage,
-  type MessageHandlerRetryOptions,
-} from '../eventStore';
+import { upcastRecordedMessage } from '../eventStore';
 import type {
   EmmettObservabilityConfig,
   OperationObservabilityOptions,
@@ -46,6 +42,10 @@ import {
 import { onShutdown } from '../utils/lifecycle';
 import { asyncAwaiter } from '../utils/promises';
 import { asyncRetry, type AsyncRetryOptions } from '../utils/retry';
+import {
+  fromMessageHandlerRetryOptions,
+  type MessageHandlerRetryOptions,
+} from '../typing';
 import {
   getCheckpoint,
   ProcessorCheckpoint,

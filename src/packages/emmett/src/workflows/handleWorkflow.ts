@@ -6,9 +6,6 @@ import {
 } from '../commandHandling/middleware';
 import {
   canCreateEventStoreSession,
-  fromMessageHandlerRetryOptions,
-  MessageHandlerStreamVersionConflictRetryOptions,
-  type MessageHandlerRetryOptions,
   NO_CONCURRENCY_CHECK,
   nulloSessionFactory,
   STREAM_DOES_NOT_EXIST,
@@ -31,6 +28,11 @@ import type {
   RecordedMessage,
 } from '../typing';
 import { asyncRetry } from '../utils';
+import {
+  fromMessageHandlerRetryOptions,
+  MessageHandlerStreamVersionConflictRetryOptions,
+  type MessageHandlerRetryOptions,
+} from '../typing';
 import {
   workflowCollector,
   workflowObservability,
