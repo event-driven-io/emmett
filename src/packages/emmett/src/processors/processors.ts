@@ -9,6 +9,7 @@ import type { ProcessorObservabilityConfig } from '.';
 import { EmmettError } from '../errors';
 import { upcastRecordedMessage } from '../eventStore';
 import type {
+  EmmettObservabilityConfig,
   OperationObservabilityOptions,
   WithObservabilityScope,
 } from '../observability';
@@ -253,20 +254,27 @@ export type AnyMessageProcessorFactory<
   AnyMessageProcessor
 >;
 
+export type ProcessorFactoryDefaults = {
+  observability?: EmmettObservabilityConfig;
+  retry?: unknown;
+};
+
 export const withMessageProcessorFactory = <
   ConsumerMessageType extends Message,
   ProcessorFactory extends AnyMessageProcessorFactory<ConsumerMessageType>,
 >(
   register: RegisterMessageProcessor<ConsumerMessageType>,
   factory: ProcessorFactory,
-  mapFactoryOptions: (options: unknown) => unknown = (options) => options,
+  withDefaults: (
+    options: ProcessorFactoryDefaults,
+  ) => ProcessorFactoryDefaults = (options) => options,
 ): RegisterMessageProcessor<ConsumerMessageType> & ProcessorFactory => {
   const registerOrCreate = (
-    processorOrOptions: unknown,
+    processorOrOptions: AnyMessageProcessor | ProcessorFactoryDefaults,
   ): AnyMessageProcessor => {
     const processor = isMessageProcessor(processorOrOptions)
       ? processorOrOptions
-      : factory(mapFactoryOptions(processorOrOptions));
+      : factory(withDefaults(processorOrOptions));
 
     return register(processor);
   };

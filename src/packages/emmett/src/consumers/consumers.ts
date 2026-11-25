@@ -8,6 +8,7 @@ import { EmmettError } from '../errors';
 import { MessageSourceControlMessage } from '../eventStore/events';
 import {
   type AnyMessageProcessorFactory,
+  type ProcessorFactoryDefaults,
   ConsumerStartPositions,
   type MessageProcessor,
   type ProcessorCheckpoint,
@@ -19,7 +20,6 @@ import {
   EmmettAttributes,
   EmmettSpans,
   mergeObservability,
-  type EmmettObservabilityConfig,
 } from '../observability';
 import { FusionStreams } from '../streaming';
 import type {
@@ -272,24 +272,16 @@ export const consumer = <
 
   for (const processor of options.processors ?? []) register(processor);
 
-  const withProcessorDefaults = (processorOptions: unknown): unknown => {
-    if (typeof processorOptions !== 'object' || processorOptions === null)
-      return processorOptions;
-
-    const optionsWithDefaults = processorOptions as {
-      observability?: EmmettObservabilityConfig;
-      retry?: AsyncRetryOptions;
-    };
-
-    return {
-      ...processorOptions,
-      observability: mergeObservability(
-        options.observability,
-        optionsWithDefaults.observability,
-      ),
-      retry: optionsWithDefaults.retry ?? options.processorDefaults?.retry,
-    };
-  };
+  const withProcessorDefaults = (
+    processorOptions: ProcessorFactoryDefaults,
+  ): ProcessorFactoryDefaults => ({
+    ...processorOptions,
+    observability: mergeObservability(
+      options.observability,
+      processorOptions.observability,
+    ),
+    retry: processorOptions.retry ?? options.processorDefaults?.retry,
+  });
 
   // A processor that fails to initialise is closed there and then, so the
   // teardown that follows the failed start must not close it a second time and
