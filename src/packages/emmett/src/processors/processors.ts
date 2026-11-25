@@ -583,26 +583,28 @@ export const reactor = <
       ? { [EmmettAttributes.processor.checkpointBefore]: lastCheckpoint }
       : {};
 
-  let attemptNumber = 0;
-
-  let lastDecision: { error: unknown; retry: boolean } | undefined;
-
-  const willRetry = (error: unknown): boolean => {
-    if (lastDecision !== undefined && lastDecision.error === error)
-      return lastDecision.retry;
-
-    const retry =
-      retryOptions !== undefined &&
-      !isClosed &&
-      attemptNumber <= retriesOf(retryOptions) &&
-      (retryOptions.shouldRetryError?.(error) ?? true);
-    lastDecision = { error, retry };
-
-    return retry;
+  type BatchAttempt = {
+    number: number;
+    willRetry: (error: unknown) => boolean;
   };
 
-  const retriedAttempt = (error: unknown): number | undefined =>
-    willRetry(error) ? attemptNumber : undefined;
+  let currentAttempt: BatchAttempt | undefined;
+
+  const batchAttempt = (
+    number: number,
+    retryOptions: AsyncRetryOptions,
+  ): BatchAttempt => {
+    let retry: boolean | undefined;
+
+    return {
+      number,
+      willRetry: (error) =>
+        (retry ??=
+          !isClosed &&
+          number <= retriesOf(retryOptions) &&
+          (retryOptions.shouldRetryError?.(error) ?? true)),
+    };
+  };
 
   const failureLog = (
     event: string,
@@ -610,30 +612,25 @@ export const reactor = <
     err: unknown,
     attributes: Record<string, unknown>,
   ): LogEvent => {
-    const attempt = retriedAttempt(err);
+    const retryAttempt = currentAttempt?.willRetry(err)
+      ? currentAttempt.number
+      : undefined;
+    const retrying = retryAttempt !== undefined;
 
-    return attempt === undefined
-      ? LogEvent(
-          `${event}.exception`,
-          {
-            body: `Processor stopped: ${failure}`,
-            error: err as Error,
-            attributes,
-          },
-          { level: 'error' },
-        )
-      : LogEvent(
-          `${event}.retry`,
-          {
-            body: `Processor retrying: ${failure}`,
-            error: err as Error,
-            attributes: {
+    return LogEvent(
+      `${event}.${retrying ? 'retry' : 'exception'}`,
+      {
+        body: `Processor ${retrying ? 'retrying' : 'stopped'}: ${failure}`,
+        error: err as Error,
+        attributes: retrying
+          ? {
               ...attributes,
-              [EmmettAttributes.processor.retryAttempt]: attempt,
-            },
-          },
-          { level: 'warn' },
-        );
+              [EmmettAttributes.processor.retryAttempt]: retryAttempt,
+            }
+          : attributes,
+      },
+      { level: retrying ? 'warn' : 'error' },
+    );
   };
 
   const batchHandlingFailed = (
@@ -1035,53 +1032,48 @@ export const reactor = <
       { ...partialContext, observabilityScope: scope },
     );
 
+  const stoppedBy = (error: unknown): BatchMessageHandlerResult => ({
+    type: 'STOP',
+    error: error as EmmettError,
+    reason: 'Error during message processing',
+  });
+
   const attemptBatchWithRetries = async (
     messages: RecordedMessage<MessageType, MessageMetadataType>[],
     partialContext: PartialHandlerContext<HandlerContext>,
     scope: ObservabilityScope,
     retryOptions: AsyncRetryOptions,
   ): Promise<BatchMessageHandlerResult> => {
-    let result: BatchMessageHandlerResult = undefined;
-    let lastAttemptThrew = false;
-    attemptNumber = 0;
+    let attemptNumber = 0;
+    let lastAttempt: Promise<BatchMessageHandlerResult> =
+      Promise.resolve(undefined);
 
-    try {
-      await asyncRetry(
-        async () => {
-          if (isClosed) return;
+    await asyncRetry(
+      async () => {
+        if (isClosed) return;
 
-          isActive = true;
-          lastAttemptThrew = false;
-          attemptNumber++;
-          lastDecision = undefined;
-          let attempt: BatchMessageHandlerResult;
-          try {
-            attempt = await attemptBatch(messages, partialContext, scope);
-          } catch (error) {
-            lastAttemptThrew = true;
-            attempt = {
-              type: 'STOP',
-              error: error as EmmettError,
-              reason: 'Error during message processing',
-            };
-          }
-          result = attempt;
-          if (!MessageProcessor.result.isError(attempt)) return;
+        isActive = true;
+        currentAttempt = batchAttempt(++attemptNumber, retryOptions);
+        lastAttempt = attemptBatch(messages, partialContext, scope);
 
-          await reloadCheckpoint(partialContext, scope);
-          throw attempt.error;
-        },
-        {
-          ...retryOptions,
-          retries: retriesOf(retryOptions),
-          shouldRetryError: willRetry,
-        },
-      );
-    } catch (error) {
-      if (lastAttemptThrew) throw error;
-    }
+        const result = await lastAttempt.catch(stoppedBy);
+        if (!MessageProcessor.result.isError(result)) return;
 
-    return result;
+        await reloadCheckpoint(partialContext, scope);
+        throw result.error;
+      },
+      {
+        ...retryOptions,
+        retries: retriesOf(retryOptions),
+        shouldRetryError: (error) => currentAttempt?.willRetry(error) ?? false,
+      },
+    )
+      .catch(() => undefined)
+      .finally(() => {
+        currentAttempt = undefined;
+      });
+
+    return lastAttempt;
   };
 
   const handleBatch = (
@@ -1104,11 +1096,7 @@ export const reactor = <
       )
       .catch((err): BatchMessageHandlerResult => {
         isActive = false;
-        return {
-          type: 'STOP',
-          error: err as EmmettError,
-          reason: 'Error during message processing',
-        };
+        return stoppedBy(err);
       });
 
   return {
