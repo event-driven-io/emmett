@@ -226,12 +226,12 @@ void describe('SQLite processor transaction handling', () => {
       const consumer = sqliteEventStoreConsumer({
         driver: sqlite3EventStoreDriver,
         fileName,
-        stopWhen: { noMessagesLeft: true },
       });
 
       consumer.reactor<Event<'Triggered', { id: string; fail: boolean }>>({
         processorId: `restarted-${id}`,
         canHandle: ['Triggered'],
+        stopAfter: (message) => message.data.id === id && message.data.fail,
         eachMessage: async (message, context) => {
           if (message.data.id !== id) return;
 

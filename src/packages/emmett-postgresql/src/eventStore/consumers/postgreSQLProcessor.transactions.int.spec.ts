@@ -174,13 +174,11 @@ void describe('PostgreSQL processor transaction handling', () => {
         { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
       ]);
 
-      const consumer = postgreSQLEventStoreConsumer({
-        connectionString,
-        stopWhen: { noMessagesLeft: true },
-      });
+      const consumer = postgreSQLEventStoreConsumer({ connectionString });
       consumer.reactor<GuestStayEvent>({
         processorId: uuid(),
         canHandle: ['GuestCheckedIn'],
+        stopAfter: (event) => event.data.guestId === otherGuestId,
         eachMessage: async (event, context) => {
           await context.session.messageStore.appendToStream(reactionStream, [
             { type: 'GuestCheckedOut', data: { guestId: event.data.guestId } },
