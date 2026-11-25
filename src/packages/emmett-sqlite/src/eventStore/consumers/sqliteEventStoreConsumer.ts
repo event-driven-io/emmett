@@ -15,6 +15,7 @@ import {
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
+  type PollingBackoffOptions,
   type MessageSource,
   type ReadEventMetadataWithGlobalPosition,
   type WorkflowProcessorContext,
@@ -64,6 +65,7 @@ export type SQLiteEventStoreConsumerConfig<
     batchSize?: number;
     batchDeadlineInMs?: number;
     pullingFrequencyInMs?: number;
+    backoff?: PollingBackoffOptions;
   };
   schema?: {
     autoMigration?: MigrationStyle | undefined;
@@ -197,6 +199,7 @@ export const sqliteEventStoreConsumer = <
         pool,
         batchSize: options.pulling?.batchSize,
         pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
+        backoff: options.pulling?.backoff,
         serialization: options.serialization,
         databaseSchemaName: databaseSchema.databaseSchemaName,
       });

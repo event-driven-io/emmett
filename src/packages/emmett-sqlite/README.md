@@ -292,9 +292,16 @@ const consumer = eventStore.consumer<ShoppingCartEvent>({
   pulling: {
     batchSize: 100, // Events per batch (default: 100)
     pullingFrequencyInMs: 50, // Polling interval (default: 50ms)
+    backoff: {
+      initialInMs: 100, // Wait before the first poll that finds nothing (default: 100ms)
+      multiplier: 2, // Growth of the wait after each poll that finds nothing (default: 2)
+      maxInMs: 1000, // Longest wait (default: 1000ms)
+    },
   },
 });
 ```
+
+The consumer polls at `pullingFrequencyInMs` as long as its reads find messages, even fewer than `batchSize`. Once a read finds nothing, it waits longer after each empty read, up to `backoff.maxInMs`. Set `backoff.maxInMs` to `pullingFrequencyInMs` to poll at a fixed rate, for example in tests.
 
 ### Manual Schema Management
 

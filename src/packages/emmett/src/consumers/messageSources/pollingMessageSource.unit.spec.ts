@@ -27,14 +27,17 @@ const scriptedReads = (
   }[],
 ) => {
   const calls: PollingReadBatchOptions[] = [];
+  const readAt: number[] = [];
   let index = 0;
 
   return {
     calls,
+    readAt,
     readBatch: (
       options: PollingReadBatchOptions,
     ): MaybePromise<PollingReadBatchResult<AnyMessage, never>> => {
       calls.push(options);
+      readAt.push(performance.now());
       const result = results[index++] ?? { checkpoints: [] };
       const last = result.checkpoints[result.checkpoints.length - 1];
 
@@ -84,6 +87,14 @@ void describe('nextPollingWaitTime', () => {
       nextPollingWaitTime(DefaultPollingBackoffCeilingInMs, false, 50),
       DefaultPollingBackoffCeilingInMs,
     );
+  });
+
+  void it('backs off by the configured multiplier', () => {
+    assertEqual(nextPollingWaitTime(100, false, 50, { multiplier: 1.5 }), 150);
+  });
+
+  void it('never waits longer than the configured ceiling', () => {
+    assertEqual(nextPollingWaitTime(200, false, 50, { maxInMs: 300 }), 300);
   });
 });
 
@@ -185,6 +196,46 @@ void describe('pollingMessageSource', () => {
     }
 
     assertEqual(reads.calls[0]!.batchSize, 7);
+  });
+
+  void it('polls at the frequency again after a read that found fewer messages than the batch size', async () => {
+    const reads = scriptedReads([
+      { checkpoints: [], areMessagesLeft: false },
+      { checkpoints: [], areMessagesLeft: false },
+      { checkpoints: [], areMessagesLeft: false },
+      { checkpoints: ['1'], areMessagesLeft: false },
+      { checkpoints: ['2'], areMessagesLeft: false },
+    ]);
+
+    const source = pollingMessageSource({
+      readBatch: reads.readBatch,
+      readLastMessageCheckpoint: () => Promise.resolve(null),
+      pullingFrequencyInMs: 5,
+      backoff: { initialInMs: 50, maxInMs: 400 },
+    });
+
+    await readAll(source, 'BEGINNING', 6);
+
+    const [, , , foundFirst, foundSecond] = reads.readAt;
+
+    assertTrue(foundSecond! - foundFirst! < 50);
+  });
+
+  void it('waits the configured initial backoff before the second read of an empty store', async () => {
+    const reads = scriptedReads([{ checkpoints: [], areMessagesLeft: false }]);
+
+    const source = pollingMessageSource({
+      readBatch: reads.readBatch,
+      readLastMessageCheckpoint: () => Promise.resolve(null),
+      pullingFrequencyInMs: 5,
+      backoff: { initialInMs: 10, multiplier: 1 },
+    });
+
+    await readAll(source, 'BEGINNING', 3);
+
+    const [first, second] = reads.readAt;
+
+    assertTrue(second! - first! < 50);
   });
 
   void it('stops iterating once the signal is aborted mid wait', async () => {

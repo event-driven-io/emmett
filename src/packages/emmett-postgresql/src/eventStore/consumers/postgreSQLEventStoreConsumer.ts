@@ -15,6 +15,7 @@ import {
   type Message,
   type MessageConsumer,
   type MessageConsumerOptions,
+  type PollingBackoffOptions,
   type MessageSource,
   type RecordedMessageMetadataWithGlobalPosition,
   type PartialHandlerContext,
@@ -66,6 +67,7 @@ export type PostgreSQLEventStoreConsumerConfig<
     batchSize?: number;
     batchDeadlineInMs?: number;
     pullingFrequencyInMs?: number;
+    backoff?: PollingBackoffOptions;
   };
   schema?: {
     autoMigration?: MigrationStyle | undefined;
@@ -212,6 +214,7 @@ export const postgreSQLEventStoreConsumer = <
         pool,
         batchSize: options.pulling?.batchSize,
         pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
+        backoff: options.pulling?.backoff,
         databaseSchemaName: databaseSchema.databaseSchemaName,
       });
 

@@ -18,6 +18,13 @@ export const DefaultPollingBatchSize = 100;
 export const DefaultPollingFrequencyInMs = 50;
 export const DefaultPollingInitialBackoffInMs = 100;
 export const DefaultPollingBackoffCeilingInMs = 1000;
+export const DefaultPollingBackoffMultiplier = 2;
+
+export type PollingBackoffOptions = {
+  initialInMs?: number;
+  maxInMs?: number;
+  multiplier?: number;
+};
 
 export type PollingReadBatchOptions = {
   after: ProcessorCheckpoint | null;
@@ -44,22 +51,27 @@ export type PollingMessageSourceOptions<
   readLastMessageCheckpoint: () => MaybePromise<ProcessorCheckpoint | null>;
   batchSize?: number;
   pullingFrequencyInMs?: number;
+  backoff?: PollingBackoffOptions;
   close?: () => MaybePromise<void>;
 };
 
 /**
- * Backs off while the store has nothing left so an idle consumer stops
- * hammering it, and snaps back to the configured frequency the moment messages
- * flow again.
+ * Backs off while reads find nothing so an idle consumer stops hammering the
+ * store, and snaps back to the configured frequency as soon as a read finds
+ * messages, even fewer than the batch size.
  */
 export const nextPollingWaitTime = (
   current: number,
-  areMessagesLeft: boolean,
+  foundMessages: boolean,
   pullingFrequencyInMs: number,
+  backoff: PollingBackoffOptions = {},
 ): number =>
-  areMessagesLeft
+  foundMessages
     ? pullingFrequencyInMs
-    : Math.min(current * 2, DefaultPollingBackoffCeilingInMs);
+    : Math.min(
+        current * (backoff.multiplier ?? DefaultPollingBackoffMultiplier),
+        backoff.maxInMs ?? DefaultPollingBackoffCeilingInMs,
+      );
 
 export const pollingMessageSource = <
   MessageType extends Message = AnyMessage,
@@ -75,6 +87,7 @@ export const pollingMessageSource = <
 
   const pullingFrequencyInMs =
     options.pullingFrequencyInMs ?? DefaultPollingFrequencyInMs;
+  const backoff = options.backoff ?? {};
 
   const resolveAfter = async (
     from: MessageSourceReadOptions['from'],
@@ -95,7 +108,7 @@ export const pollingMessageSource = <
       );
 
       let after = await resolveAfter(readOptions.from);
-      let waitTime = DefaultPollingInitialBackoffInMs;
+      let waitTime = backoff.initialInMs ?? DefaultPollingInitialBackoffInMs;
 
       while (!signal.aborted) {
         const { messages, currentCheckpoint, areMessagesLeft } =
@@ -110,8 +123,9 @@ export const pollingMessageSource = <
 
         waitTime = nextPollingWaitTime(
           waitTime,
-          areMessagesLeft,
+          messages.length > 0,
           pullingFrequencyInMs,
+          backoff,
         );
 
         await delayOrAbort(waitTime, signal);
