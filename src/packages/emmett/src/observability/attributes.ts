@@ -42,6 +42,7 @@ export const EmmettAttributes = {
     eventTypes: 'emmett.processor.event_types',
     checkpointBefore: 'emmett.processor.checkpoint.before',
     checkpointAfter: 'emmett.processor.checkpoint.after',
+    retryAttempt: 'emmett.processor.retry.attempt',
     batch: {
       checkpoint: {
         first: 'emmett.processor.batch.checkpoint.first',
