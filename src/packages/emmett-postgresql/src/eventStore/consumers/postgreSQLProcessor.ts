@@ -23,7 +23,6 @@ import type {
   Message,
   MessageHandlerContext,
   MessageProcessingScope,
-  MessageProcessor,
   PartialHandlerContext,
   ProcessorHooks,
   ProcessorLock,
@@ -45,6 +44,7 @@ import {
   getProjectorId,
   getWorkflowId,
   inMemoryCheckpointer,
+  MessageProcessor,
   noopScope,
   projector,
   reactor,
@@ -350,7 +350,7 @@ const postgreSQLProcessingScope = <
       const connection =
         transaction.connection as InferDumboConnectionFromEventStoreDriver<Driver>;
 
-      return handler({
+      const result = await handler({
         ...partialContext,
         partition: options.partition,
         execute: transaction.execute,
@@ -380,6 +380,8 @@ const postgreSQLProcessingScope = <
         migrationOptions: options.migrationOptions,
         observabilityScope: partialContext?.observabilityScope ?? noopScope,
       });
+
+      return { success: !MessageProcessor.result.isError(result), result };
     });
   };
 

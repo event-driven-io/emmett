@@ -16,7 +16,13 @@ import {
   ProcessorCheckpoint,
   type Checkpointer,
 } from './checkpoints';
-import { MessageProcessor, projector, reactor } from './processors';
+import {
+  defaultProcessingMessageProcessingScope,
+  MessageProcessor,
+  projector,
+  reactor,
+  type MessageProcessingScope,
+} from './processors';
 
 type TestEvent = Event<'test', { counter: number }>;
 
@@ -1518,6 +1524,144 @@ void describe('Processors', () => {
 
       // Then
       assertEqual(processor.instanceId, customInstanceId);
+    });
+  });
+  void describe('an error result', () => {
+    const failure = new EmmettError('boom');
+
+    void it('is a stop that carries an error', () => {
+      assertEqual(
+        MessageProcessor.result.isError(
+          MessageProcessor.result.stop({ error: failure }),
+        ),
+        true,
+      );
+    });
+
+    void it('is not a stop without an error', () => {
+      assertEqual(
+        MessageProcessor.result.isError(
+          MessageProcessor.result.stop({ reason: 'Stop condition reached' }),
+        ),
+        false,
+      );
+    });
+
+    void it('is not an acknowledgement, a skip or no result', () => {
+      assertEqual(MessageProcessor.result.isError({ type: 'ACK' }), false);
+      assertEqual(
+        MessageProcessor.result.isError(MessageProcessor.result.skip()),
+        false,
+      );
+      assertEqual(MessageProcessor.result.isError(undefined), false);
+    });
+  });
+
+  void describe('a processor started again after its handler failed', () => {
+    type Metadata = ReadEventMetadata & {
+      globalPosition: bigint;
+      streamPosition: bigint;
+    };
+
+    const message = (
+      counter: number,
+    ): RecordedMessage<TestEvent, Metadata> => ({
+      type: 'test',
+      kind: 'Event',
+      schemaVersion: 1,
+      data: { counter },
+      metadata: {
+        streamName: 'test',
+        messageId: uuid(),
+        checkpoint: bigIntProcessorCheckpoint(BigInt(counter)),
+        globalPosition: BigInt(counter),
+        streamPosition: BigInt(counter),
+      },
+    });
+
+    const database = ({ rollsBackErrors }: { rollsBackErrors: boolean }) => {
+      let committed: ProcessorCheckpoint | null = null;
+      let written: ProcessorCheckpoint | null = null;
+
+      const checkpointer: Checkpointer<TestEvent, Metadata> = {
+        read: () => Promise.resolve({ lastCheckpoint: committed }),
+        store: (options) => {
+          written = bigIntProcessorCheckpoint(
+            options.message.metadata.globalPosition,
+          );
+          return Promise.resolve({ success: true, newCheckpoint: written });
+        },
+      };
+
+      const processingScope: MessageProcessingScope = async (
+        handler,
+        partialContext,
+      ) => {
+        written = committed;
+        const result = await defaultProcessingMessageProcessingScope(
+          handler,
+          partialContext,
+        );
+        if (!rollsBackErrors || !MessageProcessor.result.isError(result))
+          committed = written;
+        return result;
+      };
+
+      return { checkpointer, processingScope };
+    };
+
+    const failingOnceOnTheSecondMessage = (handled: number[]) => {
+      let failed = false;
+
+      return (received: RecordedMessage<TestEvent, Metadata>) => {
+        handled.push(received.data.counter);
+        if (received.data.counter !== 2 || failed) return Promise.resolve();
+
+        failed = true;
+        return Promise.reject(new EmmettError('boom'));
+      };
+    };
+
+    void it('handles the whole batch again when the processing scope rolled it back', async () => {
+      const handled: number[] = [];
+      const { checkpointer, processingScope } = database({
+        rollsBackErrors: true,
+      });
+      const processor = reactor<TestEvent, Metadata>({
+        processorId: uuid(),
+        processingScope,
+        checkpoints: checkpointer,
+        eachMessage: failingOnceOnTheSecondMessage(handled),
+      });
+      onTestFinished(() => processor.close());
+
+      await processor.start({});
+      await processor.handle([message(1), message(2)], {});
+      await processor.start({});
+      await processor.handle([message(1), message(2)], {});
+
+      assertDeepEqual(handled, [1, 2, 1, 2]);
+    });
+
+    void it('continues after the last succeeded message when the processing scope kept its writes', async () => {
+      const handled: number[] = [];
+      const { checkpointer, processingScope } = database({
+        rollsBackErrors: false,
+      });
+      const processor = reactor<TestEvent, Metadata>({
+        processorId: uuid(),
+        processingScope,
+        checkpoints: checkpointer,
+        eachMessage: failingOnceOnTheSecondMessage(handled),
+      });
+      onTestFinished(() => processor.close());
+
+      await processor.start({});
+      await processor.handle([message(1), message(2)], {});
+      await processor.start({});
+      await processor.handle([message(1), message(2)], {});
+
+      assertDeepEqual(handled, [1, 2, 2]);
     });
   });
 });
