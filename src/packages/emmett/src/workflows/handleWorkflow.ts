@@ -6,7 +6,9 @@ import {
 } from '../commandHandling/middleware';
 import {
   canCreateEventStoreSession,
-  isExpectedVersionConflictError,
+  asyncRetryOptionsOf,
+  StreamVersionConflictRetryOptions,
+  type RetryOptions,
   NO_CONCURRENCY_CHECK,
   nulloSessionFactory,
   STREAM_DOES_NOT_EXIST,
@@ -28,7 +30,7 @@ import type {
   Event,
   RecordedMessage,
 } from '../typing';
-import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
+import { asyncRetry } from '../utils';
 import {
   workflowCollector,
   workflowObservability,
@@ -41,35 +43,10 @@ import type {
 } from './workflow';
 import type { WorkflowOptions } from './workflowProcessor';
 
-export const WorkflowHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
-  {
-    retries: 3,
-    minTimeout: 100,
-    factor: 1.5,
-    shouldRetryError: isExpectedVersionConflictError,
-  };
+export const WorkflowHandlerStreamVersionConflictRetryOptions =
+  StreamVersionConflictRetryOptions;
 
-export type WorkflowHandlerRetryOptions =
-  AsyncRetryOptions | { onVersionConflict: true | number | AsyncRetryOptions };
-
-const fromWorkflowHandlerRetryOptions = (
-  retryOptions: WorkflowHandlerRetryOptions | undefined,
-): AsyncRetryOptions => {
-  if (retryOptions === undefined) return NoRetries;
-
-  if ('onVersionConflict' in retryOptions) {
-    if (typeof retryOptions.onVersionConflict === 'boolean')
-      return WorkflowHandlerStreamVersionConflictRetryOptions;
-    else if (typeof retryOptions.onVersionConflict === 'number')
-      return {
-        ...WorkflowHandlerStreamVersionConflictRetryOptions,
-        retries: retryOptions.onVersionConflict,
-      };
-    else return retryOptions.onVersionConflict;
-  }
-
-  return retryOptions;
-};
+export type WorkflowHandlerRetryOptions = RetryOptions;
 
 // #region workflow-handler
 export type WorkflowHandlerResult<
@@ -555,7 +532,7 @@ export const WorkflowHandler =
                 } as unknown as WorkflowHandlerResult<Output, Store>;
               },
             ),
-          fromWorkflowHandlerRetryOptions(
+          asyncRetryOptionsOf(
             handleOptions && 'retry' in handleOptions
               ? handleOptions.retry
               : options.retry,

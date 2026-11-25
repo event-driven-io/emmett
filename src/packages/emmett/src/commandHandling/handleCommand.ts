@@ -1,6 +1,8 @@
 import {
   canCreateEventStoreSession,
-  isExpectedVersionConflictError,
+  asyncRetryOptionsOf,
+  StreamVersionConflictRetryOptions,
+  type RetryOptions,
   NO_CONCURRENCY_CHECK,
   nulloSessionFactory,
   STREAM_DOES_NOT_EXIST,
@@ -12,7 +14,7 @@ import {
 } from '../eventStore';
 import type { JSONSerializationOptions } from '../serialization';
 import type { Event } from '../typing';
-import { asyncRetry, NoRetries, type AsyncRetryOptions } from '../utils';
+import { asyncRetry } from '../utils';
 import {
   withOperationScope,
   type OperationObservabilityOptions,
@@ -30,16 +32,10 @@ import {
   type MiddlewareOptions,
 } from './middleware';
 
-export const CommandHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
-  {
-    retries: 3,
-    minTimeout: 100,
-    factor: 1.5,
-    shouldRetryError: isExpectedVersionConflictError,
-  };
+export const CommandHandlerStreamVersionConflictRetryOptions =
+  StreamVersionConflictRetryOptions;
 
-export type CommandHandlerRetryOptions =
-  AsyncRetryOptions | { onVersionConflict: true | number | AsyncRetryOptions };
+export type CommandHandlerRetryOptions = RetryOptions;
 
 export type CommandHandlerResult<
   State,
@@ -318,7 +314,7 @@ export const CommandHandler =
                 } as unknown as CommandHandlerResult<State, StreamEvent, Store>;
               },
             ),
-          fromCommandHandlerRetryOptions(
+          asyncRetryOptionsOf(
             handleOptions && 'retry' in handleOptions
               ? handleOptions.retry
               : options.retry,
@@ -340,25 +336,6 @@ const withSession = <EventStoreType extends EventStore, T = unknown>(
     : nulloSessionFactory<EventStoreType>(eventStore);
 
   return sessionFactory.withSession(callback);
-};
-
-const fromCommandHandlerRetryOptions = (
-  retryOptions: CommandHandlerRetryOptions | undefined,
-): AsyncRetryOptions => {
-  if (retryOptions === undefined) return NoRetries;
-
-  if ('onVersionConflict' in retryOptions) {
-    if (typeof retryOptions.onVersionConflict === 'boolean')
-      return CommandHandlerStreamVersionConflictRetryOptions;
-    else if (typeof retryOptions.onVersionConflict === 'number')
-      return {
-        ...CommandHandlerStreamVersionConflictRetryOptions,
-        retries: retryOptions.onVersionConflict,
-      };
-    else return retryOptions.onVersionConflict;
-  }
-
-  return retryOptions;
 };
 
 const toAppendOptions = <

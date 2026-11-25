@@ -8,8 +8,9 @@ import { v7 as uuid } from 'uuid';
 import type { ProcessorObservabilityConfig } from '.';
 import { EmmettError } from '../errors';
 import {
-  isExpectedVersionConflictError,
+  asyncRetryOptionsOf,
   upcastRecordedMessage,
+  type RetryOptions,
 } from '../eventStore';
 import type {
   EmmettObservabilityConfig,
@@ -257,37 +258,9 @@ export type AnyMessageProcessorFactory<
   AnyMessageProcessor
 >;
 
-export type ProcessorRetryOptions =
-  AsyncRetryOptions | { onVersionConflict: true | number | AsyncRetryOptions };
-
-export const ProcessorVersionConflictRetryOptions: AsyncRetryOptions = {
-  retries: 3,
-  minTimeout: 100,
-  factor: 1.5,
-  shouldRetryError: isExpectedVersionConflictError,
-};
-
-const asyncRetryOptionsOf = (
-  retry: ProcessorRetryOptions,
-): AsyncRetryOptions => {
-  if (!('onVersionConflict' in retry)) return retry;
-
-  const { onVersionConflict } = retry;
-
-  if (onVersionConflict === true) return ProcessorVersionConflictRetryOptions;
-
-  if (typeof onVersionConflict === 'number')
-    return {
-      ...ProcessorVersionConflictRetryOptions,
-      retries: onVersionConflict,
-    };
-
-  return onVersionConflict;
-};
-
 export type ProcessorFactoryDefaults = {
   observability?: EmmettObservabilityConfig;
-  retry?: ProcessorRetryOptions;
+  retry?: RetryOptions;
 };
 
 export const withMessageProcessorFactory = <
@@ -374,7 +347,7 @@ export type BaseMessageProcessorOptions<
   canHandle?: CanHandle<MessageType>;
   hooks?: ProcessorHooks<HandlerContext>;
   lock?: ProcessorLockOptions<HandlerContext>;
-  retry?: ProcessorRetryOptions;
+  retry?: RetryOptions;
 } & JSONSerializationOptions & {
     observability?: ProcessorObservabilityConfig;
   };

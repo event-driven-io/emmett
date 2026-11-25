@@ -1,7 +1,7 @@
 import { v7 as uuid } from 'uuid';
 import { beforeEach, describe, it, onTestFinished } from 'vitest';
 import { EmmettError } from '../errors';
-import { ExpectedVersionConflictError } from '../eventStore';
+import { ExpectedVersionConflictError, type RetryOptions } from '../eventStore';
 import {
   assertDeepEqual,
   assertEqual,
@@ -23,7 +23,6 @@ import {
   projector,
   reactor,
   type MessageProcessingScope,
-  type ProcessorRetryOptions,
 } from './processors';
 
 type TestEvent = Event<'test', { counter: number }>;
@@ -1672,7 +1671,7 @@ void describe('Processors', () => {
       rollsBackErrors: boolean,
       handled: number[],
       failures: number,
-      options: { retry?: ProcessorRetryOptions } = { retry },
+      options: { retry?: RetryOptions } = { retry },
     ) => {
       const { checkpointer, processingScope } = database({ rollsBackErrors });
 
