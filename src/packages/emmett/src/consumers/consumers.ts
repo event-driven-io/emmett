@@ -272,36 +272,23 @@ export const consumer = <
 
   for (const processor of options.processors ?? []) register(processor);
 
-  const withMergedObservability = (processorOptions: unknown): unknown => {
+  const withProcessorDefaults = (processorOptions: unknown): unknown => {
     if (typeof processorOptions !== 'object' || processorOptions === null)
       return processorOptions;
 
-    const optionsWithObservability = processorOptions as {
+    const optionsWithDefaults = processorOptions as {
       observability?: EmmettObservabilityConfig;
+      retry?: AsyncRetryOptions;
     };
 
     return {
       ...processorOptions,
       observability: mergeObservability(
         options.observability,
-        optionsWithObservability.observability,
+        optionsWithDefaults.observability,
       ),
+      retry: optionsWithDefaults.retry ?? options.processorDefaults?.retry,
     };
-  };
-
-  const withProcessorDefaults = (processorOptions: unknown): unknown => {
-    const merged = withMergedObservability(processorOptions);
-    const retry = options.processorDefaults?.retry;
-
-    if (
-      retry === undefined ||
-      typeof merged !== 'object' ||
-      merged === null ||
-      ('retry' in merged && merged.retry !== undefined)
-    )
-      return merged;
-
-    return { ...merged, retry };
   };
 
   // A processor that fails to initialise is closed there and then, so the
