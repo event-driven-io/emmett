@@ -349,37 +349,48 @@ const postgreSQLProcessingScope = <
     return pool.withTransaction(async (transaction: AnyDatabaseTransaction) => {
       const connection =
         transaction.connection as InferDumboConnectionFromEventStoreDriver<Driver>;
+      const pgTransaction =
+        transaction as InferTransactionFromEventStoreDriver<Driver>;
 
-      const result = await handler({
-        ...partialContext,
-        partition: options.partition,
-        execute: transaction.execute,
-        driverType: pool.driverType,
-        driver:
-          options.driver ??
-          partialContext?.driver ??
-          (pgEventStoreDriver as unknown as Driver),
-        session: {
-          ...partialContext?.session,
-          pool,
-          connectionOptions,
-          connection,
-          transaction:
-            transaction as InferTransactionFromEventStoreDriver<Driver>,
-          messageStore: getPostgreSQLEventStore({
-            driver: options.driver ?? pgEventStoreDriver,
-            connectionOptions: {
-              connection: connection as unknown as PgPoolClientConnection,
-            },
-            schema: {
-              ...options.migrationOptions,
-              autoMigration: 'None',
-            },
-          }),
-        },
-        migrationOptions: options.migrationOptions,
-        observabilityScope: partialContext?.observabilityScope ?? noopScope,
-      });
+      const handle = async (messageStore: PostgresEventStore) =>
+        handler({
+          ...partialContext,
+          partition: options.partition,
+          execute: transaction.execute,
+          driverType: pool.driverType,
+          driver:
+            options.driver ??
+            partialContext?.driver ??
+            (pgEventStoreDriver as unknown as Driver),
+          session: {
+            ...partialContext?.session,
+            pool,
+            connectionOptions,
+            connection,
+            transaction: pgTransaction,
+            messageStore,
+          },
+          migrationOptions: options.migrationOptions,
+          observabilityScope: partialContext?.observabilityScope ?? noopScope,
+        });
+
+      const result = session?.messageStore
+        ? await session.messageStore.withSession(
+            ({ eventStore }) => handle(eventStore),
+            { transaction: pgTransaction },
+          )
+        : await handle(
+            getPostgreSQLEventStore({
+              driver: options.driver ?? pgEventStoreDriver,
+              connectionOptions: {
+                connection: connection as unknown as PgPoolClientConnection,
+              },
+              schema: {
+                ...options.migrationOptions,
+                autoMigration: 'None',
+              },
+            }),
+          );
 
       return { success: !MessageProcessor.result.isError(result), result };
     });

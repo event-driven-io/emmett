@@ -174,6 +174,119 @@ void describe('SQLiteEventStore', () => {
       );
     });
 
+    void it('commits the appends of a session that joined a transaction together with that transaction', async () => {
+      const pool = sqlite3Pool({
+        fileName,
+        transactionOptions: { allowNestedTransactions: true },
+      });
+      const streamName = `shopping_cart-${uuid()}`;
+      const added: ProductItemAdded = {
+        type: 'ProductItemAdded',
+        data: { productItem: { productId: '123', quantity: 10, price: 3 } },
+      };
+
+      try {
+        await pool.withTransaction((transaction) =>
+          eventStore.withSession(
+            ({ eventStore: session }) =>
+              session.appendToStream(streamName, [added]),
+            { transaction },
+          ),
+        );
+      } finally {
+        await pool.close();
+      }
+
+      const { events } = await eventStore.readStream(streamName);
+      assertDeepEqual(
+        events.map(({ type, data }) => ({ type, data })),
+        [added],
+      );
+    });
+
+    void it('rolls back the appends of a session that joined a transaction together with that transaction', async () => {
+      const pool = sqlite3Pool({
+        fileName,
+        transactionOptions: { allowNestedTransactions: true },
+      });
+      const streamName = `shopping_cart-${uuid()}`;
+      const added: ProductItemAdded = {
+        type: 'ProductItemAdded',
+        data: { productItem: { productId: '123', quantity: 10, price: 3 } },
+      };
+
+      try {
+        await assertThrowsAsync(
+          () =>
+            pool.withTransaction(async (transaction) => {
+              await eventStore.withSession(
+                ({ eventStore: session }) =>
+                  session.appendToStream(streamName, [added]),
+                { transaction },
+              );
+
+              throw new Error('You shall not pass!');
+            }),
+          (error) => error.message === 'You shall not pass!',
+        );
+      } finally {
+        await pool.close();
+      }
+
+      const { events } = await eventStore.readStream(streamName);
+      assertEqual(0, events.length);
+    });
+
+    void it('commits the appends to many streams of a session that opened its own transaction together', async () => {
+      const cartId = `shopping_cart-${uuid()}`;
+      const otherCartId = `shopping_cart-${uuid()}`;
+      const added: ProductItemAdded = {
+        type: 'ProductItemAdded',
+        data: { productItem: { productId: '123', quantity: 10, price: 3 } },
+      };
+
+      await eventStore.withSession(
+        async ({ eventStore: session }) => {
+          await session.appendToStream(cartId, [added]);
+          await session.appendToStream(otherCartId, [added]);
+        },
+        { transaction: true },
+      );
+
+      const cart = await eventStore.readStream(cartId);
+      const otherCart = await eventStore.readStream(otherCartId);
+      assertEqual(1, cart.events.length);
+      assertEqual(1, otherCart.events.length);
+    });
+
+    void it('rolls back the appends to many streams of a session that opened its own transaction when it fails', async () => {
+      const cartId = `shopping_cart-${uuid()}`;
+      const otherCartId = `shopping_cart-${uuid()}`;
+      const added: ProductItemAdded = {
+        type: 'ProductItemAdded',
+        data: { productItem: { productId: '123', quantity: 10, price: 3 } },
+      };
+
+      await assertThrowsAsync(
+        () =>
+          eventStore.withSession(
+            async ({ eventStore: session }) => {
+              await session.appendToStream(cartId, [added]);
+              await session.appendToStream(otherCartId, [added]);
+
+              throw new Error('You shall not pass!');
+            },
+            { transaction: true },
+          ),
+        (error) => error.message === 'You shall not pass!',
+      );
+
+      const cart = await eventStore.readStream(cartId);
+      const otherCart = await eventStore.readStream(otherCartId);
+      assertEqual(0, cart.events.length);
+      assertEqual(0, otherCart.events.length);
+    });
+
     void it('should throw an error if concurrency check has failed when appending stream', async () => {
       const productItem: PricedProductItem = {
         productId: '123',

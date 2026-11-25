@@ -203,18 +203,9 @@ const eventStore2 = getSQLiteEventStore({ database: db });
 
 Run logic before transaction commits:
 
-```typescript
-const eventStore = getSQLiteEventStore('./events.db', {
-  beforeCommit: async (events, context) => {
-    // Validate, enrich, or reject events
-    for (const event of events) {
-      if (event.type === 'ProductItemAdded' && event.data.quantity > 100) {
-        throw new Error('Quantity too large');
-      }
-    }
-  },
-});
-```
+<<< @/snippets/eventStores/sessions/sqliteSession.int.spec.ts#sqlite-before-commit-hook
+
+`onBeforeCommit` runs in the append's transaction, before it commits. What it writes through the transaction it receives commits or rolls back together with the events. Do not call systems outside the database from it, for example to send an e-mail: if the transaction rolls back, the e-mail is already sent. Write a row through the transaction instead, or handle the committed events in a reactor.
 
 ## Manual Schema Management
 
@@ -282,6 +273,22 @@ const eventStore = getSQLiteEventStore({
   },
 });
 ```
+
+### Transactions in a Session
+
+To append to many streams so that they commit together, let the session open a transaction. It commits when the callback resolves and rolls back when it throws:
+
+<<< @/snippets/eventStores/sessions/sqliteSession.int.spec.ts#sqlite-transactional-session
+
+To append inside a transaction you opened, pass it to the session instead. The appends commit or roll back with your transaction:
+
+<<< @/snippets/eventStores/sessions/sqliteSession.int.spec.ts#sqlite-join-transaction
+
+The pool has to allow nested transactions (`transactionOptions: { allowNestedTransactions: true }`), because each append opens its own transaction inside yours. The pools that Emmett creates already do. A session that joins a transaction doesn't create the event store schema, so it has to exist.
+
+Either way, the session's store keeps the inline projections, the `onBeforeCommit` hook and the observability of `eventStore`. Keep the transaction short and don't call systems outside the database inside it: other writers wait for it.
+
+A reactor started with `eventStore.consumer()` appends through `context.session.messageStore` the same way: the session joins the processor's transaction, so the reactor's events commit together with its checkpoint.
 
 ### Database Schemas
 

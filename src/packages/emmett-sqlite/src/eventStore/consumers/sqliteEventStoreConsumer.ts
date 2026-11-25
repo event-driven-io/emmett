@@ -80,7 +80,7 @@ export type SQLiteEventStoreConsumerConnectionOptions<
     ReadEventMetadataWithGlobalPosition
   >;
   hooks?: Pick<ConsumerHooks, 'onInit'>;
-  messageStore?: SQLiteEventStore;
+  messageStore?: SQLiteEventStore<Driver>;
 } & PoolOrConnectionOptions<Driver>;
 
 export type SQLiteEventStoreConsumerOptions<

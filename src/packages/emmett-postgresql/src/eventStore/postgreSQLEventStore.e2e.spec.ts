@@ -325,6 +325,140 @@ void describe('PostgreSQLEventStore', () => {
     assertThatArray(studentStream.events).isEmpty();
   });
 
+  void it('commits the appends of a session that joined a transaction together with that transaction', async () => {
+    // Given
+    const pool = dumbo({
+      driver: pgDumboDriver,
+      connectionString,
+      transactionOptions: { allowNestedTransactions: true },
+    });
+    const courseId = uuid();
+    const enrolled = {
+      type: 'EnrolledToCourse',
+      data: { courseId, studentId: uuid() },
+    };
+
+    // When
+    try {
+      await pool.withTransaction((transaction) =>
+        eventStore.withSession(
+          ({ eventStore: session }) =>
+            session.appendToStream(courseId, [enrolled]),
+          { transaction },
+        ),
+      );
+    } finally {
+      await pool.close();
+    }
+
+    // Then
+    const courseStream =
+      await eventStore.readStream<ShoppingCartEvent>(courseId);
+
+    assertMatches(courseStream.events, [enrolled]);
+  });
+
+  void it('rolls back the appends of a session that joined a transaction together with that transaction', async () => {
+    // Given
+    const pool = dumbo({
+      driver: pgDumboDriver,
+      connectionString,
+      transactionOptions: { allowNestedTransactions: true },
+    });
+    const courseId = uuid();
+    const enrolled = {
+      type: 'EnrolledToCourse',
+      data: { courseId, studentId: uuid() },
+    };
+
+    // When
+    try {
+      await assertThrowsAsync(
+        () =>
+          pool.withTransaction(async (transaction) => {
+            await eventStore.withSession(
+              ({ eventStore: session }) =>
+                session.appendToStream(courseId, [enrolled]),
+              { transaction },
+            );
+
+            throw new EmmettError('You shall not pass!');
+          }),
+        (error) => error.message === 'You shall not pass!',
+      );
+    } finally {
+      await pool.close();
+    }
+
+    // Then
+    const courseStream =
+      await eventStore.readStream<ShoppingCartEvent>(courseId);
+
+    assertThatArray(courseStream.events).isEmpty();
+  });
+
+  void it('commits the appends to many streams of a session that opened its own transaction together', async () => {
+    // Given
+    const courseId = uuid();
+    const studentId = uuid();
+    const enrolled = {
+      type: 'EnrolledToCourse',
+      data: { courseId, studentId },
+    };
+
+    // When
+    await eventStore.withSession(
+      async ({ eventStore: session }) => {
+        await session.appendToStream(courseId, [enrolled]);
+        await session.appendToStream(studentId, [enrolled]);
+      },
+      { transaction: true },
+    );
+
+    // Then
+    const courseStream =
+      await eventStore.readStream<ShoppingCartEvent>(courseId);
+    const studentStream =
+      await eventStore.readStream<ShoppingCartEvent>(studentId);
+
+    assertMatches(courseStream.events, [enrolled]);
+    assertMatches(studentStream.events, [enrolled]);
+  });
+
+  void it('rolls back the appends to many streams of a session that opened its own transaction when it fails', async () => {
+    // Given
+    const courseId = uuid();
+    const studentId = uuid();
+    const enrolled = {
+      type: 'EnrolledToCourse',
+      data: { courseId, studentId },
+    };
+
+    // When
+    await assertThrowsAsync(
+      () =>
+        eventStore.withSession(
+          async ({ eventStore: session }) => {
+            await session.appendToStream(courseId, [enrolled]);
+            await session.appendToStream(studentId, [enrolled]);
+
+            throw new EmmettError('You shall not pass!');
+          },
+          { transaction: true },
+        ),
+      (error) => error.message === 'You shall not pass!',
+    );
+
+    // Then
+    const courseStream =
+      await eventStore.readStream<ShoppingCartEvent>(courseId);
+    const studentStream =
+      await eventStore.readStream<ShoppingCartEvent>(studentId);
+
+    assertThatArray(courseStream.events).isEmpty();
+    assertThatArray(studentStream.events).isEmpty();
+  });
+
   void it('should append events correctly using appendEvent function', async () => {
     const discount = 10;
     handledEventsInCustomProjection = [];

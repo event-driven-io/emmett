@@ -3,10 +3,11 @@ import { CommandHandler } from '../commandHandling';
 import {
   getInMemoryEventStore,
   type EventStore,
+  type EventStoreSession,
   type EventStoreSessionFactory,
 } from '../eventStore';
 import type { Event } from '../typing';
-import { assertMatches } from './assertions';
+import { assertDeepEqual, assertMatches } from './assertions';
 import { WrapEventStore } from './wrapEventStore';
 
 type SomethingHappened = Event<'Did', { something: string }>;
@@ -62,5 +63,29 @@ void describe('WrapEventStore', () => {
     assertMatches(Array.from(eventStore.appendedEvents.values()), [
       ['stream-2', [event]],
     ]);
+  });
+
+  void it('passes the session options to the wrapped store', async () => {
+    const inner = getInMemoryEventStore();
+    const receivedOptions: unknown[] = [];
+    const eventStore = WrapEventStore({
+      ...inner,
+      withSession: <T>(
+        callback: (session: EventStoreSession<typeof inner>) => Promise<T>,
+        options?: { transaction: string },
+      ): Promise<T> => {
+        receivedOptions.push(options);
+        return callback({
+          eventStore: inner,
+          close: () => Promise.resolve(),
+        });
+      },
+    });
+
+    await eventStore.withSession(() => Promise.resolve(), {
+      transaction: 'opened by the caller',
+    });
+
+    assertDeepEqual(receivedOptions, [{ transaction: 'opened by the caller' }]);
   });
 });

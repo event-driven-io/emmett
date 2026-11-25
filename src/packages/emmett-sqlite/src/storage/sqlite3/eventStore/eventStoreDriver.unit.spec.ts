@@ -23,6 +23,7 @@ import {
   type PoolOrConnectionOptions,
 } from '../../../eventStore/eventStoreDriver';
 import type { SQLiteProjectionHandlerContext } from '../../../eventStore/projections/sqliteProjection';
+import type { SQLiteEventStore } from '../../../eventStore/SQLiteEventStore';
 
 type Equals<Left, Right> =
   (<T>() => T extends Left ? 1 : 2) extends <T>() => T extends Right ? 1 : 2
@@ -207,6 +208,36 @@ void describe('PoolOrConnectionOptions', () => {
       { pool: Dumbo } extends PoolOrConnectionOptions<SQLite3EventStoreDriver>
         ? true
         : false
+    >();
+
+    assertTrue(true);
+  });
+});
+
+void describe('Session options typing', () => {
+  type SessionOptions<Driver extends AnySQLiteEventStoreDriver> = NonNullable<
+    Parameters<SQLiteEventStore<Driver>['withSession']>[1]
+  >;
+
+  void it('takes a transaction of the store driver', () => {
+    assertTypesEqual<
+      {
+        transaction: SQLiteTransaction<SQLite3Connection>;
+      } extends SessionOptions<SQLite3EventStoreDriver>
+        ? true
+        : false
+    >();
+
+    assertTrue(true);
+  });
+
+  void it('rejects a transaction of another driver', () => {
+    assertTypesEqual<
+      {
+        transaction: ProcessorSession<D1EventStoreDriver>['transaction'];
+      } extends SessionOptions<SQLite3EventStoreDriver>
+        ? false
+        : true
     >();
 
     assertTrue(true);

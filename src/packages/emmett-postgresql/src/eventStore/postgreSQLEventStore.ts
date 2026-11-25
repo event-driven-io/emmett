@@ -88,10 +88,31 @@ import type {
   PoolOrConnectionOptions,
 } from './eventStoreDriver';
 
+/**
+ * Runs a session on a connection or in a transaction. The session's store keeps
+ * the inline projections, hooks and observability of the store it came from.
+ *
+ * - `connection`: each append runs in its own transaction on the caller's
+ *   connection. The session does not create the event store schema.
+ * - `transaction`: appends join the caller's transaction, so they commit or
+ *   roll back with it. Its pool or connection has to allow nested transactions.
+ *   The session does not create the event store schema.
+ * - `transaction: true`: the session opens a transaction for its whole
+ *   callback, commits it when the callback resolves and rolls it back when it
+ *   throws, so appends to many streams commit together. Keep the callback
+ *   short: other writers wait for it, and PostgreSQL consumers do not read
+ *   events appended after it started until it ends.
+ */
+export type PostgreSQLEventStoreSessionOptions =
+  { connection: PgConnection } | { transaction: PgTransaction | true };
+
 export interface PostgresEventStore
   extends
     EventStore<PostgresReadEventMetadata>,
-    EventStoreSessionFactory<PostgresEventStore> {
+    EventStoreSessionFactory<
+      PostgresEventStore,
+      PostgreSQLEventStoreSessionOptions
+    > {
   appendToStream<
     EventType extends Event,
     EventPayloadType extends Event = EventType,
@@ -769,20 +790,10 @@ export function getPostgreSQLEventStore(
 
     async withSession<T = unknown>(
       callback: (session: EventStoreSession<PostgresEventStore>) => Promise<T>,
+      sessionOptions?: PostgreSQLEventStoreSessionOptions,
     ): Promise<T> {
-      return await pool.withConnection(async (connection) => {
-        const storeOptions: PostgresEventStoreConnectionStringOptions = {
-          ...options,
-          connectionOptions: {
-            connection: connection,
-          },
-          schema: {
-            ...(options.schema ?? {}),
-            autoMigration: 'None',
-          },
-        };
-
-        const eventStore = optionsWithDriver
+      const sessionStore = (connection: PgConnection) =>
+        optionsWithDriver
           ? getPostgreSQLEventStore({
               ...optionsWithDriver,
               pool: dumbo({
@@ -795,15 +806,47 @@ export function getPostgreSQLEventStore(
                 autoMigration: 'None',
               },
             })
-          : getPostgreSQLEventStore(poolOptions.connectionString, storeOptions);
+          : getPostgreSQLEventStore(poolOptions.connectionString, {
+              ...options,
+              connectionOptions: {
+                connection,
+              },
+              schema: {
+                ...(options.schema ?? {}),
+                autoMigration: 'None',
+              },
+            });
 
-        return ensureSchemaExists().then(() =>
-          callback({
-            eventStore,
-            close: () => Promise.resolve(),
-          }),
+      if (sessionOptions && 'connection' in sessionOptions)
+        return callback({
+          eventStore: sessionStore(sessionOptions.connection),
+          close: () => Promise.resolve(),
+        });
+
+      if (sessionOptions && sessionOptions.transaction !== true)
+        return callback({
+          eventStore: sessionStore(sessionOptions.transaction.connection),
+          close: () => Promise.resolve(),
+        });
+
+      await ensureSchemaExists();
+
+      if (sessionOptions?.transaction === true)
+        return pool.withConnection((connection) =>
+          connection.withTransaction(() =>
+            callback({
+              eventStore: sessionStore(connection),
+              close: () => Promise.resolve(),
+            }),
+          ),
         );
-      });
+
+      return pool.withConnection((connection) =>
+        callback({
+          eventStore: sessionStore(connection),
+          close: () => Promise.resolve(),
+        }),
+      );
     },
   };
 

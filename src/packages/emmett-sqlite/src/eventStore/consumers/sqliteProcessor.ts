@@ -89,7 +89,7 @@ export type SQLiteProcessorHandlerContext<
     connection: InferDumboConnectionFromEventStoreDriver<Driver>;
     transaction: InferTransactionFromEventStoreDriver<Driver>;
     pool: InferPoolFromEventStoreDriver<Driver>;
-    messageStore: SQLiteEventStore;
+    messageStore: SQLiteEventStore<Driver>;
     connectionOptions?: InferDumboOptionsFromEventStoreDriver<Driver>;
   }
 >;
@@ -234,33 +234,43 @@ const sqliteProcessingScope = <
       const connection =
         transaction.connection as InferDumboConnectionFromEventStoreDriver<Driver>;
 
-      const result = await handler({
-        ...partialContext,
-        partition: options.partition,
-        execute: sqliteTransaction.execute,
-        driver,
-        driverType: connection.driverType,
-        session: {
-          ...partialContext?.session,
-          pool,
-          connectionOptions,
-          connection,
-          transaction: sqliteTransaction,
-          messageStore: getSQLiteEventStore({
-            driver,
-            pool: sqliteAmbientConnectionPool({
-              driverType: connection.driverType,
-              connection,
+      const handle = async (messageStore: SQLiteEventStore<Driver>) =>
+        handler({
+          ...partialContext,
+          partition: options.partition,
+          execute: sqliteTransaction.execute,
+          driver,
+          driverType: connection.driverType,
+          session: {
+            ...partialContext?.session,
+            pool,
+            connectionOptions,
+            connection,
+            transaction: sqliteTransaction,
+            messageStore,
+          },
+          migrationOptions: options.migrationOptions,
+          observabilityScope: partialContext?.observabilityScope ?? noopScope,
+        });
+
+      const result = session?.messageStore
+        ? await session.messageStore.withSession(
+            ({ eventStore }) => handle(eventStore),
+            { transaction: sqliteTransaction },
+          )
+        : await handle(
+            getSQLiteEventStore({
+              driver,
+              pool: sqliteAmbientConnectionPool({
+                driverType: connection.driverType,
+                connection,
+              }),
+              schema: {
+                ...options.migrationOptions,
+                autoMigration: 'None',
+              },
             }),
-            schema: {
-              ...options.migrationOptions,
-              autoMigration: 'None',
-            },
-          }),
-        },
-        migrationOptions: options.migrationOptions,
-        observabilityScope: partialContext?.observabilityScope ?? noopScope,
-      });
+          );
 
       return { success: !MessageProcessor.result.isError(result), result };
     });
