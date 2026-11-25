@@ -80,18 +80,19 @@ export const isExpectedVersionConflictError = (
     ExpectedVersionConflictError.Codes.ConcurrencyError,
   );
 
-export const StreamVersionConflictRetryOptions: AsyncRetryOptions = {
-  retries: 3,
-  minTimeout: 100,
-  factor: 1.5,
-  shouldRetryError: isExpectedVersionConflictError,
-};
+export const MessageHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
+  {
+    retries: 3,
+    minTimeout: 100,
+    factor: 1.5,
+    shouldRetryError: isExpectedVersionConflictError,
+  };
 
-export type RetryOptions =
+export type MessageHandlerRetryOptions =
   AsyncRetryOptions | { onVersionConflict: true | number | AsyncRetryOptions };
 
-export const asyncRetryOptionsOf = (
-  retryOptions: RetryOptions | undefined,
+export const fromMessageHandlerRetryOptions = (
+  retryOptions: MessageHandlerRetryOptions | undefined,
 ): AsyncRetryOptions => {
   if (retryOptions === undefined) return NoRetries;
 
@@ -99,10 +100,14 @@ export const asyncRetryOptionsOf = (
 
   const { onVersionConflict } = retryOptions;
 
-  if (onVersionConflict === true) return StreamVersionConflictRetryOptions;
+  if (onVersionConflict === true)
+    return MessageHandlerStreamVersionConflictRetryOptions;
 
   if (typeof onVersionConflict === 'number')
-    return { ...StreamVersionConflictRetryOptions, retries: onVersionConflict };
+    return {
+      ...MessageHandlerStreamVersionConflictRetryOptions,
+      retries: onVersionConflict,
+    };
 
   return onVersionConflict;
 };

@@ -5,7 +5,7 @@ import {
 } from '@event-driven-io/almanac';
 import { v7 as uuid } from 'uuid';
 import { EmmettError } from '../errors';
-import type { RetryOptions } from '../eventStore';
+import type { MessageHandlerRetryOptions } from '../eventStore';
 import { MessageSourceControlMessage } from '../eventStore/events';
 import {
   type AnyMessageProcessorFactory,
@@ -68,7 +68,7 @@ export type MessageConsumerOptions<
   processors?: Array<MessageProcessor<ConsumerMessageType, any, any>>;
   until?: MessageConsumerUntilCondition;
   defaultTimeout?: number;
-  processorDefaults?: { retry?: RetryOptions };
+  processorDefaults?: { retry?: MessageHandlerRetryOptions };
 };
 
 export type MessageConsumer<

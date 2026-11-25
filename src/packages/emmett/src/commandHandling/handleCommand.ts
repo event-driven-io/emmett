@@ -1,8 +1,8 @@
 import {
   canCreateEventStoreSession,
-  asyncRetryOptionsOf,
-  StreamVersionConflictRetryOptions,
-  type RetryOptions,
+  fromMessageHandlerRetryOptions,
+  MessageHandlerStreamVersionConflictRetryOptions,
+  type MessageHandlerRetryOptions,
   NO_CONCURRENCY_CHECK,
   nulloSessionFactory,
   STREAM_DOES_NOT_EXIST,
@@ -33,9 +33,9 @@ import {
 } from './middleware';
 
 export const CommandHandlerStreamVersionConflictRetryOptions =
-  StreamVersionConflictRetryOptions;
+  MessageHandlerStreamVersionConflictRetryOptions;
 
-export type CommandHandlerRetryOptions = RetryOptions;
+export type CommandHandlerRetryOptions = MessageHandlerRetryOptions;
 
 export type CommandHandlerResult<
   State,
@@ -314,7 +314,7 @@ export const CommandHandler =
                 } as unknown as CommandHandlerResult<State, StreamEvent, Store>;
               },
             ),
-          asyncRetryOptionsOf(
+          fromMessageHandlerRetryOptions(
             handleOptions && 'retry' in handleOptions
               ? handleOptions.retry
               : options.retry,
