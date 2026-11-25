@@ -6,9 +6,9 @@ import {
 } from '../commandHandling/middleware';
 import {
   canCreateEventStoreSession,
-  asyncRetryOptionsOf,
-  StreamVersionConflictRetryOptions,
-  type RetryOptions,
+  fromMessageHandlerRetryOptions,
+  MessageHandlerStreamVersionConflictRetryOptions,
+  type MessageHandlerRetryOptions,
   NO_CONCURRENCY_CHECK,
   nulloSessionFactory,
   STREAM_DOES_NOT_EXIST,
@@ -44,9 +44,9 @@ import type {
 import type { WorkflowOptions } from './workflowProcessor';
 
 export const WorkflowHandlerStreamVersionConflictRetryOptions =
-  StreamVersionConflictRetryOptions;
+  MessageHandlerStreamVersionConflictRetryOptions;
 
-export type WorkflowHandlerRetryOptions = RetryOptions;
+export type WorkflowHandlerRetryOptions = MessageHandlerRetryOptions;
 
 // #region workflow-handler
 export type WorkflowHandlerResult<
@@ -532,7 +532,7 @@ export const WorkflowHandler =
                 } as unknown as WorkflowHandlerResult<Output, Store>;
               },
             ),
-          asyncRetryOptionsOf(
+          fromMessageHandlerRetryOptions(
             handleOptions && 'retry' in handleOptions
               ? handleOptions.retry
               : options.retry,

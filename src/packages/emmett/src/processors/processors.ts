@@ -8,9 +8,9 @@ import { v7 as uuid } from 'uuid';
 import type { ProcessorObservabilityConfig } from '.';
 import { EmmettError } from '../errors';
 import {
-  asyncRetryOptionsOf,
+  fromMessageHandlerRetryOptions,
   upcastRecordedMessage,
-  type RetryOptions,
+  type MessageHandlerRetryOptions,
 } from '../eventStore';
 import type {
   EmmettObservabilityConfig,
@@ -260,7 +260,7 @@ export type AnyMessageProcessorFactory<
 
 export type ProcessorFactoryDefaults = {
   observability?: EmmettObservabilityConfig;
-  retry?: RetryOptions;
+  retry?: MessageHandlerRetryOptions;
 };
 
 export const withMessageProcessorFactory = <
@@ -347,7 +347,7 @@ export type BaseMessageProcessorOptions<
   canHandle?: CanHandle<MessageType>;
   hooks?: ProcessorHooks<HandlerContext>;
   lock?: ProcessorLockOptions<HandlerContext>;
-  retry?: RetryOptions;
+  retry?: MessageHandlerRetryOptions;
 } & JSONSerializationOptions & {
     observability?: ProcessorObservabilityConfig;
   };
@@ -576,7 +576,9 @@ export const reactor = <
     retry,
   } = options;
 
-  const retryOptions = retry ? asyncRetryOptionsOf(retry) : undefined;
+  const retryOptions = retry
+    ? fromMessageHandlerRetryOptions(retry)
+    : undefined;
 
   const checkpointer =
     checkpoints === 'DISABLED'
