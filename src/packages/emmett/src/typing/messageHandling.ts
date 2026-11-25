@@ -1,7 +1,9 @@
 import type { ObservabilityScope } from '@event-driven-io/almanac';
 import type { DefaultRecord } from '.';
 import type { EmmettError } from '../errors';
+import { isExpectedVersionConflictError } from '../eventStore/expectedVersion';
 import type { WithObservabilityScope } from '../observability';
+import { NoRetries, type AsyncRetryOptions } from '../utils/retry';
 import type {
   AnyMessage,
   AnyRecordedMessage,
@@ -208,3 +210,35 @@ export type BatchMessageHandlerResult =
       error?: EmmettError;
       lastSuccessfulMessage?: AnyRecordedMessage;
     };
+
+export const MessageHandlerStreamVersionConflictRetryOptions: AsyncRetryOptions =
+  {
+    retries: 3,
+    minTimeout: 100,
+    factor: 1.5,
+    shouldRetryError: isExpectedVersionConflictError,
+  };
+
+export type MessageHandlerRetryOptions =
+  AsyncRetryOptions | { onVersionConflict: true | number | AsyncRetryOptions };
+
+export const fromMessageHandlerRetryOptions = (
+  retryOptions: MessageHandlerRetryOptions | undefined,
+): AsyncRetryOptions => {
+  if (retryOptions === undefined) return NoRetries;
+
+  if (!('onVersionConflict' in retryOptions)) return retryOptions;
+
+  const { onVersionConflict } = retryOptions;
+
+  if (onVersionConflict === true)
+    return MessageHandlerStreamVersionConflictRetryOptions;
+
+  if (typeof onVersionConflict === 'number')
+    return {
+      ...MessageHandlerStreamVersionConflictRetryOptions,
+      retries: onVersionConflict,
+    };
+
+  return onVersionConflict;
+};
