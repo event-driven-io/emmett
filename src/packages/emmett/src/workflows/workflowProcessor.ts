@@ -19,11 +19,7 @@ import type {
   RecordedMessage,
 } from '../typing';
 import { withOperationScope } from '../observability';
-import {
-  WorkflowHandler,
-  workflowStreamName,
-  type WorkflowHandlerRetryOptions,
-} from './handleWorkflow';
+import { WorkflowHandler, workflowStreamName } from './handleWorkflow';
 import type { Workflow, WorkflowCommand, WorkflowEvent } from './workflow';
 
 export type WorkflowOptions<
@@ -169,7 +165,7 @@ export type WorkflowProcessorOptions<
     MessageMetadataType,
     HandlerContext
   >,
-  'type' | 'canHandle' | 'processorId' | 'retry'
+  'type' | 'canHandle' | 'processorId'
 > & { processorId?: string } & WorkflowOptions<
     Input,
     State,
@@ -177,7 +173,6 @@ export type WorkflowProcessorOptions<
     MessageMetadataType,
     StoredMessage
   > & {
-    retry?: WorkflowHandlerRetryOptions;
     outputHandler?: WorkflowOutputHandlerDefinition<
       Input,
       Output,
@@ -209,7 +204,7 @@ export const workflowProcessor = <
     HandledOutput
   >,
 ): MessageProcessor<Input, MetaDataType, HandlerContext> => {
-  const { workflow, ...rest } = options;
+  const { workflow, retry, ...rest } = options;
 
   const inputs = [...options.inputs.commands, ...options.inputs.events];
   let canHandle = inputs;
@@ -224,10 +219,11 @@ export const workflowProcessor = <
   if (options.outputHandler)
     canHandle = [...canHandle, ...options.outputHandler.canHandle];
 
-  const handle = WorkflowHandler({ ...options, retry: undefined });
+  const handle = WorkflowHandler({ ...rest, workflow });
 
   return reactor<Input | Output, MetaDataType, HandlerContext>({
     ...rest,
+    retry,
     processorId:
       options.processorId ?? getWorkflowId({ workflowName: workflow.name }),
     canHandle,

@@ -576,9 +576,8 @@ export const reactor = <
     retry,
   } = options;
 
-  const retryOptions = retry
-    ? fromMessageHandlerRetryOptions(retry)
-    : undefined;
+  const retryOptions = fromMessageHandlerRetryOptions(retry);
+  const retries = retriesOf(retryOptions);
 
   const checkpointer =
     checkpoints === 'DISABLED'
@@ -1058,7 +1057,6 @@ export const reactor = <
     messages: RecordedMessage<MessageType, MessageMetadataType>[],
     partialContext: PartialHandlerContext<HandlerContext>,
     scope: ObservabilityScope,
-    retryOptions: AsyncRetryOptions,
   ): Promise<BatchMessageHandlerResult> => {
     let attemptNumber = 0;
     let lastAttempt: Promise<BatchMessageHandlerResult> =
@@ -1080,7 +1078,7 @@ export const reactor = <
       },
       {
         ...retryOptions,
-        retries: retriesOf(retryOptions),
+        retries,
         shouldRetryError: (error) => currentAttempt?.willRetry(error) ?? false,
       },
     )
@@ -1101,13 +1099,8 @@ export const reactor = <
         { processorId, type, checkpoint: lastCheckpoint },
         messages,
         (scope) =>
-          retryOptions
-            ? attemptBatchWithRetries(
-                messages,
-                partialContext,
-                scope,
-                retryOptions,
-              )
+          retries > 0
+            ? attemptBatchWithRetries(messages, partialContext, scope)
             : attemptBatch(messages, partialContext, scope),
       )
       .catch((err): BatchMessageHandlerResult => {

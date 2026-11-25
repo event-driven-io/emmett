@@ -1117,6 +1117,39 @@ describe('processor failure observability', () => {
       });
   });
 
+  it('a processor with zero retries fails like one without a retry policy', async () => {
+    const failure = new EmmettError('batch failed');
+
+    await given((config) =>
+      reactor({
+        processorId: 'orders',
+        processorInstanceId: 'orders-1',
+        retry: { retries: 0 },
+        eachBatch: () => Promise.reject(failure),
+        observability: config,
+      }),
+    )
+      .when(async (reactor) => {
+        await reactor.start({});
+        return reactor.handle([failingMessage], {});
+      })
+      .then(({ result, spans }) => {
+        assertDeepEqual(result, {
+          type: 'STOP',
+          reason: 'Error during message processing',
+          error: failure,
+        });
+        spans
+          .hasSingleSpanNamed('processor.handle')
+          .hasError(failure)
+          .logged('error', 'Processor stopped: batch handling failed', {
+            ...processorIds,
+            [A.processor.batchSize]: 1,
+          })
+          .loggedCount(1);
+      });
+  });
+
   it('a failing eachBatch handler logs one error with batch attributes and stops the processor', async () => {
     const failure = new EmmettError('batch failed');
 
