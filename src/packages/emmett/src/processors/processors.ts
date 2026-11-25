@@ -7,7 +7,10 @@ import {
 import { v7 as uuid } from 'uuid';
 import type { ProcessorObservabilityConfig } from '.';
 import { EmmettError } from '../errors';
-import { upcastRecordedMessage } from '../eventStore';
+import {
+  isExpectedVersionConflictError,
+  upcastRecordedMessage,
+} from '../eventStore';
 import type {
   EmmettObservabilityConfig,
   OperationObservabilityOptions,
@@ -254,9 +257,37 @@ export type AnyMessageProcessorFactory<
   AnyMessageProcessor
 >;
 
+export type ProcessorRetryOptions =
+  AsyncRetryOptions | { onVersionConflict: true | number | AsyncRetryOptions };
+
+export const ProcessorVersionConflictRetryOptions: AsyncRetryOptions = {
+  retries: 3,
+  minTimeout: 100,
+  factor: 1.5,
+  shouldRetryError: isExpectedVersionConflictError,
+};
+
+const asyncRetryOptionsOf = (
+  retry: ProcessorRetryOptions,
+): AsyncRetryOptions => {
+  if (!('onVersionConflict' in retry)) return retry;
+
+  const { onVersionConflict } = retry;
+
+  if (onVersionConflict === true) return ProcessorVersionConflictRetryOptions;
+
+  if (typeof onVersionConflict === 'number')
+    return {
+      ...ProcessorVersionConflictRetryOptions,
+      retries: onVersionConflict,
+    };
+
+  return onVersionConflict;
+};
+
 export type ProcessorFactoryDefaults = {
   observability?: EmmettObservabilityConfig;
-  retry?: unknown;
+  retry?: ProcessorRetryOptions;
 };
 
 export const withMessageProcessorFactory = <
@@ -343,7 +374,7 @@ export type BaseMessageProcessorOptions<
   canHandle?: CanHandle<MessageType>;
   hooks?: ProcessorHooks<HandlerContext>;
   lock?: ProcessorLockOptions<HandlerContext>;
-  retry?: AsyncRetryOptions;
+  retry?: ProcessorRetryOptions;
 } & JSONSerializationOptions & {
     observability?: ProcessorObservabilityConfig;
   };
@@ -569,8 +600,10 @@ export const reactor = <
     startFrom,
     canHandle,
     stopAfter,
-    retry: retryOptions,
+    retry,
   } = options;
+
+  const retryOptions = retry ? asyncRetryOptionsOf(retry) : undefined;
 
   const checkpointer =
     checkpoints === 'DISABLED'

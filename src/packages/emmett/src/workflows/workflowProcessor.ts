@@ -20,7 +20,6 @@ import type {
 } from '../typing';
 import { withOperationScope } from '../observability';
 import {
-  fromWorkflowHandlerRetryOptions,
   WorkflowHandler,
   workflowStreamName,
   type WorkflowHandlerRetryOptions,
@@ -229,10 +228,6 @@ export const workflowProcessor = <
 
   return reactor<Input | Output, MetaDataType, HandlerContext>({
     ...rest,
-    retry:
-      options.retry === undefined
-        ? undefined
-        : fromWorkflowHandlerRetryOptions(options.retry),
     processorId:
       options.processorId ?? getWorkflowId({ workflowName: workflow.name }),
     canHandle,
