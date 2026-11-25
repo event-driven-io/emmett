@@ -845,156 +845,139 @@ export const reactor = <
       closeOptions.observabilityScope,
     );
 
-  const handleBatch = async (
+  const attemptBatch = async (
     messages: RecordedMessage<MessageType, MessageMetadataType>[],
     partialContext: PartialHandlerContext<HandlerContext>,
-  ): Promise<BatchMessageHandlerResult> =>
-    collector
-      .startScope(
-        { processorId, type, checkpoint: lastCheckpoint },
-        messages,
-        async (scope) => {
-          let failedBatch:
-            RecordedMessage<MessageType, MessageMetadataType>[] | undefined;
+    scope: ObservabilityScope,
+  ): Promise<BatchMessageHandlerResult> => {
+    let failedBatch:
+      RecordedMessage<MessageType, MessageMetadataType>[] | undefined;
+    try {
+      const result = await processingScope(
+        async (context) => {
+          const messagesAboveCheckpoint = messages.filter(
+            (message) => !wasMessageHandled(message, lastCheckpoint),
+          );
+
+          const upcastedMessages = messagesAboveCheckpoint
+            .map((message) =>
+              upcastRecordedMessage(
+                // TODO: Make it smarter
+                message as unknown as RecordedMessage<
+                  MessagePayloadType,
+                  MessageMetadataType
+                >,
+                options.messageOptions?.schema?.versioning,
+              ),
+            )
+            .filter(
+              (upcasted) => !canHandle || canHandle.includes(upcasted.type),
+            );
+
+          const stopMessageIndex =
+            isCustomBatch && stopAfter
+              ? upcastedMessages.findIndex(stopAfter)
+              : -1;
+
+          const unhandledMessages =
+            stopMessageIndex !== -1
+              ? upcastedMessages.slice(0, stopMessageIndex + 1)
+              : upcastedMessages;
+
+          let batchResult: BatchMessageHandlerResult;
           try {
-            const result = await processingScope(
-              async (context) => {
-                const messagesAboveCheckpoint = messages.filter(
-                  (message) => !wasMessageHandled(message, lastCheckpoint),
-                );
-
-                const upcastedMessages = messagesAboveCheckpoint
-                  .map((message) =>
-                    upcastRecordedMessage(
-                      // TODO: Make it smarter
-                      message as unknown as RecordedMessage<
-                        MessagePayloadType,
-                        MessageMetadataType
-                      >,
-                      options.messageOptions?.schema?.versioning,
-                    ),
-                  )
-                  .filter(
-                    (upcasted) =>
-                      !canHandle || canHandle.includes(upcasted.type),
-                  );
-
-                const stopMessageIndex =
-                  isCustomBatch && stopAfter
-                    ? upcastedMessages.findIndex(stopAfter)
-                    : -1;
-
-                const unhandledMessages =
-                  stopMessageIndex !== -1
-                    ? upcastedMessages.slice(0, stopMessageIndex + 1)
-                    : upcastedMessages;
-
-                let batchResult: BatchMessageHandlerResult;
-                try {
-                  batchResult = await eachBatch(unhandledMessages, {
-                    ...context,
-                    observabilityScope: scope,
-                  });
-                } catch (err) {
-                  if (isCustomBatch) failedBatch = unhandledMessages;
-                  throw err;
-                }
-
-                const messageProcessingResult: BatchMessageHandlerResult =
-                  batchResult?.type === 'STOP'
-                    ? batchResult
-                    : stopMessageIndex !== -1
-                      ? {
-                          type: 'STOP',
-                          reason: 'Stop condition reached',
-                          lastSuccessfulMessage:
-                            unhandledMessages[stopMessageIndex],
-                        }
-                      : batchResult;
-
-                const isStop =
-                  messageProcessingResult &&
-                  messageProcessingResult.type === 'STOP';
-
-                const checkpointMessage =
-                  messageProcessingResult?.type === 'STOP'
-                    ? messageProcessingResult.lastSuccessfulMessage
-                    : messagesAboveCheckpoint[
-                        messagesAboveCheckpoint.length - 1
-                      ];
-
-                if (checkpointMessage && checkpointer) {
-                  const storeCheckpointResult: StoreProcessorCheckpointResult =
-                    await checkpointer.store(
-                      {
-                        processorId,
-                        version,
-                        message: checkpointMessage as RecordedMessage<
-                          MessageType,
-                          MessageMetadataType
-                        >,
-                        lastCheckpoint: lastStoredCheckpoint,
-                        partition,
-                      },
-                      context,
-                    );
-
-                  if (storeCheckpointResult.success) {
-                    // TODO: Add correct handling of the storing checkpoint
-                    lastCheckpoint = storeCheckpointResult.newCheckpoint;
-                    lastStoredCheckpoint = storeCheckpointResult.newCheckpoint;
-                  }
-                }
-
-                scope.setAttributes({
-                  [EmmettAttributes.processor.status]:
-                    messageProcessingResult?.type ?? 'ack',
-                });
-
-                if (isStop) {
-                  isActive = false;
-                  return messageProcessingResult;
-                }
-
-                return undefined;
-              },
-              { ...partialContext, observabilityScope: scope },
-            );
-
-            if (MessageProcessor.result.isError(result)) lastCheckpoint = null;
-
-            notifyCheckpointWaiters();
-
-            return result;
+            batchResult = await eachBatch(unhandledMessages, {
+              ...context,
+              observabilityScope: scope,
+            });
           } catch (err) {
-            scope.log(
-              failedBatch
-                ? batchHandlingFailed(failedBatch, err)
-                : LogEvent(
-                    'emmett.processor.exception',
-                    {
-                      body: 'Processor stopped: processing failed',
-                      error: err as Error,
-                      attributes: { ...processorIds, ...checkpointBefore() },
-                    },
-                    { level: 'error' },
-                  ),
-            );
+            if (isCustomBatch) failedBatch = unhandledMessages;
             throw err;
           }
+
+          const messageProcessingResult: BatchMessageHandlerResult =
+            batchResult?.type === 'STOP'
+              ? batchResult
+              : stopMessageIndex !== -1
+                ? {
+                    type: 'STOP',
+                    reason: 'Stop condition reached',
+                    lastSuccessfulMessage: unhandledMessages[stopMessageIndex],
+                  }
+                : batchResult;
+
+          const isStop =
+            messageProcessingResult && messageProcessingResult.type === 'STOP';
+
+          const checkpointMessage =
+            messageProcessingResult?.type === 'STOP'
+              ? messageProcessingResult.lastSuccessfulMessage
+              : messagesAboveCheckpoint[messagesAboveCheckpoint.length - 1];
+
+          if (checkpointMessage && checkpointer) {
+            const storeCheckpointResult: StoreProcessorCheckpointResult =
+              await checkpointer.store(
+                {
+                  processorId,
+                  version,
+                  message: checkpointMessage as RecordedMessage<
+                    MessageType,
+                    MessageMetadataType
+                  >,
+                  lastCheckpoint: lastStoredCheckpoint,
+                  partition,
+                },
+                context,
+              );
+
+            if (storeCheckpointResult.success) {
+              // TODO: Add correct handling of the storing checkpoint
+              lastCheckpoint = storeCheckpointResult.newCheckpoint;
+              lastStoredCheckpoint = storeCheckpointResult.newCheckpoint;
+            }
+          }
+
+          scope.setAttributes({
+            [EmmettAttributes.processor.status]:
+              messageProcessingResult?.type ?? 'ack',
+          });
+
+          if (isStop) {
+            isActive = false;
+            return messageProcessingResult;
+          }
+
+          return undefined;
         },
-      )
-      .catch((err): BatchMessageHandlerResult => {
-        isActive = false;
-        return {
-          type: 'STOP',
-          error: err as EmmettError,
-          reason: 'Error during message processing',
-        };
-      });
+        { ...partialContext, observabilityScope: scope },
+      );
+
+      if (MessageProcessor.result.isError(result)) lastCheckpoint = null;
+
+      notifyCheckpointWaiters();
+
+      return result;
+    } catch (err) {
+      scope.log(
+        failedBatch
+          ? batchHandlingFailed(failedBatch, err)
+          : LogEvent(
+              'emmett.processor.exception',
+              {
+                body: 'Processor stopped: processing failed',
+                error: err as Error,
+                attributes: { ...processorIds, ...checkpointBefore() },
+              },
+              { level: 'error' },
+            ),
+      );
+      throw err;
+    }
+  };
 
   const reloadCheckpoint = (
     partialContext: PartialHandlerContext<HandlerContext>,
+    scope: ObservabilityScope,
   ) =>
     processingScope(
       async (context) => {
@@ -1007,40 +990,81 @@ export const reactor = <
         lastCheckpoint = stored;
         lastStoredCheckpoint = stored;
       },
-      {
-        ...partialContext,
-        observabilityScope: partialContext.observabilityScope ?? noopScope,
-      },
+      { ...partialContext, observabilityScope: scope },
     );
 
-  const handleWithRetries = async (
+  const attemptBatchWithRetries = async (
     messages: RecordedMessage<MessageType, MessageMetadataType>[],
     partialContext: PartialHandlerContext<HandlerContext>,
+    scope: ObservabilityScope,
     retryOptions: AsyncRetryOptions,
   ): Promise<BatchMessageHandlerResult> => {
     let result: BatchMessageHandlerResult = undefined;
+    let lastAttemptThrew = false;
 
-    await asyncRetry(
-      async () => {
-        if (isClosed) return;
+    try {
+      await asyncRetry(
+        async () => {
+          if (isClosed) return;
 
-        isActive = true;
-        const attempt = await handleBatch(messages, partialContext);
-        result = attempt;
-        if (!MessageProcessor.result.isError(attempt)) return;
+          isActive = true;
+          lastAttemptThrew = false;
+          let attempt: BatchMessageHandlerResult;
+          try {
+            attempt = await attemptBatch(messages, partialContext, scope);
+          } catch (error) {
+            lastAttemptThrew = true;
+            attempt = {
+              type: 'STOP',
+              error: error as EmmettError,
+              reason: 'Error during message processing',
+            };
+          }
+          result = attempt;
+          if (!MessageProcessor.result.isError(attempt)) return;
 
-        await reloadCheckpoint(partialContext);
-        throw attempt.error;
-      },
-      {
-        ...retryOptions,
-        shouldRetryError: (error) =>
-          !isClosed && (retryOptions.shouldRetryError?.(error) ?? true),
-      },
-    ).catch(() => undefined);
+          await reloadCheckpoint(partialContext, scope);
+          throw attempt.error;
+        },
+        {
+          ...retryOptions,
+          shouldRetryError: (error) =>
+            !isClosed && (retryOptions.shouldRetryError?.(error) ?? true),
+        },
+      );
+    } catch (error) {
+      if (lastAttemptThrew) throw error;
+    }
 
     return result;
   };
+
+  const handleBatch = (
+    messages: RecordedMessage<MessageType, MessageMetadataType>[],
+    partialContext: PartialHandlerContext<HandlerContext>,
+  ): Promise<BatchMessageHandlerResult> =>
+    collector
+      .startScope(
+        { processorId, type, checkpoint: lastCheckpoint },
+        messages,
+        (scope) =>
+          retryOptions
+            ? attemptBatchWithRetries(
+                messages,
+                partialContext,
+                scope,
+                retryOptions,
+              )
+            : attemptBatch(messages, partialContext, scope),
+      )
+      .catch((err): BatchMessageHandlerResult => {
+        isActive = false;
+        return {
+          type: 'STOP',
+          error: err as EmmettError,
+          reason: 'Error during message processing',
+        };
+      });
 
   return {
     // TODO: Consider whether not make it optional or add URN prefix
@@ -1221,9 +1245,7 @@ export const reactor = <
     ): Promise<BatchMessageHandlerResult> => {
       if (!isActive) return Promise.resolve();
 
-      return retryOptions
-        ? handleWithRetries(messages, partialContext, retryOptions)
-        : handleBatch(messages, partialContext);
+      return handleBatch(messages, partialContext);
     },
   };
 };
