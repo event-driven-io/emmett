@@ -1,10 +1,9 @@
-import { getEventListeners } from 'node:events';
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 import {
   MessageSourceCaughtUp,
   MessageSourceControlMessage,
 } from '../eventStore/events';
-import { bigIntProcessorCheckpoint, ProcessorCheckpoint } from '../processors';
+import { ProcessorCheckpoint } from '../processors';
 import { assertDeepEqual, assertEqual } from '../testing';
 import { asyncIterable } from '../utils';
 import type { RecordedMessage } from '../typing';
@@ -52,13 +51,7 @@ const startReading = (
     .read({ from, signal: controller.signal })
     [Symbol.asyncIterator]();
 
-  let waiting: Promise<IteratorResult<MessageSourceMessage>> | undefined;
-
-  const next = () => {
-    const result = waiting ?? iterator.next();
-    waiting = undefined;
-    return result;
-  };
+  const next = () => iterator.next();
 
   const take = async (count: number): Promise<MessageSourceMessage[]> => {
     const read: MessageSourceMessage[] = [];
@@ -72,22 +65,11 @@ const startReading = (
     return read;
   };
 
-  const waitForMessages = async () => {
-    waiting = iterator.next();
-    await settle();
-  };
-
   return {
     take,
     next,
-    waitForMessages,
-    signal: controller.signal,
     abort: () => controller.abort(),
   };
-};
-
-const settle = async () => {
-  for (let index = 0; index < 20; index++) await Promise.resolve();
 };
 
 void describe('inMemoryMessageSource', () => {
@@ -192,45 +174,10 @@ void describe('inMemoryMessageSource', () => {
     second.abort();
   });
 
-  void it('ends the read when a waiting reader is aborted', async () => {
-    const source = inMemoryMessageSource({
-      messages: [messageAt('1')],
-    });
-    const reader = startReading(source, 'BEGINNING');
-
-    await reader.take(2);
-
-    await reader.waitForMessages();
-    reader.abort();
-
-    assertDeepEqual(await reader.next(), { done: true, value: undefined });
-  });
-
   void it('rejects the pulling frequency option', () => {
     inMemoryMessageSource({
       // @ts-expect-error the source is pushed to, it does not poll
       pullingFrequencyInMs: 10,
-    });
-  });
-
-  void describe('without timers', () => {
-    beforeEach(() => vi.useFakeTimers());
-    afterEach(() => vi.useRealTimers());
-
-    void it('schedules no timer while a caught-up reader waits', async () => {
-      const source = inMemoryMessageSource({
-        messages: [messageAt('1')],
-      });
-      const reader = startReading(source, 'BEGINNING');
-
-      await reader.take(2);
-
-      await reader.waitForMessages();
-
-      assertEqual(vi.getTimerCount(), 0);
-
-      reader.abort();
-      await reader.next();
     });
   });
 
@@ -344,65 +291,6 @@ void describe('inMemoryMessageSource', () => {
       second.abort();
     });
 
-    void it('gives the next read a batch that arrived after a waiting read stopped', async () => {
-      const appended = boundedMessageQueue<RecordedMessage[]>();
-      const source = inMemoryMessageSource({
-        messages: appended.iterate(new AbortController().signal),
-        readLastMessageCheckpoint: () => ProcessorCheckpoint('2'),
-      });
-      const first = startReading(source, 'BEGINNING');
-
-      await appended.push([messageAt('1')]);
-      await first.take(2);
-      await first.waitForMessages();
-      first.abort();
-      await first.next();
-
-      await appended.push([messageAt('2')]);
-      const second = startReading(source, {
-        lastCheckpoint: ProcessorCheckpoint('1'),
-      });
-
-      assertDeepEqual(await second.take(2), [
-        messageAt('2'),
-        MessageSourceCaughtUp(ProcessorCheckpoint('2')),
-      ]);
-
-      second.abort();
-    });
-
-    void it('keeps the same abort listeners on a reader across many batches', async () => {
-      const appended = boundedMessageQueue<RecordedMessage[]>();
-      const source = inMemoryMessageSource({
-        messages: appended.iterate(new AbortController().signal),
-        readLastMessageCheckpoint: () => null,
-      });
-      const reader = startReading(source, 'BEGINNING');
-
-      await reader.waitForMessages();
-      const listenersWhileWaiting = getEventListeners(
-        reader.signal,
-        'abort',
-      ).length;
-
-      for (let batch = 1n; batch <= 20n; batch++) {
-        const checkpoint = bigIntProcessorCheckpoint(batch);
-        await appended.push([messageAt(checkpoint)]);
-        assertDeepEqual(await reader.take(2), [
-          messageAt(checkpoint),
-          MessageSourceCaughtUp(checkpoint),
-        ]);
-        await reader.waitForMessages();
-      }
-
-      assertEqual(
-        getEventListeners(reader.signal, 'abort').length,
-        listenersWhileWaiting,
-      );
-
-      reader.abort();
-    });
-
     void it('closes with the given close', async () => {
       let closed = false;
       const source = inMemoryMessageSource({
@@ -423,7 +311,7 @@ void describe('inMemoryMessageSource', () => {
       beforeEach(() => vi.useFakeTimers());
       afterEach(() => vi.useRealTimers());
 
-      void it('delivers a batch to a waiting reader without any timer', async () => {
+      void it('delivers a batch to a reader without any timer', async () => {
         const appended = boundedMessageQueue<RecordedMessage[]>();
         const source = inMemoryMessageSource({
           messages: appended.iterate(new AbortController().signal),
@@ -431,7 +319,6 @@ void describe('inMemoryMessageSource', () => {
         });
         const reader = startReading(source, 'BEGINNING');
 
-        await reader.waitForMessages();
         await appended.push([messageAt('1')]);
 
         assertDeepEqual(await reader.take(2), [

@@ -10,6 +10,7 @@ import type {
   Message,
   RecordedMessage,
 } from '../typing';
+import { Aborted, orAborted } from '../utils/promises';
 import type { MessageSource } from './messageSources/messageSource';
 import { subscriptionMessageSource } from './messageSources/subscriptionMessageSource';
 
@@ -30,31 +31,6 @@ export type InMemoryMessageSourceOptions<
       close?: () => Promise<void>;
     }
 );
-
-const abortOf = (signal: AbortSignal) =>
-  new Promise<void>((resolve) => {
-    if (signal.aborted) resolve();
-    else signal.addEventListener('abort', () => resolve(), { once: true });
-  });
-
-const resultOrAbort = async <Result>(
-  result: Promise<Result>,
-  signal: AbortSignal,
-): Promise<Result | undefined> => {
-  if (signal.aborted) return undefined;
-
-  let onAbort = () => {};
-  const aborted = new Promise<undefined>((resolve) => {
-    onAbort = () => resolve(undefined);
-    signal.addEventListener('abort', onAbort, { once: true });
-  });
-
-  try {
-    return await Promise.race([result, aborted]);
-  } finally {
-    signal.removeEventListener('abort', onAbort);
-  }
-};
 
 export const inMemoryMessageSource = <
   MessageType extends Message = AnyMessage,
@@ -105,7 +81,7 @@ export const inMemoryMessageSource = <
           lastCheckpointOf(read) ?? after ?? ProcessorCheckpoint('0'),
         );
 
-        await abortOf(signal);
+        await orAborted(new Promise<never>(() => {}), signal);
       },
       readLastMessageCheckpoint: () =>
         Promise.resolve(readLastMessageCheckpoint()),
@@ -123,9 +99,9 @@ export const inMemoryMessageSource = <
 
       while (!signal.aborted) {
         pending ??= batches.next();
-        const batch = await resultOrAbort(pending, signal);
+        const batch = await orAborted(pending, signal);
 
-        if (batch === undefined) return;
+        if (batch === Aborted) return;
         pending = undefined;
         if (batch.done) return;
 

@@ -1,4 +1,5 @@
 import { EmmettError } from '../errors';
+import { Aborted, orAborted } from '../utils/promises';
 
 export type FusionStreamOptions = {
   signal?: AbortSignal;
@@ -41,7 +42,6 @@ const flatMapped = async function* <T, Mapped>(
 };
 
 const DeadlineReached = Symbol('DeadlineReached');
-const Aborted = Symbol('Aborted');
 
 type Deadline = {
   reached: Promise<typeof DeadlineReached>;
@@ -73,27 +73,6 @@ const armDeadline = (ms: number, signal: AbortSignal | undefined): Deadline => {
   });
 
   return { reached, cancel };
-};
-
-/**
- * Races one promise against the signal. The abort listener is dropped once the
- * promise settles, so nothing outlives the race and holds on to its result.
- */
-const orAborted = <T>(
-  promise: Promise<T>,
-  signal: AbortSignal | undefined,
-): Promise<T | typeof Aborted> => {
-  if (signal === undefined) return promise;
-  if (signal.aborted) return Promise.resolve(Aborted);
-
-  return new Promise((resolve, reject) => {
-    const onAbort = () => resolve(Aborted);
-
-    signal.addEventListener('abort', onAbort, { once: true });
-    promise
-      .then(resolve, reject)
-      .finally(() => signal.removeEventListener('abort', onAbort));
-  });
 };
 
 const chunked = <T>(
