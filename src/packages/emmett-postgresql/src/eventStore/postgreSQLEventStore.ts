@@ -542,7 +542,7 @@ export function getPostgreSQLEventStore(
       { serializer: JSONSerializer },
     );
 
-  return {
+  const eventStore: PostgresEventStore = {
     schema: {
       component: schemaMigrator.component,
       get migrations() {
@@ -735,6 +735,7 @@ export function getPostgreSQLEventStore(
           consumerOptions?.observability,
         ),
         pool,
+        messageStore: eventStore,
         /**
          * The consumer's own `connectionString` option is deprecated and pg
          * specific, so it is read back out of the pg connection context.
@@ -805,4 +806,6 @@ export function getPostgreSQLEventStore(
       });
     },
   };
+
+  return eventStore;
 }

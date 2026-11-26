@@ -1,7 +1,7 @@
 import { ObservabilitySpec } from '@event-driven-io/almanac';
 import {
+  assertDeepEqual,
   assertEqual,
-  assertThatArray,
   asyncRetry,
   bigIntProcessorCheckpoint,
   delay,
@@ -31,6 +31,15 @@ import {
 } from './eventStoreDBEventStoreConsumer';
 
 const withDeadline = { timeout: 30000 };
+
+const withoutSubscriptionCheckpoint = (events: Event[]) =>
+  events.map((event) => {
+    const {
+      metadata: { checkpoint: _checkpoint, ...metadata },
+      ...rest
+    } = event as RecordedMessage;
+    return { ...rest, metadata };
+  });
 
 void describe('EventStoreDB event store started consumer', () => {
   let eventStoreDB: SharedEventStoreDB;
@@ -234,13 +243,14 @@ void describe('EventStoreDB event store started consumer', () => {
         try {
           await consumer.start();
 
-          const expectedEvents: RecordedMessage<GuestStayEvent>[] = [
-            ...events,
-            ...events,
-          ] as unknown as RecordedMessage<GuestStayEvent>[];
-
-          assertThatArray(result).hasSize(expectedEvents.length);
-          assertThatArray(result).containsElementsMatching(expectedEvents);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          const { events: otherStored } =
+            await eventStore.readStream<GuestStayEvent>(otherStreamName);
+          assertDeepEqual(
+            withoutSubscriptionCheckpoint(result),
+            withoutSubscriptionCheckpoint([...stored, ...otherStored]),
+          );
         } finally {
           await consumer.close();
         }
@@ -286,7 +296,12 @@ void describe('EventStoreDB event store started consumer', () => {
         try {
           await consumer.start();
 
-          assertThatArray(result).containsElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(
+            withoutSubscriptionCheckpoint(result),
+            withoutSubscriptionCheckpoint(stored),
+          );
         } finally {
           await consumer.close();
         }
@@ -331,9 +346,12 @@ void describe('EventStoreDB event store started consumer', () => {
       try {
         await consumer.start();
 
-        assertThatArray(
-          result.map((e) => e.data.number),
-        ).containsElementsMatching(events.map((e) => e.data.number));
+        const { events: stored } =
+          await eventStore.readStream<NumberRecorded>(streamName);
+        assertDeepEqual(
+          withoutSubscriptionCheckpoint(result),
+          withoutSubscriptionCheckpoint(stored),
+        );
       } finally {
         await consumer.close();
       }
@@ -395,7 +413,12 @@ void describe('EventStoreDB event store started consumer', () => {
         try {
           await consumer.start();
 
-          assertThatArray(result.map((e) => e.data.number)).containsExactly(1);
+          const { events: stored } =
+            await eventStore.readStream<NumberRecorded>(streamName);
+          assertDeepEqual(
+            withoutSubscriptionCheckpoint(result),
+            withoutSubscriptionCheckpoint(stored.slice(0, 1)),
+          );
         } finally {
           await consumer.close();
         }
@@ -446,12 +469,14 @@ void describe('EventStoreDB event store started consumer', () => {
         try {
           await consumer.start();
 
-          assertThatArray(result).hasSize(events.length * 2);
-
-          assertThatArray(result).containsElementsMatching([
-            ...events,
-            ...events,
-          ]);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          const { events: otherStored } =
+            await eventStore.readStream<GuestStayEvent>(otherStreamName);
+          assertDeepEqual(
+            withoutSubscriptionCheckpoint(result),
+            withoutSubscriptionCheckpoint([...stored, ...otherStored]),
+          );
         } finally {
           await consumer.close();
         }
@@ -505,7 +530,12 @@ void describe('EventStoreDB event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsOnlyElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(
+            withoutSubscriptionCheckpoint(result),
+            withoutSubscriptionCheckpoint(stored.slice(initialEvents.length)),
+          );
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -560,7 +590,12 @@ void describe('EventStoreDB event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsOnlyElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(
+            withoutSubscriptionCheckpoint(result),
+            withoutSubscriptionCheckpoint(stored.slice(initialEvents.length)),
+          );
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -631,8 +666,13 @@ void describe('EventStoreDB event store started consumer', () => {
 
             await consumer.whenCaughtUp();
 
-            assertThatArray(result).containsOnlyElementsMatching(
-              expectedEvents(events),
+            const { events: stored } =
+              await eventStore.readStream<GuestStayEvent>(streamName);
+            assertDeepEqual(
+              withoutSubscriptionCheckpoint(result),
+              withoutSubscriptionCheckpoint(
+                expectedEvents(stored.slice(initialEvents.length)),
+              ),
             );
           } finally {
             await consumer.close();
@@ -660,10 +700,11 @@ void describe('EventStoreDB event store started consumer', () => {
           const from = { stream: streamName };
           const firstClient = eventStoreDB.getClient();
 
-          await eventStore.appendToStream(streamName, [
+          const initialEvents: GuestStayEvent[] = [
             { type: 'GuestCheckedIn', data: { guestId } },
             { type: 'GuestCheckedOut', data: { guestId } },
-          ]);
+          ];
+          await eventStore.appendToStream(streamName, initialEvents);
 
           const firstBatch: GuestStayEvent[] = [
             { type: 'GuestCheckedIn', data: { guestId: secondGuestId } },
@@ -690,8 +731,11 @@ void describe('EventStoreDB event store started consumer', () => {
             await eventStore.appendToStream(streamName, firstBatch);
             await firstConsumer.whenCaughtUp();
 
-            assertThatArray(firstResult).containsOnlyElementsMatching(
-              firstBatch,
+            const { events: stored } =
+              await eventStore.readStream<GuestStayEvent>(streamName);
+            assertDeepEqual(
+              withoutSubscriptionCheckpoint(firstResult),
+              withoutSubscriptionCheckpoint(stored.slice(initialEvents.length)),
             );
           } finally {
             await firstConsumer.close();
@@ -723,8 +767,13 @@ void describe('EventStoreDB event store started consumer', () => {
             await recreatedConsumer.whenCaughtUp();
             await recreatedConsumerPromise;
 
-            assertThatArray(secondResult).containsOnlyElementsMatching(
-              secondBatch,
+            const { events: stored } =
+              await eventStore.readStream<GuestStayEvent>(streamName);
+            assertDeepEqual(
+              withoutSubscriptionCheckpoint(secondResult),
+              withoutSubscriptionCheckpoint(
+                stored.slice(initialEvents.length + firstBatch.length),
+              ),
             );
           } finally {
             await recreatedConsumer.close();
@@ -812,20 +861,23 @@ void describe('EventStoreDB event store started consumer', () => {
             await secondConsumerPromise;
           }
 
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          const firstRunEnd = initialEvents.length + firstNewEvents.length;
           const expectedFirstRun =
             startFrom === 'BEGINNING'
-              ? [...initialEvents, ...firstNewEvents]
-              : firstNewEvents;
+              ? stored.slice(0, firstRunEnd)
+              : stored.slice(initialEvents.length, firstRunEnd);
           const expectedSecondRun =
-            startFrom === 'BEGINNING'
-              ? [...initialEvents, ...firstNewEvents, ...secondNewEvents]
-              : secondNewEvents;
+            startFrom === 'BEGINNING' ? stored : stored.slice(firstRunEnd);
 
-          assertThatArray(firstRun).containsOnlyElementsMatching(
-            expectedFirstRun,
+          assertDeepEqual(
+            withoutSubscriptionCheckpoint(firstRun),
+            withoutSubscriptionCheckpoint(expectedFirstRun),
           );
-          assertThatArray(secondRun).containsOnlyElementsMatching(
-            expectedSecondRun,
+          assertDeepEqual(
+            withoutSubscriptionCheckpoint(secondRun),
+            withoutSubscriptionCheckpoint(expectedSecondRun),
           );
         },
       );
@@ -885,11 +937,16 @@ void describe('EventStoreDB event store started consumer', () => {
 
             await consumer.whenCaughtUp();
 
-            assertThatArray(fromBeginning).containsElementsMatching([
-              ...initialEvents,
-              ...newEvents,
-            ]);
-            assertThatArray(fromEnd).containsOnlyElementsMatching(newEvents);
+            const { events: stored } =
+              await eventStore.readStream<GuestStayEvent>(streamName);
+            assertDeepEqual(
+              withoutSubscriptionCheckpoint(fromBeginning),
+              withoutSubscriptionCheckpoint(stored),
+            );
+            assertDeepEqual(
+              withoutSubscriptionCheckpoint(fromEnd),
+              withoutSubscriptionCheckpoint(stored.slice(initialEvents.length)),
+            );
           } finally {
             await consumer.close();
             await consumerPromise;
@@ -935,7 +992,12 @@ void describe('EventStoreDB event store started consumer', () => {
           try {
             await consumer.start();
 
-            assertThatArray(result).containsElementsMatching(events);
+            const { events: stored } =
+              await eventStore.readStream<GuestStayEvent>(streamName);
+            assertDeepEqual(
+              withoutSubscriptionCheckpoint(result),
+              withoutSubscriptionCheckpoint(stored),
+            );
           } finally {
             await consumer.close();
           }
@@ -980,7 +1042,12 @@ void describe('EventStoreDB event store started consumer', () => {
 
             await consumer.whenCaughtUp();
 
-            assertThatArray(result).containsElementsMatching(events);
+            const { events: stored } =
+              await eventStore.readStream<GuestStayEvent>(streamName);
+            assertDeepEqual(
+              withoutSubscriptionCheckpoint(result),
+              withoutSubscriptionCheckpoint(stored),
+            );
           } finally {
             await consumer.close();
             await consumerPromise;
@@ -1038,10 +1105,12 @@ void describe('EventStoreDB event store started consumer', () => {
 
             await consumer.whenCaughtUp();
 
-            assertThatArray(result).containsElementsMatching([
-              ...initialEvents,
-              ...events,
-            ]);
+            const { events: stored } =
+              await eventStore.readStream<GuestStayEvent>(streamName);
+            assertDeepEqual(
+              withoutSubscriptionCheckpoint(result),
+              withoutSubscriptionCheckpoint(stored),
+            );
           } finally {
             await consumer.close();
             await consumerPromise;
@@ -1104,7 +1173,12 @@ void describe('EventStoreDB event store started consumer', () => {
 
             await consumer.whenCaughtUp();
 
-            assertThatArray(result).containsOnlyElementsMatching(events);
+            const { events: stored } =
+              await eventStore.readStream<GuestStayEvent>(streamName);
+            assertDeepEqual(
+              withoutSubscriptionCheckpoint(result),
+              withoutSubscriptionCheckpoint(stored.slice(initialEvents.length)),
+            );
           } finally {
             await consumer.close();
             await consumerPromise;
@@ -1182,7 +1256,12 @@ void describe('EventStoreDB event store started consumer', () => {
 
             await newConsumer.whenCaughtUp();
 
-            assertThatArray(result).containsOnlyElementsMatching(events);
+            const { events: stored } =
+              await eventStore.readStream<GuestStayEvent>(streamName);
+            assertDeepEqual(
+              withoutSubscriptionCheckpoint(result),
+              withoutSubscriptionCheckpoint(stored.slice(initialEvents.length)),
+            );
           } finally {
             await newConsumer.close();
             await newConsumerPromise;

@@ -13,6 +13,11 @@ import {
   type WorkflowProcessorContext,
 } from '@event-driven-io/emmett';
 import { MongoClient, type MongoClientOptions } from 'mongodb';
+import {
+  getMongoDBEventStore,
+  type MongoDBEventStore,
+} from '../mongoDBEventStore';
+import type { MongoDBEventStoreStorageOptions } from '../storage';
 import { mongoDBMessageSource } from './messageSource';
 import {
   changeStreamReactor,
@@ -49,6 +54,8 @@ export type MongoDBConsumerOptions<
     ConsumerMessageType,
     MongoDBChangeStreamMessageMetadata
   >;
+  storage?: MongoDBEventStoreStorageOptions;
+  messageStore?: MongoDBEventStore;
 } & (
     | {
         connectionString: string;
@@ -144,6 +151,13 @@ export const mongoDBEventStoreConsumer = <
     options.client ??
     new MongoClient(options.connectionString, options.clientOptions);
 
+  const messageStore =
+    options.messageStore ??
+    getMongoDBEventStore({
+      client,
+      storage: options.storage,
+    });
+
   // A provided source is borrowed, the same way a provided client is. As the
   // consumer closes the source it reads from, the borrowed one gets a no-op close.
   const source: MessageSource<
@@ -153,6 +167,10 @@ export const mongoDBEventStoreConsumer = <
     ? { ...options.source, close: () => Promise.resolve() }
     : mongoDBMessageSource<ConsumerMessageType>({
         client,
+        dbName:
+          typeof options.storage === 'object'
+            ? options.storage.databaseName
+            : undefined,
         batchSize: options.pulling?.batchSize,
         pullingFrequencyInMs: options.pulling?.pullingFrequencyInMs,
         resilience: options.resilience,
@@ -164,6 +182,7 @@ export const mongoDBEventStoreConsumer = <
     mongoDBWorkflowProcessor({
       ...processorOptions,
       connectionOptions: { client },
+      storage: processorOptions.storage ?? options.storage,
     });
 
   const messageConsumer = consumer<
@@ -176,12 +195,20 @@ export const mongoDBEventStoreConsumer = <
   >({
     ...options,
     source,
-    reactorFactory: changeStreamReactor,
-    projectorFactory: mongoDBProjector,
+    reactorFactory: (processorOptions) =>
+      changeStreamReactor({
+        ...processorOptions,
+        storage: processorOptions.storage ?? options.storage,
+      }),
+    projectorFactory: (processorOptions) =>
+      mongoDBProjector({
+        ...processorOptions,
+        storage: processorOptions.storage ?? options.storage,
+      }),
     workflowProcessorFactory,
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
-    scope: (handler) => handler({ session: { client } }),
+    scope: (handler) => handler({ session: { client, messageStore } }),
     hooks: {
       onClose: async () => {
         if (isOwnClient) await client.close();

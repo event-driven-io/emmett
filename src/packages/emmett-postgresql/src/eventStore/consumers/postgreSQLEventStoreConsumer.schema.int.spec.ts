@@ -14,6 +14,7 @@ import {
   assertEqual,
   assertFalse,
   assertIsNotNull,
+  assertOk,
   assertRejects,
   assertTrue,
   assertThrows,
@@ -1232,6 +1233,98 @@ void describe('PostgreSQL event store consumer schema configuration', () => {
           await tableExists(pool.execute, collectionName, eventSchemaName),
         );
         assertDeepEqual((await store.schema.migrate()).applied, []);
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  void it(
+    "appends through the session's message store into the consumer's event schema",
+    withDeadline,
+    async () => {
+      const eventSchemaName = schemaName('events');
+      const store = getPostgreSQLEventStore({
+        driver: pgEventStoreDriver,
+        connectionString: connectionString,
+        schema: {
+          autoMigration: 'CreateOrUpdate',
+          databaseSchemaName: eventSchemaName,
+        },
+      });
+      const streamName = `shopping_cart-${uuid()}`;
+      const orderStreamName = `order-${uuid()}`;
+
+      try {
+        const { lastEventGlobalPosition } = await store.appendToStream(
+          streamName,
+          [
+            { type: 'ProductItemAdded', data: { productItem } },
+          ] as ProductItemAdded[],
+        );
+
+        const consumer = postgreSQLEventStoreConsumer({
+          connectionString,
+          schema: { databaseSchemaName: eventSchemaName },
+          processors: [
+            inMemoryReactor<ProductItemAdded>({
+              processorId: `processor:${uuid()}`,
+              eachMessage: async (message, context) => {
+                const messageStore = context.session.messageStore;
+                await messageStore.appendToStream(orderStreamName, [
+                  {
+                    type: 'ProductItemAdded',
+                    data: { productItem: message.data.productItem },
+                  },
+                ]);
+              },
+              stopAfter: (event) =>
+                event.metadata.globalPosition === lastEventGlobalPosition,
+            }),
+          ],
+        });
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+
+        const {
+          events: [handled],
+        } = await store.readStream<ProductItemAdded>(streamName);
+        const { events } =
+          await store.readStream<ProductItemAdded>(orderStreamName);
+        assertOk(handled);
+        assertDeepEqual(
+          events.map(({ type, kind, schemaVersion, data, metadata }) => ({
+            type,
+            kind,
+            schemaVersion,
+            data,
+            streamName: metadata.streamName,
+            streamPosition: metadata.streamPosition,
+            isAfterHandled:
+              metadata.globalPosition > handled.metadata.globalPosition,
+            isCheckpointAtGlobalPosition:
+              metadata.checkpoint === metadata.globalPosition,
+            correlationId: metadata.correlationId,
+            causationId: metadata.causationId,
+          })),
+          [
+            {
+              type: 'ProductItemAdded',
+              kind: 'Event',
+              schemaVersion: 1,
+              data: { productItem },
+              streamName: orderStreamName,
+              streamPosition: 1n,
+              isAfterHandled: true,
+              isCheckpointAtGlobalPosition: true,
+              correlationId: handled.metadata.correlationId,
+              causationId: handled.metadata.messageId,
+            },
+          ],
+        );
       } finally {
         await store.close();
       }

@@ -13,13 +13,13 @@ import {
   assertOk,
   assertThatArray,
 } from '../testing';
-import type { Event, RecordedMessage } from '../typing';
+import type { RecordedMessage } from '../typing';
 import { isString } from '../validation';
 import {
   defaultProcessingMessageProcessingScope,
   type MessageProcessingScope,
 } from '../processors';
-import { workflowStreamName } from './handleWorkflow';
+import { WorkflowHandler, workflowStreamName } from './handleWorkflow';
 import {
   workflowOptions,
   type CheckOut,
@@ -35,12 +35,14 @@ import {
   type WorkflowProcessorContext,
 } from './workflowProcessor';
 
+const handleWorkflow = WorkflowHandler(workflowOptions);
+
 const recorded = <T extends GroupCheckoutInput>(
   message: T,
 ): RecordedMessage<T> =>
   ({
     ...message,
-    kind: 'Event',
+    kind: message.kind ?? 'Event',
     metadata: {
       streamName: `test-${randomUUID()}`,
       streamPosition: 1n,
@@ -162,6 +164,7 @@ void describe('Workflow Processor', () => {
 
       const message = recorded<InitiateGroupCheckout>({
         type: 'InitiateGroupCheckout',
+        kind: 'Command',
         data: {
           groupCheckoutId,
           clerkId: 'clerk-1',
@@ -301,6 +304,7 @@ void describe('Workflow Processor', () => {
       // First: store the unprefixed input
       const externalMessage = recorded<InitiateGroupCheckout>({
         type: 'InitiateGroupCheckout',
+        kind: 'Command',
         data: {
           groupCheckoutId,
           clerkId: 'clerk-1',
@@ -323,7 +327,7 @@ void describe('Workflow Processor', () => {
       const prefixedMessage = {
         type: 'GroupCheckoutWorkflow:InitiateGroupCheckout',
         data: { groupCheckoutId, clerkId: 'clerk-1', guestStayAccountIds, now },
-        kind: 'Event',
+        kind: 'Command',
         metadata: {
           streamName: workflowStreamName({
             workflowName: 'GroupCheckoutWorkflow',
@@ -364,6 +368,7 @@ void describe('Workflow Processor', () => {
 
       const message = recorded<InitiateGroupCheckout>({
         type: 'InitiateGroupCheckout',
+        kind: 'Command',
         data: {
           groupCheckoutId,
           clerkId: 'clerk-1',
@@ -542,6 +547,7 @@ void describe('Workflow Processor', () => {
 
       const matchingMessage = recorded<InitiateGroupCheckout>({
         type: 'InitiateGroupCheckout',
+        kind: 'Command',
         data: {
           groupCheckoutId,
           clerkId: 'clerk-1',
@@ -590,7 +596,7 @@ void describe('Workflow Processor', () => {
     ): RecordedMessage<GroupCheckoutInput> =>
       ({
         ...message,
-        kind: 'Event',
+        kind: message.kind ?? 'Event',
         metadata: {
           streamName: wfStreamName,
           streamPosition: 2n,
@@ -629,6 +635,7 @@ void describe('Workflow Processor', () => {
       const outputMessage = recordedOutput<CheckOut>(
         {
           type: 'CheckOut',
+          kind: 'Command',
           data: { guestStayAccountId: randomUUID(), groupCheckoutId },
         },
         streamName,
@@ -673,32 +680,16 @@ void describe('Workflow Processor', () => {
       });
 
       // Seed the stream so GuestCheckedOut has a workflow state to update
-      await eventStore.appendToStream(streamName, [
-        {
-          type: 'GroupCheckoutWorkflow:InitiateGroupCheckout',
-          data: {
-            groupCheckoutId,
-            clerkId: 'clerk',
-            guestStayAccountIds: [guestStayAccountId],
-            now: new Date(),
-          },
-          metadata: {
-            input: true,
-            originalMessageId: randomUUID(),
-            action: 'InitiatedBy',
-          },
+      await handleWorkflow(eventStore, {
+        type: 'InitiateGroupCheckout',
+        kind: 'Command',
+        data: {
+          groupCheckoutId,
+          clerkId: 'clerk',
+          guestStayAccountIds: [guestStayAccountId],
+          now: new Date(),
         },
-        {
-          type: 'GroupCheckoutInitiated',
-          data: {
-            groupCheckoutId,
-            clerkId: 'clerk',
-            guestStayAccountIds: [guestStayAccountId],
-            initiatedAt: new Date(),
-          },
-          metadata: { action: 'Published' },
-        },
-      ] as unknown as Event[]);
+      });
 
       // An input-flagged GuestCheckedOut arriving in the workflow stream
       const inputMessage = {
@@ -761,7 +752,11 @@ void describe('Workflow Processor', () => {
       });
 
       const outputMessage = recordedOutput<CheckOut>(
-        { type: 'CheckOut', data: { guestStayAccountId, groupCheckoutId } },
+        {
+          type: 'CheckOut',
+          kind: 'Command',
+          data: { guestStayAccountId, groupCheckoutId },
+        },
         streamName,
       );
 
@@ -814,7 +809,7 @@ void describe('Workflow Processor', () => {
       const outputMessage = {
         type: 'CheckOut',
         data: { guestStayAccountId, groupCheckoutId },
-        kind: 'Event',
+        kind: 'Command',
         metadata: {
           streamName,
           streamPosition: 2n,
@@ -858,6 +853,7 @@ void describe('Workflow Processor', () => {
       const outputMessage = recordedOutput<CheckOut>(
         {
           type: 'CheckOut',
+          kind: 'Command',
           data: { guestStayAccountId: randomUUID(), groupCheckoutId },
         },
         streamName,
@@ -894,6 +890,7 @@ void describe('Workflow Processor', () => {
       const outputMessage = recordedOutput<CheckOut>(
         {
           type: 'CheckOut',
+          kind: 'Command',
           data: { guestStayAccountId: randomUUID(), groupCheckoutId },
         },
         streamName,
@@ -941,38 +938,26 @@ void describe('Workflow Processor', () => {
       });
 
       // Seed the stream with a Pending state (one guest awaiting checkout)
-      await eventStore.appendToStream(streamName, [
-        {
-          type: 'GroupCheckoutWorkflow:InitiateGroupCheckout',
-          data: {
-            groupCheckoutId,
-            clerkId: 'clerk-1',
-            guestStayAccountIds: [guestStayAccountId],
-            now,
-          },
-          metadata: {
-            input: true,
-            originalMessageId: randomUUID(),
-            action: 'InitiatedBy',
-          },
+      await handleWorkflow(eventStore, {
+        type: 'InitiateGroupCheckout',
+        kind: 'Command',
+        data: {
+          groupCheckoutId,
+          clerkId: 'clerk-1',
+          guestStayAccountIds: [guestStayAccountId],
+          now,
         },
-        {
-          type: 'GroupCheckoutInitiated',
-          data: {
-            groupCheckoutId,
-            clerkId: 'clerk-1',
-            guestStayAccountIds: [guestStayAccountId],
-            initiatedAt: now,
-          },
-          metadata: { action: 'Published' },
-        },
-      ] as unknown as Event[]);
+      });
 
       await processor.start({ session: { messageStore: eventStore } });
 
       // Step 1: output handler intercepts CheckOut and appends GuestCheckedOut to the stream
       const checkOutOutput = recordedOutput<CheckOut>(
-        { type: 'CheckOut', data: { guestStayAccountId, groupCheckoutId } },
+        {
+          type: 'CheckOut',
+          kind: 'Command',
+          data: { guestStayAccountId, groupCheckoutId },
+        },
         streamName,
       );
       await processor.handle([checkOutOutput], {
@@ -1041,7 +1026,11 @@ void describe('Workflow Processor', () => {
 
       // Output message carries wrongStream as metadata.streamName
       const outputMessage = recordedOutput<CheckOut>(
-        { type: 'CheckOut', data: { guestStayAccountId, groupCheckoutId } },
+        {
+          type: 'CheckOut',
+          kind: 'Command',
+          data: { guestStayAccountId, groupCheckoutId },
+        },
         wrongStream,
       );
 

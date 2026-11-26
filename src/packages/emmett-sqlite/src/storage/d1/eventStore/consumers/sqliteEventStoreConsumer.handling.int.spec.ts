@@ -5,6 +5,7 @@ import {
   type D1ConnectionPool,
 } from '@event-driven-io/dumbo/cloudflare';
 import {
+  assertDeepEqual,
   assertNotEqual,
   assertThatArray,
   assertThrowsAsync,
@@ -160,7 +161,9 @@ void describe('SQLite event store started consumer', () => {
           await consumer.whenCaughtUp();
 
           // Then
-          assertThatArray(projected).containsOnlyElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(projected, stored);
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -264,8 +267,10 @@ void describe('SQLite event store started consumer', () => {
           await Promise.all([first.whenCaughtUp(), second.whenCaughtUp()]);
 
           // Then
-          assertThatArray(firstResult).containsElementsMatching(events);
-          assertThatArray(secondResult).containsElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(firstResult, stored);
+          assertDeepEqual(secondResult, stored);
 
           // And closing the first one keeps the second one consuming
           await first.close();
@@ -283,10 +288,11 @@ void describe('SQLite event store started consumer', () => {
 
           await second.whenCaughtUp();
 
-          assertThatArray(secondResult).containsElementsMatching([
-            ...events,
-            ...newEvents,
-          ]);
+          const { events: newStored } =
+            await eventStore.readStream<GuestStayEvent>(
+              `guestStay-${otherGuestId}`,
+            );
+          assertDeepEqual(secondResult, [...stored, ...newStored]);
         } finally {
           await first.close();
           await firstPromise;
@@ -332,9 +338,9 @@ void describe('SQLite event store started consumer', () => {
 
         try {
           await consumer.start();
-          assertThatArray(result).containsElementsMatching(events);
-        } catch (error) {
-          console.log(error);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored);
         } finally {
           await consumer.close();
         }
@@ -377,7 +383,9 @@ void describe('SQLite event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored);
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -432,7 +440,9 @@ void describe('SQLite event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsOnlyElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored.slice(initialEvents.length));
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -485,10 +495,9 @@ void describe('SQLite event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsElementsMatching([
-            ...initialEvents,
-            ...events,
-          ]);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored);
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -551,11 +560,10 @@ void describe('SQLite event store started consumer', () => {
 
             // Then the BEGINNING processor sees the whole history,
             // while the END processor sees only messages appended after start
-            assertThatArray(fromBeginning).containsElementsMatching([
-              ...initialEvents,
-              ...newEvents,
-            ]);
-            assertThatArray(fromEnd).containsOnlyElementsMatching(newEvents);
+            const { events: stored } =
+              await eventStore.readStream<GuestStayEvent>(streamName);
+            assertDeepEqual(fromBeginning, stored);
+            assertDeepEqual(fromEnd, stored.slice(initialEvents.length));
           } finally {
             await consumer.close();
             await consumerPromise;
@@ -620,11 +628,13 @@ void describe('SQLite event store started consumer', () => {
 
             await consumer.whenCaughtUp();
 
-            assertThatArray(fromResuming).containsOnlyElementsMatching([
-              ...backlogEvents,
-              ...newEvents,
-            ]);
-            assertThatArray(fromEnd).containsOnlyElementsMatching(newEvents);
+            const { events: stored } =
+              await eventStore.readStream<GuestStayEvent>(streamName);
+            assertDeepEqual(fromResuming, stored.slice(initialEvents.length));
+            assertDeepEqual(
+              fromEnd,
+              stored.slice(initialEvents.length + backlogEvents.length),
+            );
           } finally {
             await consumer.close();
             await consumerPromise;
@@ -681,8 +691,10 @@ void describe('SQLite event store started consumer', () => {
 
             await consumer.whenCaughtUp();
 
-            assertThatArray(firstEnd).containsOnlyElementsMatching(newEvents);
-            assertThatArray(secondEnd).containsOnlyElementsMatching(newEvents);
+            const { events: stored } =
+              await eventStore.readStream<GuestStayEvent>(streamName);
+            assertDeepEqual(firstEnd, stored.slice(-newEvents.length));
+            assertDeepEqual(secondEnd, stored.slice(-newEvents.length));
           } finally {
             await consumer.close();
             await consumerPromise;
@@ -735,10 +747,12 @@ void describe('SQLite event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(fromEnd).containsOnlyElementsMatching([
-            ...firstAppend,
-            ...secondAppend,
-          ]);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(
+            fromEnd,
+            stored.slice(-(firstAppend.length + secondAppend.length)),
+          );
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -821,21 +835,18 @@ void describe('SQLite event store started consumer', () => {
             await secondConsumerPromise;
           }
 
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          const firstRunEnd = initialEvents.length + firstNewEvents.length;
           const expectedFirstRun =
             startFrom === 'BEGINNING'
-              ? [...initialEvents, ...firstNewEvents]
-              : firstNewEvents;
+              ? stored.slice(0, firstRunEnd)
+              : stored.slice(initialEvents.length, firstRunEnd);
           const expectedSecondRun =
-            startFrom === 'BEGINNING'
-              ? [...initialEvents, ...firstNewEvents, ...secondNewEvents]
-              : secondNewEvents;
+            startFrom === 'BEGINNING' ? stored : stored.slice(firstRunEnd);
 
-          assertThatArray(firstRun).containsOnlyElementsMatching(
-            expectedFirstRun,
-          );
-          assertThatArray(secondRun).containsOnlyElementsMatching(
-            expectedSecondRun,
-          );
+          assertDeepEqual(firstRun, expectedFirstRun);
+          assertDeepEqual(secondRun, expectedSecondRun);
         },
       );
 
@@ -910,21 +921,18 @@ void describe('SQLite event store started consumer', () => {
             await secondConsumerPromise;
           }
 
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          const firstRunEnd = initialEvents.length + firstNewEvents.length;
           const expectedFirstRun =
             startFrom === 'BEGINNING'
-              ? [...initialEvents, ...firstNewEvents]
-              : firstNewEvents;
+              ? stored.slice(0, firstRunEnd)
+              : stored.slice(initialEvents.length, firstRunEnd);
           const expectedSecondRun =
-            startFrom === 'BEGINNING'
-              ? [...initialEvents, ...firstNewEvents, ...secondNewEvents]
-              : secondNewEvents;
+            startFrom === 'BEGINNING' ? stored : stored.slice(firstRunEnd);
 
-          assertThatArray(firstRun).containsOnlyElementsMatching(
-            expectedFirstRun,
-          );
-          assertThatArray(secondRun).containsOnlyElementsMatching(
-            expectedSecondRun,
-          );
+          assertDeepEqual(firstRun, expectedFirstRun);
+          assertDeepEqual(secondRun, expectedSecondRun);
         },
       );
     });
@@ -980,7 +988,9 @@ void describe('SQLite event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsOnlyElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored.slice(initialEvents.length));
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -1054,7 +1064,9 @@ void describe('SQLite event store started consumer', () => {
 
           await newConsumer.whenCaughtUp();
 
-          assertThatArray(result).containsOnlyElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored.slice(initialEvents.length));
         } finally {
           await newConsumer.close();
           await consumerPromise;
@@ -1106,9 +1118,9 @@ void describe('SQLite event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsOnlyElementsMatching(events);
-        } catch (error) {
-          console.log(error);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored.slice(initialEvents.length));
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -1153,7 +1165,9 @@ void describe('SQLite event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored);
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -1222,7 +1236,12 @@ void describe('SQLite event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsOnlyElementsMatching(secondBatch);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(
+            result,
+            stored.slice(initialEvents.length + firstBatch.length),
+          );
         } finally {
           await consumer.close();
           await secondConsumerPromise;
@@ -1290,8 +1309,6 @@ void describe('SQLite event store started consumer', () => {
           // Then
           assertThatArray(projectionResult).hasSize(expectedCount);
           assertThatArray(forwarderResult).hasSize(expectedCount);
-        } catch (error) {
-          console.log(error);
         } finally {
           await consumer.close();
           await consumerPromise;

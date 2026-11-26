@@ -73,7 +73,7 @@ export interface EventStore<
    * processors. Stopping or closing one leaves the store open, so keep using
    * the store afterwards and close it when you are done with it.
    */
-  consumer?<ConsumerMessageType extends Message = AnyMessage>(
+  consumer<ConsumerMessageType extends Message = AnyMessage>(
     options?: MessageConsumerOptions<ConsumerMessageType>,
   ): MessageConsumer<ConsumerMessageType>;
 }

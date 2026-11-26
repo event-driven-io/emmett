@@ -236,6 +236,12 @@ import { getInMemoryEventStore } from '@event-driven-io/emmett';
 const eventStore = getInMemoryEventStore();
 ```
 
+Build a consumer from the store to run projectors and reactors on appended events. Closing the consumer leaves the store usable:
+
+<<< @/snippets/eventStores/consumers/inMemoryConsumer.unit.spec.ts#in-memory-consumer
+
+<<< @/snippets/eventStores/consumers/inMemoryConsumer.unit.spec.ts#in-memory-consumer-close
+
 ### PostgreSQL
 
 ```typescript

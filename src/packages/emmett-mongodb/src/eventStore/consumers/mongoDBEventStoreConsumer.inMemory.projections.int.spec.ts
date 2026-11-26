@@ -1,13 +1,16 @@
 import {
+  assertDeepEqual,
   assertEqual,
   assertFalse,
   assertMatches,
   assertNotEqual,
+  assertOk,
   assertThrowsAsync,
   getInMemoryDatabase,
   inMemoryProjector,
   inMemoryReactor,
   inMemorySingleStreamProjection,
+  projections,
   type Closeable,
   type InMemoryDocumentsCollection,
   type ProcessorCheckpoint,
@@ -27,6 +30,7 @@ import {
   getMongoDBEventStore,
   type MongoDBEventStore,
 } from '../mongoDBEventStore';
+import { mongoDBInlineProjection } from '../projections';
 import { mongoDBEventStoreConsumer } from './mongoDBEventStoreConsumer';
 
 const withDeadline = { timeout: 30000 };
@@ -617,6 +621,159 @@ void describe('mongoDB event store started consumer', () => {
       },
     );
   });
+
+  void it(
+    `in-memory reactor appends through the session's message store`,
+    withDeadline,
+    async () => {
+      const streamName = `shopping_cart-shoppingCart:${uuid()}`;
+      const orderStreamName = `order-${uuid()}`;
+      await eventStore.appendToStream(streamName, [
+        { type: 'ProductItemAdded', data: { productItem } },
+      ] as ProductItemAdded[]);
+
+      const inMemoryProcessor = inMemoryReactor<ProductItemAdded>({
+        processorId: uuid(),
+        eachMessage: async (message, context) => {
+          if (message.metadata.streamName !== streamName) return;
+
+          const messageStore = context.session.messageStore;
+          await messageStore.appendToStream(orderStreamName, [
+            {
+              type: 'ProductItemAdded',
+              data: { productItem: message.data.productItem },
+            },
+          ]);
+        },
+        stopAfter: (event) =>
+          event.metadata.streamName === streamName &&
+          event.metadata.streamPosition === 1n,
+      });
+
+      const consumer = mongoDBEventStoreConsumer({
+        connectionString,
+        clientOptions: { directConnection: true },
+        processors: [inMemoryProcessor],
+      });
+
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      const {
+        events: [handled],
+      } = await eventStore.readStream<ProductItemAdded>(streamName);
+      const { events } =
+        await eventStore.readStream<ProductItemAdded>(orderStreamName);
+      assertOk(handled);
+      assertDeepEqual(
+        events.map(({ type, kind, schemaVersion, data, metadata }) => ({
+          type,
+          kind,
+          schemaVersion,
+          data,
+          streamName: metadata.streamName,
+          streamPosition: metadata.streamPosition,
+          correlationId: metadata.correlationId,
+          causationId: metadata.causationId,
+        })),
+        [
+          {
+            type: 'ProductItemAdded',
+            kind: 'Event',
+            schemaVersion: 1,
+            data: { productItem },
+            streamName: orderStreamName,
+            streamPosition: 1n,
+            correlationId: handled.metadata.correlationId,
+            causationId: handled.metadata.messageId,
+          },
+        ],
+      );
+    },
+  );
+  void it(
+    `in-memory reactor on the event store's consumer appends through that event store`,
+    withDeadline,
+    async () => {
+      const streamName = `shopping_cart-shoppingCart:${uuid()}`;
+      const orderStreamName = `order-${uuid()}`;
+      await eventStore.appendToStream(streamName, [
+        { type: 'ProductItemAdded', data: { productItem } },
+      ] as ProductItemAdded[]);
+      const inlineProjected: ReadEvent<ProductItemAdded>[] = [];
+      const storeWithInlineProjection = getMongoDBEventStore({
+        connectionString,
+        clientOptions: { directConnection: true },
+        projections: projections.inline([
+          mongoDBInlineProjection<{ count: number }, ProductItemAdded>({
+            name: `orders-${uuid()}`,
+            canHandle: ['ProductItemAdded'],
+            initialState: () => ({ count: 0 }),
+            evolve: (
+              document: { count: number },
+              event: ReadEvent<ProductItemAdded>,
+            ) => {
+              inlineProjected.push(event);
+              return { count: document.count + 1 };
+            },
+          }),
+        ]),
+      });
+
+      const inMemoryProcessor = inMemoryReactor<ProductItemAdded>({
+        processorId: uuid(),
+        eachMessage: async (message, context) => {
+          if (message.metadata.streamName !== streamName) return;
+
+          await context.session.messageStore.appendToStream(orderStreamName, [
+            {
+              type: 'ProductItemAdded',
+              data: { productItem: message.data.productItem },
+            },
+          ]);
+        },
+        stopAfter: (event) =>
+          event.metadata.streamName === streamName &&
+          event.metadata.streamPosition === 1n,
+      });
+
+      const consumer = storeWithInlineProjection.consumer({
+        processors: [inMemoryProcessor],
+      });
+
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+        await storeWithInlineProjection.close();
+      }
+
+      const {
+        events: [stored],
+      } = await eventStore.readStream<ProductItemAdded>(orderStreamName);
+      assertOk(stored);
+      assertDeepEqual(inlineProjected, [
+        {
+          type: 'ProductItemAdded',
+          kind: 'Event',
+          schemaVersion: 1,
+          data: { productItem },
+          metadata: {
+            streamName: orderStreamName,
+            streamPosition: 1n,
+            messageId: stored.metadata.messageId,
+            correlationId: stored.metadata.correlationId,
+            causationId: stored.metadata.causationId,
+            traceId: stored.metadata.traceId,
+            spanId: stored.metadata.spanId,
+          },
+        },
+      ]);
+    },
+  );
 });
 
 type ShoppingCartSummary = {

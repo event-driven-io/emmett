@@ -15,6 +15,7 @@ void describe('GroupCheckout workflow', () => {
       given([])
         .when({
           type: 'InitiateGroupCheckout',
+          kind: 'Command',
           data: {
             groupCheckoutId: 'gc-1',
             clerkId: 'clerk-1',
@@ -34,11 +35,13 @@ void describe('GroupCheckout workflow', () => {
           },
           {
             type: 'CheckOut',
+            kind: 'Command',
             data: { guestStayAccountId: 'guest-1', groupCheckoutId: 'gc-1' },
             metadata: { now },
           },
           {
             type: 'CheckOut',
+            kind: 'Command',
             data: { guestStayAccountId: 'guest-2', groupCheckoutId: 'gc-1' },
             metadata: { now },
           },
@@ -59,6 +62,7 @@ void describe('GroupCheckout workflow', () => {
       ])
         .when({
           type: 'InitiateGroupCheckout',
+          kind: 'Command',
           data: {
             groupCheckoutId: 'gc-1',
             clerkId: 'clerk-2',
@@ -453,6 +457,7 @@ void describe('GroupCheckout workflow', () => {
       ])
         .when({
           type: 'TimeoutGroupCheckout',
+          kind: 'Command',
           data: {
             groupCheckoutId: 'gc-1',
             startedAt: now,
@@ -475,6 +480,7 @@ void describe('GroupCheckout workflow', () => {
       given([])
         .when({
           type: 'TimeoutGroupCheckout',
+          kind: 'Command',
           data: {
             groupCheckoutId: 'gc-1',
             startedAt: now,
@@ -506,6 +512,7 @@ void describe('GroupCheckout workflow', () => {
       ])
         .when({
           type: 'TimeoutGroupCheckout',
+          kind: 'Command',
           data: {
             groupCheckoutId: 'gc-1',
             startedAt: now,

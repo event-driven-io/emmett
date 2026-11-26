@@ -5,17 +5,27 @@ import {
 } from '@event-driven-io/emmett';
 import type { MongoClient } from 'mongodb';
 import { compareTwoCheckpoints } from './messageSource';
-import type { MongoDBCheckpointer } from './mongoDBProcessor';
+import type {
+  MongoDBCheckpointer,
+  MongoDBProcessorHandlerContext,
+} from './mongoDBProcessor';
 import { DefaultProcessorCheckpointCollectionName, defaultTag } from './types';
+
+const storageDatabaseName = (
+  context: MongoDBProcessorHandlerContext,
+): string | undefined =>
+  typeof context.storage === 'object'
+    ? context.storage.databaseName
+    : undefined;
 
 export const mongoDBCheckpointer = <
   MessageType extends Message = Message,
 >(): MongoDBCheckpointer<MessageType> => ({
   read: async (options, context) => {
-    const result = await readProcessorCheckpoint(
-      context.session.client,
-      options,
-    );
+    const result = await readProcessorCheckpoint(context.session.client, {
+      ...options,
+      databaseName: storageDatabaseName(context),
+    });
 
     return { lastCheckpoint: result?.lastCheckpoint };
   },
@@ -28,6 +38,7 @@ export const mongoDBCheckpointer = <
       processorId: options.processorId,
       partition: options.partition,
       version: options.version || 0,
+      dbName: storageDatabaseName(context),
     });
 
     return result.success

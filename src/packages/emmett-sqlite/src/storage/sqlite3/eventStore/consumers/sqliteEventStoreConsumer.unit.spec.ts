@@ -1,7 +1,7 @@
 import { InMemorySQLiteDatabase } from '@event-driven-io/dumbo/sqlite3';
 import {
+  assertDeepEqual,
   assertEqual,
-  assertThatArray,
   inMemoryMessageSource,
   ProcessorCheckpoint,
   reactor,
@@ -53,16 +53,19 @@ void describe('SQLite event store consumer with injected message source', () => 
   const injectedSource = (): {
     source: MessageSource<GuestStayEvent, ReadEventMetadataWithGlobalPosition>;
     closes: () => number;
+    messages: RecordedMessage<
+      GuestStayEvent,
+      ReadEventMetadataWithGlobalPosition
+    >[];
   } => {
     let closes = 0;
+    const messages = events.map((event, index) =>
+      recorded(event, BigInt(index + 1)),
+    );
     const source = inMemoryMessageSource<
       GuestStayEvent,
       ReadEventMetadataWithGlobalPosition
-    >({
-      messages: events.map((event, index) =>
-        recorded(event, BigInt(index + 1)),
-      ),
-    });
+    >({ messages });
 
     return {
       source: {
@@ -73,11 +76,12 @@ void describe('SQLite event store consumer with injected message source', () => 
         },
       },
       closes: () => closes,
+      messages,
     };
   };
 
   void it('handles messages read from the injected source', async () => {
-    const { source } = injectedSource();
+    const { source, messages } = injectedSource();
     const result: GuestStayEvent[] = [];
 
     const consumer = sqliteEventStoreConsumer<
@@ -101,7 +105,7 @@ void describe('SQLite event store consumer with injected message source', () => 
       consumerPromise = consumer.start();
       await consumer.whenCaughtUp();
 
-      assertThatArray(result).containsOnlyElementsMatching(events);
+      assertDeepEqual(result, messages);
     } finally {
       await consumer.close();
       await consumerPromise;

@@ -12,7 +12,7 @@ import {
 } from '@event-driven-io/emmett';
 import { MongoClient } from 'mongodb';
 import { v4 as uuid } from 'uuid';
-import { describe, it, vi } from 'vitest';
+import { describe, expectTypeOf, it, vi } from 'vitest';
 import { mongoDBEventStoreConsumer as packageRootConsumer } from '../../index';
 import {
   GroupCheckoutWorkflow,
@@ -20,13 +20,19 @@ import {
   type GroupCheckoutInput,
   type GroupCheckoutOutput,
 } from '../../testing/groupCheckout.domain';
-import { getMongoDBEventStore } from '../mongoDBEventStore';
+import {
+  getMongoDBEventStore,
+  type MongoDBEventStore,
+} from '../mongoDBEventStore';
 import {
   mongoDBEventStoreConsumer,
   type MongoDBChangeStreamMessageMetadata,
   type MongoDBEventStoreConsumer,
 } from './mongoDBEventStoreConsumer';
-import { mongoDBWorkflowProcessor } from './mongoDBProcessor';
+import {
+  mongoDBWorkflowProcessor,
+  type MongoDBProcessorHandlerContext,
+} from './mongoDBProcessor';
 
 vi.mock('./mongoDBProcessor', async (importOriginal) => {
   const actual = await importOriginal<{
@@ -276,5 +282,13 @@ void describe('mongoDB event store consumer created by the event store', () => {
     } finally {
       await eventStore.close();
     }
+  });
+});
+
+void describe('mongoDB processor handler context', () => {
+  void it('requires the message store in the session', () => {
+    expectTypeOf<
+      MongoDBProcessorHandlerContext['session']['messageStore']
+    >().toEqualTypeOf<MongoDBEventStore>();
   });
 });

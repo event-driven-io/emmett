@@ -1,6 +1,6 @@
 import {
+  assertDeepEqual,
   assertRejects,
-  assertThatArray,
   type Event,
 } from '@event-driven-io/emmett';
 import { v4 as uuid } from 'uuid';
@@ -88,7 +88,10 @@ void describe('waiting for a PostgreSQL consumer to catch up in a test', () => {
         await consumer.whenCaughtUp();
 
         // Then
-        assertThatArray(processed).containsElementsMatching(events);
+        const { events: stored } = await eventStore.readStream<GuestStayEvent>(
+          `guestStay-${guestId}`,
+        );
+        assertDeepEqual(processed, stored);
       } finally {
         await consumer.close();
         await consumerPromise;
@@ -132,7 +135,10 @@ void describe('waiting for a PostgreSQL consumer to catch up in a test', () => {
         await consumer.whenProcessed(appendResult.lastEventGlobalPosition);
 
         // Then
-        assertThatArray(processed).containsElementsMatching(events);
+        const { events: stored } = await eventStore.readStream<GuestStayEvent>(
+          `guestStay-${guestId}`,
+        );
+        assertDeepEqual(processed, stored);
       } finally {
         await consumer.close();
         await consumerPromise;

@@ -18,7 +18,11 @@ import {
   type SubscribeToAllOptions,
   type SubscribeToStreamOptions,
 } from '@eventstore/db-client';
-import type { EventStoreDBReadEventMetadata } from '../eventstoreDBEventStore';
+import {
+  getEventStoreDBEventStore,
+  type EventStoreDBEventStore,
+  type EventStoreDBReadEventMetadata,
+} from '../eventstoreDBEventStore';
 import {
   eventStoreDBReactor,
   eventStoreDBWorkflowProcessor,
@@ -48,6 +52,7 @@ export type EventStoreDBEventStoreConsumerOptions<
   ConsumerEventType extends Message = Message,
 > = EventStoreDBEventStoreConsumerConfig<ConsumerEventType> & {
   source?: MessageSource<ConsumerEventType, EventStoreDBReadEventMetadata>;
+  messageStore?: EventStoreDBEventStore;
 } & (
     | {
         connectionString: string;
@@ -139,6 +144,9 @@ export const eventStoreDBEventStoreConsumer = <
     options.client ??
     EventStoreDBClient.connectionString(options.connectionString);
 
+  const messageStore =
+    options.messageStore ?? getEventStoreDBEventStore(client);
+
   const source = options.source
     ? { ...options.source, close: () => Promise.resolve() }
     : eventStoreDBMessageSource<ConsumerMessageType>({
@@ -179,6 +187,7 @@ export const eventStoreDBEventStoreConsumer = <
     workflowProcessorFactory,
     batchSize: options.pulling?.batchSize,
     batchDeadlineInMs: options.pulling?.batchDeadlineInMs,
+    scope: (handler) => handler({ session: { client, messageStore } }),
     hooks: {
       onClose: async () => {
         if (isOwnClient) await client.dispose();

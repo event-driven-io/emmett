@@ -553,6 +553,8 @@ class MongoDBEventStoreImplementation implements MongoDBEventStore, Closeable {
         consumerOptions?.observability,
       ),
       client: this.client,
+      storage: this.options.storage,
+      messageStore: this,
     });
 
   collectionFor = async <EventType extends Event>(

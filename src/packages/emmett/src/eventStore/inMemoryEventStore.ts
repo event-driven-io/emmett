@@ -1,23 +1,44 @@
+import { inMemoryMessageSource } from '../consumers/inMemoryMessageSource';
+import {
+  boundedMessageQueue,
+  type BoundedMessageQueue,
+  type MessageSource,
+} from '../consumers/messageSources';
 import {
   getInMemoryDatabase,
   type InMemoryDatabase,
 } from '../database/inMemoryDatabase';
-import { withOperationScope } from '../observability';
-import { bigIntProcessorCheckpoint } from '../processors';
-import type { ProjectionRegistration } from '../projections';
+import { mergeObservability, withOperationScope } from '../observability';
+import {
+  bigIntProcessorCheckpoint,
+  getCheckpoint,
+  type InMemoryProjectorOptions,
+} from '../processors';
 import type {
+  ProjectionHandlingType,
+  ProjectionRegistration,
+} from '../projections';
+import type {
+  AnyEvent,
+  AnyMessage,
   CombinedReadEventMetadata,
   Event,
+  Message,
   MessageHandlerContext,
   ReadEvent,
   ReadEventMetadataWithGlobalPosition,
 } from '../typing';
 import { tryPublishMessagesAfterCommit } from './afterCommit';
+import {
+  inMemoryEventStoreConsumer,
+  type InMemoryEventStoreConsumer,
+  type InMemoryEventStoreConsumerConfig,
+} from './consumers';
 import type {
   AggregateStreamOptions,
   AggregateStreamResult,
   AppendToStreamOptions,
-  AppendToStreamResult,
+  AppendToStreamResultWithGlobalPosition,
   DefaultEventStoreOptions,
   EventStore,
   ReadStreamOptions,
@@ -41,22 +62,33 @@ import {
 
 export const InMemoryEventStoreDefaultStreamVersion = 0n;
 
-export type InMemoryEventStore =
-  EventStore<ReadEventMetadataWithGlobalPosition> & {
-    database: InMemoryDatabase;
-  };
+export interface InMemoryEventStore extends EventStore<ReadEventMetadataWithGlobalPosition> {
+  database: InMemoryDatabase;
+  appendToStream<
+    EventType extends Event,
+    EventPayloadType extends Event = EventType,
+  >(
+    streamName: string,
+    events: EventType[],
+    options?: AppendToStreamOptions<EventType, EventPayloadType>,
+  ): Promise<AppendToStreamResultWithGlobalPosition>;
+  consumer<ConsumerMessageType extends Message = AnyMessage>(
+    options?: InMemoryEventStoreConsumerConfig<ConsumerMessageType> & {
+      includeAsyncProjections?: boolean;
+    },
+  ): InMemoryEventStoreConsumer<ConsumerMessageType>;
+}
 
 export type InMemoryReadEventMetadata = ReadEventMetadataWithGlobalPosition;
 
 export type InMemoryProjectionHandlerContext = MessageHandlerContext<{
-  eventStore?: InMemoryEventStore;
   database?: InMemoryDatabase;
 }>;
 
 export type InMemoryEventStoreOptions =
   DefaultEventStoreOptions<InMemoryEventStore> & {
     projections?: ProjectionRegistration<
-      'inline',
+      ProjectionHandlingType,
       InMemoryReadEventMetadata,
       InMemoryProjectionHandlerContext
     >[];
@@ -72,16 +104,33 @@ export type InMemoryReadEvent<EventType extends Event = Event> = ReadEvent<
 export const getInMemoryEventStore = (
   eventStoreOptions?: InMemoryEventStoreOptions,
 ): InMemoryEventStore => {
-  const streams = new Map<
-    string,
-    ReadEvent<Event, ReadEventMetadataWithGlobalPosition>[]
-  >();
+  const allEvents: InMemoryReadEvent[] = [];
+  const subscriptions = new Set<BoundedMessageQueue<InMemoryReadEvent[]>>();
 
-  const getAllEventsCount = () => {
-    return Array.from<ReadEvent[]>(streams.values())
-      .map((s) => s.length)
-      .reduce((p, c) => p + c, 0);
+  const subscribeToAllEvents = () => {
+    const appended = boundedMessageQueue<InMemoryReadEvent[]>();
+    const closed = new AbortController();
+    subscriptions.add(appended);
+
+    return inMemoryMessageSource<Event, ReadEventMetadataWithGlobalPosition>({
+      messages: (async function* () {
+        yield allEvents;
+        yield* appended.iterate(closed.signal);
+      })(),
+      readLastMessageCheckpoint: () =>
+        allEvents.length > 0
+          ? getCheckpoint(allEvents[allEvents.length - 1]!)
+          : null,
+      close: () => {
+        subscriptions.delete(appended);
+        closed.abort();
+        return Promise.resolve();
+      },
+    });
   };
+
+  const streamEvents = (streamName: string) =>
+    allEvents.filter((event) => event.metadata.streamName === streamName);
 
   // Get the database instance to be used for projections
   const database = eventStoreOptions?.database || getInMemoryDatabase();
@@ -89,6 +138,9 @@ export const getInMemoryEventStore = (
   // Extract inline projections from options
   const inlineProjections = (eventStoreOptions?.projections ?? [])
     .filter(({ type }) => type === 'inline')
+    .map(({ projection }) => projection);
+  const asyncProjections = (eventStoreOptions?.projections ?? [])
+    .filter(({ type }) => type === 'async')
     .map(({ projection }) => projection);
 
   const observability = eventStoreObservability(eventStoreOptions);
@@ -105,10 +157,8 @@ export const getInMemoryEventStore = (
     collector.instrumentRead(
       streamName,
       () => {
-        const events = streams.get(streamName);
-        const currentStreamVersion = events
-          ? BigInt(events.length)
-          : InMemoryEventStoreDefaultStreamVersion;
+        const events = streamEvents(streamName);
+        const currentStreamVersion = BigInt(events.length);
 
         assertExpectedVersionMatchesCurrent(
           currentStreamVersion,
@@ -121,32 +171,28 @@ export const getInMemoryEventStore = (
           readOptions?.to ??
             (readOptions?.maxCount
               ? (readOptions.from ?? 0n) + readOptions.maxCount
-              : (events?.length ?? 1)),
+              : events.length),
         );
 
-        const resultEvents =
-          events !== undefined && events.length > 0
-            ? upcastRecordedMessages<
-                EventType,
-                EventPayloadType,
-                ReadEventMetadataWithGlobalPosition
-              >(
-                events.slice(from, to).map((recorded) => ({
-                  ...recorded,
-                  schemaVersion: resolveSchemaVersion(recorded.schemaVersion),
-                  metadata: withoutSchemaVersion(recorded.metadata),
-                })) as ReadEvent<
-                  EventPayloadType,
-                  ReadEventMetadataWithGlobalPosition
-                >[],
-                readOptions?.schema?.versioning,
-              )
-            : [];
+        const resultEvents = upcastRecordedMessages<
+          EventType,
+          EventPayloadType,
+          ReadEventMetadataWithGlobalPosition
+        >(
+          events.slice(from, to).map((recorded) => ({
+            ...recorded,
+            metadata: { ...recorded.metadata },
+          })) as ReadEvent<
+            EventPayloadType,
+            ReadEventMetadataWithGlobalPosition
+          >[],
+          readOptions?.schema?.versioning,
+        );
 
         return Promise.resolve({
           currentStreamVersion,
           events: resultEvents,
-          streamExists: events !== undefined && events.length > 0,
+          streamExists: events.length > 0,
         });
       },
       readOptions?.observability,
@@ -212,12 +258,8 @@ export const getInMemoryEventStore = (
       streamName: string,
       events: EventType[],
       options?: AppendToStreamOptions<EventType, EventPayloadType>,
-    ): Promise<AppendToStreamResult> => {
-      const currentEvents = streams.get(streamName) ?? [];
-      const currentStreamVersion =
-        currentEvents.length > 0
-          ? BigInt(currentEvents.length)
-          : InMemoryEventStoreDefaultStreamVersion;
+    ): Promise<AppendToStreamResultWithGlobalPosition> => {
+      const currentStreamVersion = BigInt(streamEvents(streamName).length);
 
       return collector.instrumentAppend(
         streamName,
@@ -230,17 +272,18 @@ export const getInMemoryEventStore = (
           );
 
           const context = scope.context;
+          const allEventsCount = allEvents.length;
           const newEvents: ReadEvent<
             EventType,
             ReadEventMetadataWithGlobalPosition
           >[] = events.map((event, index) => {
-            const globalPosition = BigInt(getAllEventsCount() + index + 1);
+            const globalPosition = BigInt(allEventsCount + index + 1);
             const messageId =
               observability.contextGenerator.generateMessageId();
             const metadata: ReadEventMetadataWithGlobalPosition = {
               streamName,
               messageId,
-              streamPosition: BigInt(currentEvents.length + index + 1),
+              streamPosition: currentStreamVersion + BigInt(index + 1),
               globalPosition: bigIntProcessorCheckpoint(globalPosition),
               checkpoint: bigIntProcessorCheckpoint(globalPosition),
               correlationId: context.correlationId,
@@ -271,10 +314,21 @@ export const getInMemoryEventStore = (
             newEvents.slice(-1)[0]!.metadata.streamPosition,
           );
 
-          streams.set(streamName, [
-            ...currentEvents,
-            ...downcastRecordedMessages(newEvents, options?.schema?.versioning),
-          ]);
+          const storedEvents = downcastRecordedMessages(
+            newEvents,
+            options?.schema?.versioning,
+          ).map((recorded) => ({
+            ...recorded,
+            schemaVersion: resolveSchemaVersion(recorded.schemaVersion),
+            metadata: withoutSchemaVersion(recorded.metadata),
+          }));
+
+          allEvents.push(...storedEvents);
+          for (const subscription of subscriptions)
+            void subscription.push(storedEvents);
+          const lastEventGlobalPosition = bigIntProcessorCheckpoint(
+            BigInt(allEvents.length),
+          );
 
           // Process projections if there are any registered
           if (inlineProjections.length > 0) {
@@ -282,7 +336,6 @@ export const getInMemoryEventStore = (
               projections: inlineProjections,
               events: newEvents,
               database: eventStore.database,
-              eventStore,
               startInlineProjectionScope: (fn) =>
                 collector.instrumentInlineProjection(
                   streamName,
@@ -292,8 +345,9 @@ export const getInMemoryEventStore = (
             });
           }
 
-          const result: AppendToStreamResult = {
+          const result: AppendToStreamResultWithGlobalPosition = {
             nextExpectedStreamVersion: positionOfLastEventInTheStream,
+            lastEventGlobalPosition,
             createdNewStream:
               currentStreamVersion === InMemoryEventStoreDefaultStreamVersion,
           };
@@ -310,9 +364,41 @@ export const getInMemoryEventStore = (
     },
 
     streamExists: (streamName): Promise<StreamExistsResult> => {
-      const events = streams.get(streamName);
+      return Promise.resolve(
+        allEvents.some((event) => event.metadata.streamName === streamName),
+      );
+    },
 
-      return Promise.resolve(events !== undefined && events.length > 0);
+    consumer: <ConsumerMessageType extends Message = AnyMessage>(
+      consumerOptions?: InMemoryEventStoreConsumerConfig<ConsumerMessageType> & {
+        includeAsyncProjections?: boolean;
+      },
+    ): InMemoryEventStoreConsumer<ConsumerMessageType> => {
+      const source = subscribeToAllEvents();
+      const consumer = inMemoryEventStoreConsumer<ConsumerMessageType>({
+        ...consumerOptions,
+        observability: mergeObservability(
+          eventStoreOptions?.observability,
+          consumerOptions?.observability,
+        ),
+        source: source as MessageSource<
+          ConsumerMessageType,
+          ReadEventMetadataWithGlobalPosition
+        >,
+        messageStore: eventStore,
+        hooks: { onClose: () => Promise.resolve(source.close()) },
+      });
+
+      if (consumerOptions?.includeAsyncProjections)
+        for (const projection of asyncProjections)
+          consumer.projector({
+            // TODO: Fix this cast when projection registrations are typed with the consumer message type
+            projection: projection as unknown as InMemoryProjectorOptions<
+              ConsumerMessageType & AnyEvent
+            >['projection'],
+          });
+
+      return consumer;
     },
   };
 

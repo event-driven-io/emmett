@@ -5,8 +5,8 @@ import {
   type SQLitePool,
 } from '@event-driven-io/dumbo/sqlite3';
 import {
+  assertDeepEqual,
   assertRejects,
-  assertThatArray,
   bigIntProcessorCheckpoint,
   type Event,
 } from '@event-driven-io/emmett';
@@ -98,7 +98,10 @@ void describe('waiting for a SQLite consumer to catch up in a test', () => {
         await consumer.whenCaughtUp();
 
         // Then
-        assertThatArray(processed).containsElementsMatching(events);
+        const { events: stored } = await eventStore.readStream<GuestStayEvent>(
+          `guestStay-${guestId}`,
+        );
+        assertDeepEqual(processed, stored);
       } finally {
         await consumer.close();
         await consumerPromise;
@@ -143,7 +146,10 @@ void describe('waiting for a SQLite consumer to catch up in a test', () => {
         await consumer.whenProcessed(appendResult.lastEventGlobalPosition);
 
         // Then
-        assertThatArray(processed).containsElementsMatching(events);
+        const { events: stored } = await eventStore.readStream<GuestStayEvent>(
+          `guestStay-${guestId}`,
+        );
+        assertDeepEqual(processed, stored);
       } finally {
         await consumer.close();
         await consumerPromise;

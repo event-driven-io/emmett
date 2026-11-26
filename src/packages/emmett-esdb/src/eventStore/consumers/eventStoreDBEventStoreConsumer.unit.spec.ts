@@ -10,15 +10,17 @@ import {
   type RecordedMessage,
 } from '@event-driven-io/emmett';
 import { EventStoreDBClient } from '@eventstore/db-client';
-import { describe, it, vi } from 'vitest';
+import { describe, expectTypeOf, it, vi } from 'vitest';
 import {
   getEventStoreDBEventStore,
+  type EventStoreDBEventStore,
   type EventStoreDBReadEventMetadata,
 } from '../eventstoreDBEventStore';
 import {
   eventStoreDBEventStoreConsumer,
   type EventStoreDBEventStoreConsumer,
 } from './eventStoreDBEventStoreConsumer';
+import type { EventStoreDBProcessorHandlerContext } from './eventStoreDBProcessor';
 
 const fakeClient = (): {
   client: EventStoreDBClient;
@@ -229,5 +231,13 @@ void describe('eventStoreDBEventStore consumer typing', () => {
     assertEqual('function', typeof consumer.projector);
     assertEqual('function', typeof consumer.reactor);
     assertEqual('function', typeof consumer.workflowProcessor);
+  });
+});
+
+void describe('EventStoreDB processor handler context', () => {
+  void it('requires the message store in the session', () => {
+    expectTypeOf<
+      EventStoreDBProcessorHandlerContext['session']['messageStore']
+    >().toEqualTypeOf<EventStoreDBEventStore>();
   });
 });

@@ -35,7 +35,7 @@ export type EventStoreDBProcessorHandlerContext = MessageHandlerContext<
   Record<never, never>,
   {
     client: EventStoreDBClient;
-    messageStore?: EventStoreDBEventStore;
+    messageStore: EventStoreDBEventStore;
   }
 >;
 
@@ -83,6 +83,8 @@ export type EventStoreDBReactorOptions<
 const eventStoreDBProcessingScope = (options: {
   client: EventStoreDBClient;
 }): MessageProcessingScope<EventStoreDBProcessorHandlerContext> => {
+  const messageStore = getEventStoreDBEventStore(options.client);
+
   const processingScope: MessageProcessingScope<
     EventStoreDBProcessorHandlerContext
   > = async <Result = SingleMessageHandlerResult>(
@@ -96,7 +98,7 @@ const eventStoreDBProcessingScope = (options: {
       session: {
         ...partialContext.session,
         client: options.client,
-        messageStore: getEventStoreDBEventStore(options.client),
+        messageStore,
       },
       observabilityScope: partialContext?.observabilityScope ?? noopScope,
     });

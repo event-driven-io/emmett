@@ -6,6 +6,7 @@ import {
   WorkflowHandler,
   workflowOutputHandler,
   workflowStreamName,
+  type Event,
   type WorkflowOptions,
 } from '@event-driven-io/emmett';
 import path from 'path';
@@ -57,6 +58,11 @@ const workflowProcessorOptions: WorkflowOptions<
 };
 
 const handleWorkflow = WorkflowHandler(workflowProcessorOptions);
+
+const handleWorkflowWithSeparateInbox = WorkflowHandler({
+  ...workflowProcessorOptions,
+  separateInputInboxFromProcessing: true,
+});
 
 void describe('SQLite event store workflow processor', () => {
   const testDatabasePath = path.dirname(fileURLToPath(import.meta.url));
@@ -112,17 +118,16 @@ void describe('SQLite event store workflow processor', () => {
       try {
         const consumerPromise = consumer.start();
 
-        await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
-          {
-            type: 'InitiateGroupCheckout',
-            data: {
-              groupCheckoutId,
-              clerkId: 'clerk-1',
-              guestStayAccountIds,
-              now,
-            },
+        await handleWorkflowWithSeparateInbox(eventStore, {
+          type: 'InitiateGroupCheckout',
+          kind: 'Command',
+          data: {
+            groupCheckoutId,
+            clerkId: 'clerk-1',
+            guestStayAccountIds,
+            now,
           },
-        ]);
+        });
 
         await consumerPromise;
 
@@ -139,9 +144,13 @@ void describe('SQLite event store workflow processor', () => {
           events[0]!.type,
           'GroupCheckoutWorkflow:InitiateGroupCheckout',
         );
+        assertEqual(events[0]!.kind, 'Command');
         assertEqual(events[1]!.type, 'GroupCheckoutInitiated');
+        assertEqual(events[1]!.kind, 'Event');
         assertEqual(events[2]!.type, 'CheckOut');
+        assertEqual(events[2]!.kind, 'Command');
         assertEqual(events[3]!.type, 'CheckOut');
+        assertEqual(events[3]!.kind, 'Command');
       } finally {
         await consumer.close();
       }
@@ -159,6 +168,7 @@ void describe('SQLite event store workflow processor', () => {
       // Step 1: Initiate the group checkout directly via WorkflowHandler
       await handleWorkflow(eventStore, {
         type: 'InitiateGroupCheckout',
+        kind: 'Command',
         data: {
           groupCheckoutId,
           clerkId: 'clerk-1',
@@ -301,6 +311,7 @@ void describe('SQLite event store workflow processor', () => {
         await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
           {
             type: 'InitiateGroupCheckout',
+            kind: 'Command',
             data: {
               groupCheckoutId,
               clerkId: 'clerk-1',
@@ -308,7 +319,7 @@ void describe('SQLite event store workflow processor', () => {
               now,
             },
           },
-        ]);
+        ] as unknown as Event[]);
 
         await consumerPromise;
 
@@ -326,8 +337,11 @@ void describe('SQLite event store workflow processor', () => {
           events[0]!.type,
           'GroupCheckoutWorkflow:InitiateGroupCheckout',
         );
+        assertEqual(events[0]!.kind, 'Command');
         assertEqual(events[1]!.type, 'GroupCheckoutInitiated');
+        assertEqual(events[1]!.kind, 'Event');
         assertEqual(events[2]!.type, 'CheckOut');
+        assertEqual(events[2]!.kind, 'Command');
 
         // Verify we got all messages in one operation (NOT double-hop)
         assertThatArray(events).hasSize(3);
@@ -365,17 +379,16 @@ void describe('SQLite event store workflow processor', () => {
       try {
         const consumerPromise = consumer.start();
 
-        await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
-          {
-            type: 'InitiateGroupCheckout',
-            data: {
-              groupCheckoutId,
-              clerkId: 'clerk-1',
-              guestStayAccountIds,
-              now,
-            },
+        await handleWorkflowWithSeparateInbox(eventStore, {
+          type: 'InitiateGroupCheckout',
+          kind: 'Command',
+          data: {
+            groupCheckoutId,
+            clerkId: 'clerk-1',
+            guestStayAccountIds,
+            now,
           },
-        ]);
+        });
 
         await consumerPromise;
 
@@ -392,10 +405,14 @@ void describe('SQLite event store workflow processor', () => {
           events[0]!.type,
           'GroupCheckoutWorkflow:InitiateGroupCheckout',
         );
+        assertEqual(events[0]!.kind, 'Command');
         // Then the workflow outputs
         assertEqual(events[1]!.type, 'GroupCheckoutInitiated');
+        assertEqual(events[1]!.kind, 'Event');
         assertEqual(events[2]!.type, 'CheckOut');
+        assertEqual(events[2]!.kind, 'Command');
         assertEqual(events[3]!.type, 'CheckOut');
+        assertEqual(events[3]!.kind, 'Command');
       } finally {
         await consumer.close();
       }
@@ -430,17 +447,16 @@ void describe('SQLite event store workflow processor', () => {
       try {
         const consumerPromise = consumer.start();
 
-        await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
-          {
-            type: 'InitiateGroupCheckout',
-            data: {
-              groupCheckoutId,
-              clerkId: 'clerk-1',
-              guestStayAccountIds: [guestStayAccountId],
-              now,
-            },
+        await handleWorkflow(eventStore, {
+          type: 'InitiateGroupCheckout',
+          kind: 'Command',
+          data: {
+            groupCheckoutId,
+            clerkId: 'clerk-1',
+            guestStayAccountIds: [guestStayAccountId],
+            now,
           },
-        ]);
+        });
 
         await eventStore.appendToStream(`guestStay-${guestStayAccountId}`, [
           {
@@ -525,17 +541,16 @@ void describe('SQLite event store workflow processor', () => {
       try {
         const consumerPromise = consumer.start();
 
-        await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
-          {
-            type: 'InitiateGroupCheckout',
-            data: {
-              groupCheckoutId,
-              clerkId: 'clerk-1',
-              guestStayAccountIds: [guestStayAccountId],
-              now,
-            },
+        await handleWorkflow(eventStore, {
+          type: 'InitiateGroupCheckout',
+          kind: 'Command',
+          data: {
+            groupCheckoutId,
+            clerkId: 'clerk-1',
+            guestStayAccountIds: [guestStayAccountId],
+            now,
           },
-        ]);
+        });
 
         await consumerPromise;
 
@@ -571,6 +586,7 @@ void describe('SQLite event store workflow processor', () => {
 
       await handleWorkflow(eventStore, {
         type: 'InitiateGroupCheckout',
+        kind: 'Command',
         data: {
           groupCheckoutId,
           clerkId: 'clerk-1',

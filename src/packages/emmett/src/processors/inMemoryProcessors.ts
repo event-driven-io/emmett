@@ -1,13 +1,23 @@
 import { getInMemoryDatabase, type InMemoryDatabase } from '../database';
 import { EmmettError } from '../errors';
+import type { EventStore } from '../eventStore/eventStore';
 import type { WithObservabilityScope } from '../observability';
+import {
+  getWorkflowId,
+  workflowProcessor,
+  type WorkflowProcessorContext,
+  type WorkflowProcessorOptions,
+} from '../workflows/workflowProcessor';
 import type {
+  AnyCommand,
   AnyEvent,
   AnyMessage,
+  AnyRecordedMessageMetadata,
   AnyReadEventMetadata,
   BatchRecordedMessageHandlerWithContext,
   DefaultRecord,
   MessageHandlerContext,
+  PartialHandlerContext,
   ReadEventMetadataWithGlobalPosition,
   SingleMessageHandlerResult,
   SingleRecordedMessageHandlerWithContext,
@@ -23,9 +33,14 @@ import {
   type ReactorOptions,
 } from './processors';
 
-export type InMemoryProcessorHandlerContext = MessageHandlerContext<{
-  database: InMemoryDatabase;
-}>;
+export type InMemoryProcessorHandlerContext = MessageHandlerContext<
+  {
+    database: InMemoryDatabase;
+  },
+  {
+    messageStore: EventStore;
+  }
+>;
 
 export type InMemoryProcessor<MessageType extends AnyMessage = AnyMessage> =
   MessageProcessor<
@@ -70,9 +85,12 @@ export const inMemoryCheckpointer = <
   MessageType extends AnyMessage = AnyMessage,
   MessageMetadataType extends AnyReadEventMetadata = AnyReadEventMetadata,
   HandlerContext extends DefaultRecord = DefaultRecord,
->(): InMemoryCheckpointer<MessageType, MessageMetadataType, HandlerContext> => {
+>(options?: {
+  database?: InMemoryDatabase;
+}): InMemoryCheckpointer<MessageType, MessageMetadataType, HandlerContext> => {
   let fallbackDatabase: InMemoryDatabase | undefined;
   const resolveDatabase = (context: HandlerContext): InMemoryDatabase =>
+    options?.database ??
     (context as { database?: InMemoryDatabase })?.database ??
     (fallbackDatabase ??= getInMemoryDatabase());
 
@@ -166,7 +184,7 @@ const inMemoryProcessingScope = (options: {
       context: InMemoryProcessorHandlerContext,
     ) => Result | Promise<Result>,
     partialContext: WithObservabilityScope<
-      Partial<InMemoryProcessorHandlerContext>
+      PartialHandlerContext<InMemoryProcessorHandlerContext>
     >,
   ) => {
     const database = processorDatabase ?? partialContext?.database;
@@ -176,10 +194,17 @@ const inMemoryProcessingScope = (options: {
         `InMemory processor '${options.processorId}' is missing database. Ensure that you passed it through options`,
       );
 
+    const messageStore = partialContext?.session?.messageStore;
+
+    if (!messageStore)
+      throw new EmmettError(
+        `InMemory processor '${options.processorId}' is missing message store. Ensure that you run it on a consumer that passes session.messageStore through its scope`,
+      );
+
     return handler({
       ...partialContext,
       database,
-      session: partialContext?.session ?? {},
+      session: { ...partialContext.session, messageStore },
     });
   };
 
@@ -213,7 +238,10 @@ export const inMemoryProjector = <EventType extends AnyEvent = AnyEvent>(
       processorId:
         options.processorId ?? `projection:${options.projection.name}`,
     }),
-    checkpoints: inMemoryCheckpointer<EventType>(),
+    checkpoints:
+      options.checkpoints === 'DISABLED'
+        ? inMemoryCheckpointer<EventType>({ database: getInMemoryDatabase() })
+        : inMemoryCheckpointer<EventType>(),
   });
 
   return Object.assign(processor, { database });
@@ -237,8 +265,78 @@ export const inMemoryReactor = <MessageType extends AnyMessage = AnyMessage>(
       database,
       processorId: options.processorId,
     }),
-    checkpoints: inMemoryCheckpointer<MessageType>(),
+    checkpoints:
+      options.checkpoints === 'DISABLED'
+        ? inMemoryCheckpointer<MessageType>({ database: getInMemoryDatabase() })
+        : inMemoryCheckpointer<MessageType>(),
   });
 
   return Object.assign(processor, { database });
+};
+
+export type InMemoryWorkflowProcessorOptions<
+  Input extends AnyEvent | AnyCommand,
+  State,
+  Output extends AnyEvent | AnyCommand,
+  MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  HandlerContext extends InMemoryProcessorHandlerContext &
+    WorkflowProcessorContext = InMemoryProcessorHandlerContext &
+    WorkflowProcessorContext,
+  StoredMessage extends AnyEvent | AnyCommand = Output,
+> = WorkflowProcessorOptions<
+  Input,
+  State,
+  Output,
+  MetaDataType,
+  HandlerContext,
+  StoredMessage
+> & {
+  connectionOptions?: InMemoryProcessorConnectionOptions;
+};
+
+export const inMemoryWorkflowProcessor = <
+  Input extends AnyEvent | AnyCommand,
+  State,
+  Output extends AnyEvent | AnyCommand,
+  MetaDataType extends AnyRecordedMessageMetadata = AnyRecordedMessageMetadata,
+  HandlerContext extends InMemoryProcessorHandlerContext &
+    WorkflowProcessorContext = InMemoryProcessorHandlerContext &
+    WorkflowProcessorContext,
+  StoredMessage extends AnyEvent | AnyCommand = Output,
+>(
+  options: InMemoryWorkflowProcessorOptions<
+    Input,
+    State,
+    Output,
+    MetaDataType,
+    HandlerContext,
+    StoredMessage
+  >,
+): InMemoryProcessor<Input | Output> => {
+  const database = options.connectionOptions?.database ?? getInMemoryDatabase();
+  const processorId =
+    options.processorId ??
+    getWorkflowId({ workflowName: options.workflow.name ?? 'unknown' });
+
+  const processor = workflowProcessor({
+    ...options,
+    processorId,
+    processingScope: inMemoryProcessingScope({
+      database,
+      processorId,
+    }) as unknown as MessageProcessingScope<HandlerContext>,
+    checkpoints: inMemoryCheckpointer<
+      Input | Output,
+      MetaDataType,
+      HandlerContext
+    >(
+      options.checkpoints === 'DISABLED'
+        ? { database: getInMemoryDatabase() }
+        : undefined,
+    ),
+  });
+
+  return Object.assign(processor, { database }) as InMemoryProcessor<
+    Input | Output
+  >;
 };

@@ -1,6 +1,6 @@
 import { runInDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
-import type { EventStore } from '@event-driven-io/emmett';
+import { EmmettError, type EventStore } from '@event-driven-io/emmett';
 import {
   ApiSpecification,
   existingStream,
@@ -925,6 +925,9 @@ const clientsEventStore = (): EventStore => {
       inClientDurableObject(streamName, (eventStore) =>
         eventStore.streamExists(streamName),
       ),
+    consumer: () => {
+      throw new EmmettError('consumer is not implemented for this event store');
+    },
   };
 };
 
