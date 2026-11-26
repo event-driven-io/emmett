@@ -34,18 +34,20 @@ import {
   type MongoDBEventStore,
   type MongoDBEventStoreConnectionOptions,
 } from '../mongoDBEventStore';
+import type { MongoDBEventStoreStorageOptions } from '../storage';
 import { mongoDBCheckpointer } from './mongoDBCheckpointer';
 import type { MongoDBChangeStreamMessageMetadata } from './mongoDBEventStoreConsumer';
 
 type MongoDBConnectionOptions = {
   connectionOptions: MongoDBEventStoreConnectionOptions;
+  storage?: MongoDBEventStoreStorageOptions;
 };
 
 export type MongoDBProcessorHandlerContext = MessageHandlerContext<
-  Record<never, never>,
+  { storage?: MongoDBEventStoreStorageOptions },
   {
     client: MongoClient;
-    messageStore?: MongoDBEventStore;
+    messageStore: MongoDBEventStore;
   }
 >;
 
@@ -61,7 +63,8 @@ export type MongoDBProcessorOptions<MessageType extends Message = Message> =
     MessageType,
     MongoDBChangeStreamMessageMetadata,
     MongoDBProcessorHandlerContext
-  > & { connectionOptions: MongoDBEventStoreConnectionOptions };
+  > &
+    MongoDBConnectionOptions;
 
 export type MongoDBCheckpointer<MessageType extends AnyMessage = AnyMessage> =
   Checkpointer<
@@ -102,7 +105,13 @@ export type MongoDBWorkflowProcessorOptions<
 const mongoDBProcessingScope = (options: {
   client: MongoClient;
   processorId: string;
+  storage: MongoDBEventStoreStorageOptions | undefined;
 }): MessageProcessingScope<MongoDBProcessorHandlerContext> => {
+  const messageStore = getMongoDBEventStore({
+    client: options.client,
+    storage: options.storage,
+  });
+
   const processingScope: MessageProcessingScope<
     MongoDBProcessorHandlerContext
   > = async <Result = SingleMessageHandlerResult>(
@@ -113,7 +122,12 @@ const mongoDBProcessingScope = (options: {
   ) => {
     return handler({
       ...partialContext,
-      session: { ...partialContext.session, client: options.client },
+      session: {
+        ...partialContext.session,
+        client: options.client,
+        messageStore,
+      },
+      storage: options.storage,
       observabilityScope: partialContext?.observabilityScope ?? noopScope,
     });
   };
@@ -123,7 +137,13 @@ const mongoDBProcessingScope = (options: {
 
 const mongoDBWorkflowProcessingScope = (options: {
   client: MongoClient;
+  storage: MongoDBEventStoreStorageOptions | undefined;
 }): MessageProcessingScope<MongoDBWorkflowProcessorHandlerContext> => {
+  const messageStore = getMongoDBEventStore({
+    client: options.client,
+    storage: options.storage,
+  });
+
   const processingScope: MessageProcessingScope<
     MongoDBWorkflowProcessorHandlerContext
   > = async <Result = SingleMessageHandlerResult>(
@@ -137,8 +157,9 @@ const mongoDBWorkflowProcessingScope = (options: {
       session: {
         ...partialContext.session,
         client: options.client,
-        messageStore: getMongoDBEventStore({ client: options.client }),
+        messageStore,
       },
+      storage: options.storage,
       observabilityScope: partialContext?.observabilityScope ?? noopScope,
     });
   };
@@ -207,6 +228,7 @@ export const mongoDBWorkflowProcessor = <
     hooks,
     processingScope: mongoDBWorkflowProcessingScope({
       client,
+      storage: options.storage,
     }) as unknown as MessageProcessingScope<HandlerContext>,
     checkpoints:
       options.checkpoints === 'DISABLED'
@@ -251,6 +273,7 @@ export const mongoDBProjector = <EventType extends Event = Event>(
       client,
       processorId:
         options.processorId ?? `projection:${options.projection.name}`,
+      storage: options.storage,
     }),
 
     checkpoints:
@@ -285,6 +308,7 @@ export const changeStreamReactor = <
     processingScope: mongoDBProcessingScope({
       client,
       processorId: options.processorId,
+      storage: options.storage,
     }),
     checkpoints:
       options.checkpoints === 'DISABLED'

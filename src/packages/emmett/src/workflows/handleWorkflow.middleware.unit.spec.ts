@@ -16,6 +16,7 @@ const initiateGroupCheckout = (
   guestStayAccountIds = ['guest-stay-1', 'guest-stay-2'],
 ): InitiateGroupCheckout => ({
   type: 'InitiateGroupCheckout',
+  kind: 'Command',
   data: {
     groupCheckoutId,
     clerkId: 'clerk-1',

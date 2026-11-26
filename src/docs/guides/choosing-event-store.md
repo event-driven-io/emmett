@@ -25,16 +25,16 @@ Emmett supports multiple event store backends. This guide helps you select the r
 
 ## Comparison Matrix
 
-| Feature                  | PostgreSQL     | EventStoreDB  | MongoDB        | SQLite         | In-Memory |
-| ------------------------ | -------------- | ------------- | -------------- | -------------- | --------- |
-| **Production Ready**     | Yes            | Yes           | Yes            | Limited        | No        |
-| **Persistent Storage**   | Yes            | Yes           | Yes            | Yes            | No        |
-| **Built-in Projections** | Inline + Async | Async only    | Inline + Async | Inline + Async | Inline    |
-| **Multi-tenancy**        | Partitions     | Streams       | Collections    | Separate DBs   | N/A       |
-| **Transactions**         | Full ACID      | Stream-level  | Document-level | Full ACID      | N/A       |
-| **Horizontal Scaling**   | Yes            | Yes (cluster) | Yes            | No             | No        |
-| **Learning Curve**       | Low (SQL)      | Medium        | Low            | Low            | None      |
-| **Infrastructure**       | PostgreSQL     | EventStoreDB  | MongoDB        | File/Memory    | None      |
+| Feature                  | PostgreSQL     | EventStoreDB  | MongoDB        | SQLite         | In-Memory      |
+| ------------------------ | -------------- | ------------- | -------------- | -------------- | -------------- |
+| **Production Ready**     | Yes            | Yes           | Yes            | Limited        | No             |
+| **Persistent Storage**   | Yes            | Yes           | Yes            | Yes            | No             |
+| **Built-in Projections** | Inline + Async | Async only    | Inline + Async | Inline + Async | Inline + Async |
+| **Multi-tenancy**        | Partitions     | Streams       | Collections    | Separate DBs   | N/A            |
+| **Transactions**         | Full ACID      | Stream-level  | Document-level | Full ACID      | N/A            |
+| **Horizontal Scaling**   | Yes            | Yes (cluster) | Yes            | No             | No             |
+| **Learning Curve**       | Low (SQL)      | Medium        | Low            | Low            | None           |
+| **Infrastructure**       | PostgreSQL     | EventStoreDB  | MongoDB        | File/Memory    | None           |
 
 ## PostgreSQL
 
@@ -242,6 +242,14 @@ import { getInMemoryEventStore } from '@event-driven-io/emmett';
 
 const eventStore = getInMemoryEventStore();
 ```
+
+### Async Consumers
+
+To run projectors or reactors in the background, build a consumer from the event store:
+
+<<< @/snippets/eventStores/consumers/inMemoryConsumer.unit.spec.ts#in-memory-consumer
+
+`whenCaughtUp()` resolves once every processor has handled what was appended so far, so tests wait on it instead of sleeping.
 
 ---
 

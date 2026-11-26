@@ -28,6 +28,10 @@ import type {
   PoolOrConnectionOptions,
 } from '../eventStoreDriver';
 import {
+  getPostgreSQLEventStore,
+  type PostgresEventStore,
+} from '../postgreSQLEventStore';
+import {
   isPostgreSQLProjectionWithSchema,
   postgreSQLProjectionWithDatabaseSchemaName,
   postgreSQLSchemaOf,
@@ -77,6 +81,7 @@ export type PostgreSQLEventStoreConsumerConnectionOptions<
     RecordedMessageMetadataWithGlobalPosition
   >;
   hooks?: Pick<ConsumerHooks, 'onInit'>;
+  messageStore?: PostgresEventStore;
 } & {
   /**
    * @deprecated pass `driver` instead; this form is removed in the next major.
@@ -190,6 +195,14 @@ export const postgreSQLEventStoreConsumer = <
   const pool = (options.pool ??
     dumbo(connectionOptions)) as InferPoolFromEventStoreDriver<Driver>;
 
+  const messageStore =
+    options.messageStore ??
+    getPostgreSQLEventStore({
+      driver: options.driver ?? pgEventStoreDriver,
+      pool,
+      schema: { ...processorMetadataSchema, autoMigration: 'None' },
+    });
+
   const source: MessageSource<
     ConsumerMessageType,
     RecordedMessageMetadataWithGlobalPosition
@@ -207,7 +220,7 @@ export const postgreSQLEventStoreConsumer = <
   > = {
     execute: pool.execute,
     migrationOptions: processorMetadataSchema,
-    session: { pool, connectionOptions },
+    session: { pool, connectionOptions, messageStore },
   };
 
   const messageConsumer = consumer<

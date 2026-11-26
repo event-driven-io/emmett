@@ -105,7 +105,7 @@ export const getEventStoreDBEventStore = (
   const observability = eventStoreObservability(storeOptions);
   const collector = eventStoreCollector(observability);
 
-  return {
+  const store: EventStoreDBEventStore = {
     async aggregateStream<
       State,
       EventType extends Event,
@@ -352,6 +352,7 @@ export const getEventStoreDBEventStore = (
           consumerOptions?.observability,
         ),
         client: eventStore,
+        messageStore: store,
       }),
 
     streamExists: async (streamName: string): Promise<StreamExistsResult> => {
@@ -376,6 +377,8 @@ export const getEventStoreDBEventStore = (
 
     //streamEvents: streamEvents(eventStore),
   };
+
+  return store;
 };
 
 const getESDBCheckpoint = <MessageType extends AnyMessage = AnyMessage>(

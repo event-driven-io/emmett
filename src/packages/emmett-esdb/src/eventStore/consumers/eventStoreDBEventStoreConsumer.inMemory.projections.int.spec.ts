@@ -1,8 +1,14 @@
+import { testObservabilityContextGenerator } from '@event-driven-io/almanac';
 import {
+  assertDeepEqual,
+  assertEqual,
   assertMatches,
+  assertOk,
   getInMemoryDatabase,
   inMemoryProjector,
+  inMemoryReactor,
   inMemorySingleStreamProjection,
+  projection,
   type InMemoryDocumentsCollection,
   type ReadEvent,
 } from '@event-driven-io/emmett';
@@ -410,6 +416,189 @@ void describe('EventStoreDB event store started consumer', () => {
       },
     );
   });
+
+  void it(
+    `in-memory reactor appends through the session's message store`,
+    withDeadline,
+    async () => {
+      const streamName = `shopping_cart-shoppingCart:${uuid()}`;
+      const orderStreamName = `order-${uuid()}`;
+      const { lastEventGlobalPosition } = await eventStore.appendToStream(
+        streamName,
+        [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ] as ProductItemAdded[],
+      );
+
+      const inMemoryProcessor = inMemoryReactor<ProductItemAdded>({
+        processorId: uuid(),
+        eachMessage: async (message, context) => {
+          if (message.metadata.streamName !== streamName) return;
+
+          const messageStore = context.session.messageStore;
+          await messageStore.appendToStream(orderStreamName, [
+            {
+              type: 'ProductItemAdded',
+              data: { productItem: message.data.productItem },
+            },
+          ]);
+        },
+        stopAfter: (event) =>
+          event.metadata.globalPosition === lastEventGlobalPosition,
+      });
+
+      const consumer = eventStoreDBEventStoreConsumer({
+        connectionString,
+        processors: [inMemoryProcessor],
+      });
+
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      const {
+        events: [handled],
+      } = await eventStore.readStream<ProductItemAdded>(streamName);
+      const { events } =
+        await eventStore.readStream<ProductItemAdded>(orderStreamName);
+      assertOk(handled);
+      assertDeepEqual(
+        events.map(({ type, kind, schemaVersion, data, metadata }) => ({
+          type,
+          kind,
+          schemaVersion,
+          data,
+          streamName: metadata.streamName,
+          streamPosition: metadata.streamPosition,
+          isAfterHandled:
+            metadata.globalPosition > handled.metadata.globalPosition,
+          isCheckpointAtGlobalPosition:
+            metadata.checkpoint === metadata.globalPosition,
+          correlationId: metadata.correlationId,
+          causationId: metadata.causationId,
+        })),
+        [
+          {
+            type: 'ProductItemAdded',
+            kind: 'Event',
+            schemaVersion: 1,
+            data: { productItem },
+            streamName: orderStreamName,
+            streamPosition: 0n,
+            isAfterHandled: true,
+            isCheckpointAtGlobalPosition: true,
+            correlationId: handled.metadata.correlationId,
+            causationId: handled.metadata.messageId,
+          },
+        ],
+      );
+    },
+  );
+
+  void it(
+    'in-memory projector created through the consumer sees the session client',
+    withDeadline,
+    async () => {
+      const streamName = `shopping_cart-shoppingCart:${uuid()}`;
+      const { lastEventGlobalPosition } = await eventStore.appendToStream(
+        streamName,
+        [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ] as ProductItemAdded[],
+      );
+      const client = eventStoreDB.getClient();
+      const seenClients: unknown[] = [];
+
+      const consumer = eventStoreDBEventStoreConsumer({ client });
+      consumer.projector<ProductItemAdded>({
+        processorId: uuid(),
+        projection: projection<ProductItemAdded>({
+          name: `session-client-${uuid()}`,
+          canHandle: ['ProductItemAdded'],
+          handle: (events, context) => {
+            if (
+              events.some((event) => event.metadata.streamName === streamName)
+            )
+              seenClients.push(context.session.client);
+          },
+        }),
+        stopAfter: (event) =>
+          event.metadata.globalPosition === lastEventGlobalPosition,
+      });
+
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      assertEqual(1, seenClients.length);
+      assertEqual(client, seenClients[0]);
+    },
+  );
+
+  void it(
+    `in-memory reactor on the event store's consumer appends through that event store`,
+    withDeadline,
+    async () => {
+      const streamName = `shopping_cart-shoppingCart:${uuid()}`;
+      const orderStreamName = `order-${uuid()}`;
+      const appendedMessageId = uuid();
+      const { lastEventGlobalPosition } = await eventStore.appendToStream(
+        streamName,
+        [
+          { type: 'ProductItemAdded', data: { productItem } },
+        ] as ProductItemAdded[],
+      );
+      const storeWithContextGenerator = getEventStoreDBEventStore(
+        eventStoreDB.getClient(),
+        {
+          observability: {
+            contextGenerator: testObservabilityContextGenerator({
+              traceIds: 'append-trace',
+              spanIds: 'append-span',
+              // EventStoreDB rejects an event id that isn't a UUID
+              messageIds: appendedMessageId,
+            }),
+          },
+        },
+      );
+
+      const inMemoryProcessor = inMemoryReactor<ProductItemAdded>({
+        processorId: uuid(),
+        eachMessage: async (message, context) => {
+          if (message.metadata.streamName !== streamName) return;
+
+          await context.session.messageStore.appendToStream(orderStreamName, [
+            {
+              type: 'ProductItemAdded',
+              data: { productItem: message.data.productItem },
+            },
+          ]);
+        },
+        stopAfter: (event) =>
+          event.metadata.globalPosition === lastEventGlobalPosition,
+      });
+
+      const consumer = storeWithContextGenerator.consumer({
+        processors: [inMemoryProcessor],
+      });
+
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      const {
+        events: [stored],
+      } = await eventStore.readStream<ProductItemAdded>(orderStreamName);
+      assertOk(stored);
+      assertEqual(appendedMessageId, stored.metadata.messageId);
+    },
+  );
 });
 
 type ShoppingCartSummary = {

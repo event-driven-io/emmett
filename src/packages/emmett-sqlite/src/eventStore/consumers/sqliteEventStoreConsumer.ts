@@ -37,6 +37,10 @@ import {
   type EventStoreDatabaseSchemaOptions,
   type EventStoreSchemaMigrationOptions,
 } from '../schema';
+import {
+  getSQLiteEventStore,
+  type SQLiteEventStore,
+} from '../SQLiteEventStore';
 import { sqliteMessageSource } from './messageSource';
 import {
   sqliteProjector,
@@ -76,6 +80,7 @@ export type SQLiteEventStoreConsumerConnectionOptions<
     ReadEventMetadataWithGlobalPosition
   >;
   hooks?: Pick<ConsumerHooks, 'onInit'>;
+  messageStore?: SQLiteEventStore;
 } & PoolOrConnectionOptions<Driver>;
 
 export type SQLiteEventStoreConsumerOptions<
@@ -178,6 +183,14 @@ export const sqliteEventStoreConsumer = <
 
   const pool = options.pool ?? dumbo(dumboOptions);
 
+  const messageStore =
+    options.messageStore ??
+    getSQLiteEventStore({
+      driver: options.driver,
+      pool,
+      schema: { ...processorMetadataSchema, autoMigration: 'None' },
+    });
+
   const source = options.source
     ? { ...options.source, close: () => Promise.resolve() }
     : sqliteMessageSource<ConsumerMessageType>({
@@ -262,6 +275,7 @@ export const sqliteEventStoreConsumer = <
         session: {
           pool: pool as InferPoolFromEventStoreDriver<Driver>,
           connectionOptions: dumboOptions,
+          messageStore,
         },
         execute: pool.execute,
       }),

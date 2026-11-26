@@ -1085,8 +1085,7 @@ export function testConsumerSchemaVersion(
       messages: Event[],
       upcast?: (stored: Event) => MessageType,
     ): Promise<RecordedMessage<MessageType>[]> => {
-      const consumer = eventStore.consumer?.<MessageType>();
-      assertOk(consumer);
+      const consumer = eventStore.consumer<MessageType>();
       const received: RecordedMessage<MessageType>[] = [];
 
       consumer.reactor(

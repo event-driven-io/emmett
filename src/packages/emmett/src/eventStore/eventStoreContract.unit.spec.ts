@@ -1,5 +1,5 @@
 import { describe, it } from 'vitest';
-import { assertFalse, assertTrue } from '../testing';
+import { assertTrue } from '../testing';
 import type {
   AnyMessage,
   Message,
@@ -37,9 +37,11 @@ void describe('EventStore consumer contract', () => {
     assertTrue(typeof asBaseStore.consumer === 'undefined');
   });
 
-  void it('accepts a store that does not expose a consumer at all', () => {
-    const store: EventStore = getInMemoryEventStore();
+  void it('calls consumer on any event store without optional chaining', () => {
+    const eventStore: EventStore = getInMemoryEventStore();
 
-    assertFalse('consumer' in store);
+    const consumer = eventStore.consumer();
+
+    assertTrue(typeof consumer.start === 'function');
   });
 });

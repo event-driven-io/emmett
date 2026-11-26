@@ -3,8 +3,8 @@ import { dumbo, type Dumbo } from '@event-driven-io/dumbo';
 import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
 import type { EmmettError } from '@event-driven-io/emmett';
 import {
+  assertDeepEqual,
   assertEqual,
-  assertThatArray,
   assertThrowsAsync,
   defaultTag,
   EmmettAttributes,
@@ -125,7 +125,9 @@ void describe('PostgreSQL event store started consumer', () => {
         try {
           await consumer.start();
 
-          assertThatArray(result).containsElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored);
         } finally {
           await consumer.close();
         }
@@ -167,7 +169,9 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored);
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -221,7 +225,9 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsOnlyElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored.slice(initialEvents.length));
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -273,10 +279,9 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsElementsMatching([
-            ...initialEvents,
-            ...events,
-          ]);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored);
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -334,7 +339,9 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsOnlyElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored.slice(initialEvents.length));
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -402,7 +409,9 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await newConsumer.whenCaughtUp();
 
-          assertThatArray(result).containsOnlyElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored.slice(initialEvents.length));
         } finally {
           await newConsumer.close();
           await consumerPromise;
@@ -453,9 +462,9 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsOnlyElementsMatching(events);
-        } catch (error) {
-          console.log(error);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored.slice(initialEvents.length));
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -499,7 +508,9 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsElementsMatching(events);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored);
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -547,7 +558,12 @@ void describe('PostgreSQL event store started consumer', () => {
 
         await eventStore.appendToStream(streamName, firstBatch);
         await consumer.whenCaughtUp();
-        assertThatArray(result).containsOnlyElementsMatching(firstBatch);
+        const { events: storedAfterFirstRun } =
+          await eventStore.readStream<GuestStayEvent>(streamName);
+        assertDeepEqual(
+          result,
+          storedAfterFirstRun.slice(initialEvents.length),
+        );
         await consumer.stop();
         await firstConsumerPromise;
 
@@ -568,7 +584,12 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(result).containsOnlyElementsMatching(secondBatch);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(
+            result,
+            stored.slice(initialEvents.length + firstBatch.length),
+          );
         } finally {
           await consumer.close();
           await secondConsumerPromise;
@@ -634,7 +655,12 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await eventStore.appendToStream(streamName, firstBatch);
           await firstConsumer.whenCaughtUp();
-          assertThatArray(result).containsOnlyElementsMatching(firstBatch);
+          const { events: storedAfterFirstRun } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(
+            result,
+            storedAfterFirstRun.slice(initialEvents.length),
+          );
         } finally {
           await firstConsumer.close();
           await firstConsumerPromise;
@@ -668,10 +694,12 @@ void describe('PostgreSQL event store started consumer', () => {
           await eventStore.appendToStream(streamName, liveBatch);
           await secondConsumer.whenCaughtUp();
 
-          assertThatArray(result).containsOnlyElementsMatching([
-            ...secondBatch,
-            ...liveBatch,
-          ]);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(
+            result,
+            stored.slice(initialEvents.length + firstBatch.length),
+          );
         } finally {
           await secondConsumer.close();
           await secondConsumerPromise;
@@ -733,11 +761,10 @@ void describe('PostgreSQL event store started consumer', () => {
 
             // Then the BEGINNING processor sees the whole history,
             // while the END processor sees only messages appended after start
-            assertThatArray(fromBeginning).containsElementsMatching([
-              ...initialEvents,
-              ...newEvents,
-            ]);
-            assertThatArray(fromEnd).containsOnlyElementsMatching(newEvents);
+            const { events: stored } =
+              await eventStore.readStream<GuestStayEvent>(streamName);
+            assertDeepEqual(fromBeginning, stored);
+            assertDeepEqual(fromEnd, stored.slice(initialEvents.length));
           } finally {
             await consumer.close();
             await consumerPromise;
@@ -801,11 +828,13 @@ void describe('PostgreSQL event store started consumer', () => {
 
             await consumer.whenCaughtUp();
 
-            assertThatArray(fromResuming).containsOnlyElementsMatching([
-              ...backlogEvents,
-              ...newEvents,
-            ]);
-            assertThatArray(fromEnd).containsOnlyElementsMatching(newEvents);
+            const { events: stored } =
+              await eventStore.readStream<GuestStayEvent>(streamName);
+            assertDeepEqual(fromResuming, stored.slice(initialEvents.length));
+            assertDeepEqual(
+              fromEnd,
+              stored.slice(initialEvents.length + backlogEvents.length),
+            );
           } finally {
             await consumer.close();
             await consumerPromise;
@@ -821,10 +850,11 @@ void describe('PostgreSQL event store started consumer', () => {
           const otherGuestId = uuid();
           const streamName = `guestStay-${guestId}`;
 
-          await eventStore.appendToStream(streamName, [
+          const initialEvents: GuestStayEvent[] = [
             { type: 'GuestCheckedIn', data: { guestId } },
             { type: 'GuestCheckedOut', data: { guestId } },
-          ]);
+          ];
+          await eventStore.appendToStream(streamName, initialEvents);
 
           const newEvents: GuestStayEvent[] = [
             { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
@@ -861,8 +891,10 @@ void describe('PostgreSQL event store started consumer', () => {
 
             await consumer.whenCaughtUp();
 
-            assertThatArray(firstEnd).containsOnlyElementsMatching(newEvents);
-            assertThatArray(secondEnd).containsOnlyElementsMatching(newEvents);
+            const { events: stored } =
+              await eventStore.readStream<GuestStayEvent>(streamName);
+            assertDeepEqual(firstEnd, stored.slice(initialEvents.length));
+            assertDeepEqual(secondEnd, stored.slice(initialEvents.length));
           } finally {
             await consumer.close();
             await consumerPromise;
@@ -879,10 +911,11 @@ void describe('PostgreSQL event store started consumer', () => {
         const otherGuestId = uuid();
         const streamName = `guestStay-${guestId}`;
 
-        await eventStore.appendToStream(streamName, [
+        const initialEvents: GuestStayEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId } },
           { type: 'GuestCheckedOut', data: { guestId } },
-        ]);
+        ];
+        await eventStore.appendToStream(streamName, initialEvents);
 
         const firstAppend: GuestStayEvent[] = [
           { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
@@ -914,10 +947,9 @@ void describe('PostgreSQL event store started consumer', () => {
 
           await consumer.whenCaughtUp();
 
-          assertThatArray(fromEnd).containsOnlyElementsMatching([
-            ...firstAppend,
-            ...secondAppend,
-          ]);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(fromEnd, stored.slice(initialEvents.length));
         } finally {
           await consumer.close();
           await consumerPromise;
@@ -998,21 +1030,18 @@ void describe('PostgreSQL event store started consumer', () => {
             await secondConsumerPromise;
           }
 
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          const firstRunEnd = initialEvents.length + firstNewEvents.length;
           const expectedFirstRun =
             startFrom === 'BEGINNING'
-              ? [...initialEvents, ...firstNewEvents]
-              : firstNewEvents;
+              ? stored.slice(0, firstRunEnd)
+              : stored.slice(initialEvents.length, firstRunEnd);
           const expectedSecondRun =
-            startFrom === 'BEGINNING'
-              ? [...initialEvents, ...firstNewEvents, ...secondNewEvents]
-              : secondNewEvents;
+            startFrom === 'BEGINNING' ? stored : stored.slice(firstRunEnd);
 
-          assertThatArray(firstRun).containsOnlyElementsMatching(
-            expectedFirstRun,
-          );
-          assertThatArray(secondRun).containsOnlyElementsMatching(
-            expectedSecondRun,
-          );
+          assertDeepEqual(firstRun, expectedFirstRun);
+          assertDeepEqual(secondRun, expectedSecondRun);
         },
       );
 
@@ -1085,21 +1114,18 @@ void describe('PostgreSQL event store started consumer', () => {
             await secondConsumerPromise;
           }
 
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          const firstRunEnd = initialEvents.length + firstNewEvents.length;
           const expectedFirstRun =
             startFrom === 'BEGINNING'
-              ? [...initialEvents, ...firstNewEvents]
-              : firstNewEvents;
+              ? stored.slice(0, firstRunEnd)
+              : stored.slice(initialEvents.length, firstRunEnd);
           const expectedSecondRun =
-            startFrom === 'BEGINNING'
-              ? [...initialEvents, ...firstNewEvents, ...secondNewEvents]
-              : secondNewEvents;
+            startFrom === 'BEGINNING' ? stored : stored.slice(firstRunEnd);
 
-          assertThatArray(firstRun).containsOnlyElementsMatching(
-            expectedFirstRun,
-          );
-          assertThatArray(secondRun).containsOnlyElementsMatching(
-            expectedSecondRun,
-          );
+          assertDeepEqual(firstRun, expectedFirstRun);
+          assertDeepEqual(secondRun, expectedSecondRun);
         },
       );
     });
@@ -1145,10 +1171,12 @@ void describe('PostgreSQL event store started consumer', () => {
           await consumerPromise;
 
           // Then - should only have GuestCheckedIn events, not GuestCheckedOut
-          assertThatArray(result).containsOnlyElementsMatching([
-            { type: 'GuestCheckedIn', data: { guestId } },
-            { type: 'GuestCheckedIn', data: { guestId: otherGuestId } },
-          ]);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(
+            result,
+            stored.filter((event) => event.type === 'GuestCheckedIn'),
+          );
         } finally {
           await consumer.close();
         }
@@ -1490,9 +1518,9 @@ void describe('PostgreSQL event store started consumer', () => {
         try {
           await consumer.start();
 
-          assertThatArray(result).containsOnlyElementsMatching([
-            { type: 'GuestCheckedOut', data: { guestId } },
-          ]);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored.slice(1));
         } finally {
           await consumer.close();
         }
@@ -1592,7 +1620,9 @@ void describe('PostgreSQL event store started consumer', () => {
 
         try {
           await consumer2.start();
-          assertThatArray(result).containsOnlyElementsMatching([nextEvent]);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored.slice(1));
         } finally {
           await consumer2.close();
         }
@@ -1643,9 +1673,9 @@ void describe('PostgreSQL event store started consumer', () => {
         try {
           await consumer2.start();
 
-          assertThatArray(result).containsOnlyElementsMatching([
-            { type: 'GuestCheckedOut', data: { guestId } },
-          ]);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored.slice(1));
         } finally {
           await consumer2.close();
         }
@@ -1692,9 +1722,9 @@ void describe('PostgreSQL event store started consumer', () => {
         try {
           await consumer.start();
 
-          assertThatArray(result).containsElementsMatching([
-            { type: 'GuestCheckedIn', data: { guestId } },
-          ]);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored);
         } finally {
           await consumer.close();
         }
@@ -1763,9 +1793,9 @@ void describe('PostgreSQL event store started consumer', () => {
         try {
           await consumer.start();
 
-          assertThatArray(result).containsOnlyElementsMatching([
-            { type: 'GuestCheckedOut', data: { guestId } },
-          ]);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result, stored.slice(1));
         } finally {
           await consumer.close();
         }
@@ -1815,8 +1845,10 @@ void describe('PostgreSQL event store started consumer', () => {
             consumer2.whenCaughtUp(),
           ]);
 
-          assertThatArray(result1).containsOnlyElementsMatching([event]);
-          assertThatArray(result2).containsOnlyElementsMatching([event]);
+          const { events: stored } =
+            await eventStore.readStream<GuestStayEvent>(streamName);
+          assertDeepEqual(result1, stored);
+          assertDeepEqual(result2, stored);
         } finally {
           await Promise.all([consumer1.close(), consumer2.close()]);
           await Promise.all([consumer1Promise, consumer2Promise]);

@@ -4,6 +4,7 @@ import {
   testAggregateStream,
   testAppendToStream,
   testCommandHandling,
+  testConsumerSchemaVersion,
   testSchemaVersion,
   testStreamExists,
 } from '../features';
@@ -21,16 +22,23 @@ describe('InMemoryEventStore', () => {
 
   testStreamExists(() => Promise.resolve(getInMemoryEventStore()));
 
+  const storeMetadata = {
+    globalPosition: expect.any(String) as unknown,
+    checkpoint: expect.any(String) as unknown,
+    correlationId: expect.any(String) as unknown,
+    causationId: expect.any(String) as unknown,
+    traceId: expect.any(String) as unknown,
+    spanId: expect.any(String) as unknown,
+  };
+
   testSchemaVersion(() => Promise.resolve(getInMemoryEventStore()), {
     getInitialIndex: () => 1n,
-    storeMetadata: {
-      globalPosition: expect.any(String) as unknown,
-      checkpoint: expect.any(String) as unknown,
-      correlationId: expect.any(String) as unknown,
-      causationId: expect.any(String) as unknown,
-      traceId: expect.any(String) as unknown,
-      spanId: expect.any(String) as unknown,
-    },
+    storeMetadata,
+  });
+
+  testConsumerSchemaVersion(() => Promise.resolve(getInMemoryEventStore()), {
+    getInitialIndex: () => 1n,
+    storeMetadata,
   });
 
   // void it('Successful subscription and processing of events', async () => {

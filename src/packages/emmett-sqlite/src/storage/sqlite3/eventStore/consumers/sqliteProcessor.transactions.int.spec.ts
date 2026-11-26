@@ -6,7 +6,9 @@ import {
   assertDeepEqual,
   assertEqual,
   assertTrue,
+  WorkflowHandler,
   workflowStreamName,
+  type WorkflowOptions,
 } from '@event-driven-io/emmett';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -32,6 +34,33 @@ import { readProcessorCheckpoint } from '../../../../eventStore/schema/readProce
 import { sqliteEventStoreConsumer } from '../../../../eventStore/consumers/sqliteEventStoreConsumer';
 
 const withDeadline = { timeout: 30000 };
+
+const workflowProcessorOptions: WorkflowOptions<
+  GroupCheckoutInput,
+  GroupCheckout,
+  GroupCheckoutOutput
+> = {
+  workflow: GroupCheckoutWorkflow,
+  getWorkflowId: (input) =>
+    (input.data as { groupCheckoutId?: string }).groupCheckoutId ?? null,
+  inputs: {
+    commands: ['InitiateGroupCheckout', 'TimeoutGroupCheckout'],
+    events: ['GuestCheckedOut', 'GuestCheckoutFailed'],
+  },
+  outputs: {
+    commands: ['CheckOut'],
+    events: [
+      'GroupCheckoutCompleted',
+      'GroupCheckoutFailed',
+      'GroupCheckoutTimedOut',
+    ],
+  },
+};
+
+const handleWorkflowWithSeparateInbox = WorkflowHandler({
+  ...workflowProcessorOptions,
+  separateInputInboxFromProcessing: true,
+});
 
 void describe('SQLite processor transaction handling', () => {
   const testDatabasePath = path.dirname(fileURLToPath(import.meta.url));
@@ -76,21 +105,7 @@ void describe('SQLite processor transaction handling', () => {
         GroupCheckout,
         GroupCheckoutOutput
       >({
-        workflow: GroupCheckoutWorkflow,
-        getWorkflowId: (input) =>
-          (input.data as { groupCheckoutId?: string }).groupCheckoutId ?? null,
-        inputs: {
-          commands: ['InitiateGroupCheckout', 'TimeoutGroupCheckout'],
-          events: ['GuestCheckedOut', 'GuestCheckoutFailed'],
-        },
-        outputs: {
-          commands: ['CheckOut'],
-          events: [
-            'GroupCheckoutCompleted',
-            'GroupCheckoutFailed',
-            'GroupCheckoutTimedOut',
-          ],
-        },
+        ...workflowProcessorOptions,
         separateInputInboxFromProcessing: true,
         stopAfter: (message) =>
           message.type === 'GroupCheckoutInitiated' &&
@@ -117,17 +132,16 @@ void describe('SQLite processor transaction handling', () => {
       try {
         const consumerPromise = consumer.start();
 
-        await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
-          {
-            type: 'InitiateGroupCheckout',
-            data: {
-              groupCheckoutId,
-              clerkId: 'clerk-1',
-              guestStayAccountIds,
-              now,
-            },
+        await handleWorkflowWithSeparateInbox(eventStore, {
+          type: 'InitiateGroupCheckout',
+          kind: 'Command',
+          data: {
+            groupCheckoutId,
+            clerkId: 'clerk-1',
+            guestStayAccountIds,
+            now,
           },
-        ]);
+        });
 
         await consumerPromise;
       } finally {

@@ -345,7 +345,7 @@ export const getSQLiteEventStore = <
       readOptions?.observability,
     );
 
-  return {
+  const eventStore: SQLiteEventStore = {
     async aggregateStream<
       State,
       EventType extends Event,
@@ -517,6 +517,7 @@ export const getSQLiteEventStore = <
           consumerOptions?.observability,
         ),
         pool,
+        messageStore: eventStore,
         hooks: storeMigrates
           ? {
               onInit: async () => {
@@ -614,4 +615,6 @@ export const getSQLiteEventStore = <
       },
     },
   };
+
+  return eventStore;
 };

@@ -22,6 +22,7 @@ export default defineConfig({
       'packages/emmett-tests/vitest.integration.config.ts',
       'packages/emmett-sqlite',
       'vitest.cloudflare.config.ts',
+      'docs/snippets/vitest.config.ts',
       {
         test: {
           name: 'bundle',

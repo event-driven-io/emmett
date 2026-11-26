@@ -25,7 +25,6 @@ export type InMemoryProjectionHandlerOptions<EventType extends Event = Event> =
     projections: InMemoryProjectionDefinition<EventType>[];
     events: ReadEvent<EventType, InMemoryReadEventMetadata>[];
     database: InMemoryDatabase;
-    eventStore?: InMemoryProjectionHandlerContext['eventStore'];
     startInlineProjectionScope: (
       fn: (observabilityScope: ObservabilityScope) => unknown,
     ) => Promise<unknown>;
@@ -40,13 +39,7 @@ export const handleInMemoryProjections = async <
 >(
   options: InMemoryProjectionHandlerOptions<EventType>,
 ): Promise<void> => {
-  const {
-    projections,
-    events,
-    database,
-    eventStore,
-    startInlineProjectionScope,
-  } = options;
+  const { projections, events, database, startInlineProjectionScope } = options;
 
   // Process each projection
   for (const projection of projections) {
@@ -57,7 +50,6 @@ export const handleInMemoryProjections = async <
 
     await startInlineProjectionScope((observabilityScope) =>
       projection.handle(filteredEvents, {
-        eventStore,
         database,
         session: {},
         observabilityScope,

@@ -380,6 +380,7 @@ const initiateGroupCheckout = (
 
   const checkoutGuestStays: CheckOut[] = data.guestStayAccountIds.map((id) => ({
     type: 'CheckOut',
+    kind: 'Command',
     data: {
       guestStayAccountId: id,
       groupCheckoutId: data.groupCheckoutId,

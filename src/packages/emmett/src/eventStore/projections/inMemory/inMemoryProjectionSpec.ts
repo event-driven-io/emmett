@@ -24,10 +24,7 @@ import {
   type Event,
   type ReadEvent,
 } from '../../../typing';
-import type {
-  InMemoryEventStore,
-  InMemoryReadEventMetadata,
-} from '../../inMemoryEventStore';
+import type { InMemoryReadEventMetadata } from '../../inMemoryEventStore';
 
 // Define a more specific type for T that extends Document
 type DocumentWithId = Document & { _id?: string | number };
@@ -110,39 +107,10 @@ export const InMemoryProjectionSpec = {
               });
             }
 
-            // Create a minimal mock EventStore implementation
-            const mockEventStore = {
-              database,
-              aggregateStream: async () => {
-                return Promise.resolve({
-                  state: {},
-                  currentStreamVersion: 0n,
-                  streamExists: false,
-                });
-              },
-              readStream: async () => {
-                return Promise.resolve({
-                  events: [],
-                  currentStreamVersion: 0n,
-                  streamExists: false,
-                });
-              },
-              appendToStream: async () => {
-                return Promise.resolve({
-                  nextExpectedStreamVersion: 0n,
-                  createdNewStream: false,
-                });
-              },
-              streamExists: async () => {
-                return Promise.resolve(false);
-              },
-            } as InMemoryEventStore;
-
             await handleInMemoryProjections({
               events: allEvents,
               projections: [projection],
               database,
-              eventStore: mockEventStore,
               startInlineProjectionScope: (fn) =>
                 Promise.resolve(fn(noopScope)),
             });

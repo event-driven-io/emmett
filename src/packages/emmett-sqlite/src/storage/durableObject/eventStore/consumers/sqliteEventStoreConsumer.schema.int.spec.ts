@@ -21,6 +21,7 @@ import {
   assertRejects,
   assertTrue,
   inMemoryReactor,
+  WorkflowHandler,
   workflowStreamName,
   type Event,
   type WorkflowOptions,
@@ -76,6 +77,11 @@ const workflowProcessorOptions: WorkflowOptions<
     ],
   },
 };
+
+const handleWorkflowWithSeparateInbox = WorkflowHandler({
+  ...workflowProcessorOptions,
+  separateInputInboxFromProcessing: true,
+});
 
 void describe('SQLite event store consumer schema configuration', () => {
   const databaseSchemaName = 'events';
@@ -153,9 +159,10 @@ void describe('SQLite event store consumer schema configuration', () => {
         schema: { autoMigration: 'None', databaseSchemaName },
       });
       await eventStore.schema.migrate();
-      await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
+      await handleWorkflowWithSeparateInbox(
+        eventStore,
         initiateGroupCheckout(groupCheckoutId),
-      ]);
+      );
 
       const consumer = eventStore.consumer();
       consumer.workflowProcessor<
@@ -201,9 +208,10 @@ void describe('SQLite event store consumer schema configuration', () => {
         schema: { autoMigration: 'None', databaseSchemaName },
       });
       await eventStore.schema.migrate();
-      await eventStore.appendToStream(`groupCheckout-${groupCheckoutId}`, [
+      await handleWorkflowWithSeparateInbox(
+        eventStore,
         initiateGroupCheckout(groupCheckoutId),
-      ]);
+      );
 
       const consumer = sqliteEventStoreConsumer({
         driver: durableObjectEventStoreDriver,
@@ -522,6 +530,7 @@ void describe('SQLite event store consumer schema configuration', () => {
 
   const initiateGroupCheckout = (groupCheckoutId: string) => ({
     type: 'InitiateGroupCheckout' as const,
+    kind: 'Command' as const,
     data: {
       groupCheckoutId,
       clerkId: 'clerk-1',
