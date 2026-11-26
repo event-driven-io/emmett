@@ -33,6 +33,29 @@ export const delayOrAbort = (
     signal.addEventListener('abort', onAbort, { once: true });
   });
 
+export const Aborted = Symbol('Aborted');
+
+/**
+ * Races one promise against the signal. The abort listener is dropped once the
+ * promise settles, so nothing outlives the race and holds on to its result.
+ */
+export const orAborted = <T>(
+  promise: Promise<T>,
+  signal: AbortSignal | undefined,
+): Promise<T | typeof Aborted> => {
+  if (signal === undefined) return promise;
+  if (signal.aborted) return Promise.resolve(Aborted);
+
+  return new Promise((resolve, reject) => {
+    const onAbort = () => resolve(Aborted);
+
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise
+      .finally(() => signal.removeEventListener('abort', onAbort))
+      .then(resolve, reject);
+  });
+};
+
 export type AsyncAwaiter<T = void> = {
   wait: Promise<T>;
   resolve: (value: T | PromiseLike<T>) => void;
