@@ -274,7 +274,7 @@ const eventStore = getSQLiteEventStore({
 });
 ```
 
-### Transactions in a Session
+### Appending to Many Streams in One Transaction
 
 To append to many streams so that they commit together, let the session open a transaction. It commits when the callback resolves and rolls back when it throws:
 

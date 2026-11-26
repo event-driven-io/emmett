@@ -226,7 +226,7 @@ const eventStore = getPostgreSQLEventStore(connectionString, {
 
 `onBeforeCommit` runs in the append's transaction, before it commits. What it writes through the transaction it receives commits or rolls back together with the events. Do not call systems outside the database from it, for example to send an e-mail: if the transaction rolls back, the e-mail is already sent. Write a row through the transaction instead, or handle the committed events in a reactor.
 
-### Transactions in a Session
+### Appending to Many Streams in One Transaction
 
 To append to many streams so that they commit together, let the session open a transaction. It commits when the callback resolves and rolls back when it throws:
 
