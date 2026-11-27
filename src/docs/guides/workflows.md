@@ -374,6 +374,18 @@ The input remains recorded, so delivering the same command again is still treate
 
 The other decision-middleware choices have the same output behavior as command handling: `skipOn` omits the matching output and continues, `stopOn` omits it and stops, and `stopAfter` stores it before stopping. See the [CommandHandler reference](/api-reference/commandhandler#decision-middleware) for their exact result contracts.
 
+## Use the Workflow Stream as an Inbox {#separate-inbox}
+
+With `separateInputInboxFromProcessing: true`, the workflow handler only records the input in the workflow stream. The workflow processor decides it later.
+
+Every input is in the stream before any decision, so if processing gets stuck, the stream shows what is waiting. The cost is latency: each input needs one more hop before it's decided.
+
+If the processor stops after appending the outputs, but before storing its checkpoint, it gets the same input again after the restart and decides it again. Set `useCausationIdForIdempotencyCheck: true` to skip inputs that already have outputs:
+
+<<< @./../packages/emmett/src/eventStore/consumers/inMemoryEventStoreConsumer.workflow.unit.spec.ts#workflow-causation-idempotency
+
+The workflow finds those outputs by their `causationId`, so don't override it through the handle options. An input that produced no outputs is decided again.
+
 ## Testing Workflows
 
 Workflows are pure functions, making them easy to test:

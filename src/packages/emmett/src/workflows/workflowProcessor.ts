@@ -35,6 +35,7 @@ export type WorkflowOptions<
   ) => string | null;
   mapWorkflowId?: (workflowId: string) => string;
   separateInputInboxFromProcessing?: boolean;
+  useCausationIdForIdempotencyCheck?: boolean;
   inputs: {
     commands: CanHandle<WorkflowCommand<Input>>;
     events: CanHandle<WorkflowEvent<Input>>;
