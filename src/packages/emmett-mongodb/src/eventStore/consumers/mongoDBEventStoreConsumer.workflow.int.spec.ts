@@ -1,9 +1,11 @@
 import {
+  assertDeepEqual,
   assertEqual,
   assertThatArray,
   WorkflowHandler,
   workflowOutputHandler,
   workflowStreamName,
+  type Command,
   type Event,
   type Closeable,
   type WorkflowOptions,
@@ -60,6 +62,43 @@ const handleWorkflowWithSeparateInbox = WorkflowHandler({
   separateInputInboxFromProcessing: true,
 });
 
+type PaymentAuthorized = Event<
+  'PaymentAuthorized',
+  { paymentId: string; amount: number },
+  { messageId: string }
+>;
+type CapturePayment = Command<
+  'CapturePayment',
+  { paymentId: string; amount: number }
+>;
+type PaymentCapture = { authorizedAmount: number };
+
+const paymentCaptureOptions: WorkflowOptions<
+  PaymentAuthorized,
+  PaymentCapture,
+  CapturePayment
+> = {
+  workflow: {
+    name: 'PaymentCaptureWorkflow',
+    initialState: () => ({ authorizedAmount: 0 }),
+    evolve: (state, { type, data }) =>
+      type === 'PaymentAuthorized'
+        ? { authorizedAmount: state.authorizedAmount + data.amount }
+        : state,
+    decide: ({ data: { paymentId, amount } }, { authorizedAmount }) => ({
+      type: 'CapturePayment',
+      kind: 'Command',
+      data: { paymentId, amount: authorizedAmount + amount },
+    }),
+  },
+  getWorkflowId: (input) => input.data.paymentId,
+  inputs: { commands: [], events: ['PaymentAuthorized'] },
+  outputs: { commands: ['CapturePayment'], events: [] },
+  separateInputInboxFromProcessing: true,
+};
+
+const handlePaymentCapture = WorkflowHandler(paymentCaptureOptions);
+
 void describe('MongoDB event store workflow processor', () => {
   let database: SharedMongoDBDatabase;
   let connectionString: string;
@@ -101,194 +140,51 @@ void describe('MongoDB event store workflow processor', () => {
     }
   });
 
-  void it(
-    'processes InitiateGroupCheckout and produces GroupCheckoutInitiated and CheckOut messages',
-    withDeadline,
-    async () => {
-      const groupCheckoutId = uuid();
-      const guestStayAccountIds = [uuid(), uuid()];
-      const now = new Date();
+  void it('ignores a message without a workflow id', withDeadline, async () => {
+    const guestId = uuid();
+    const nonExistentStreamId = uuid();
 
-      const consumer = mongoDBEventStoreConsumer({
-        connectionString,
-        clientOptions: { directConnection: true },
-      });
+    const consumer = mongoDBEventStoreConsumer({
+      connectionString,
+      clientOptions: { directConnection: true },
+    });
 
-      consumer.workflowProcessor<
-        GroupCheckoutInput,
-        GroupCheckout,
-        GroupCheckoutOutput
-      >({
-        ...workflowProcessorOptions,
-        separateInputInboxFromProcessing: true,
-        stopAfter: (message) =>
-          message.type === 'GroupCheckoutInitiated' &&
-          message.data.groupCheckoutId === groupCheckoutId,
-      });
+    consumer.workflowProcessor<
+      GroupCheckoutInput,
+      GroupCheckout,
+      GroupCheckoutOutput
+    >({
+      ...workflowProcessorOptions,
+      getWorkflowId: () => null,
+      stopAfter: (message) =>
+        message.type === 'GuestCheckedOut' &&
+        message.data.guestStayAccountId === guestId,
+    });
 
-      try {
-        const consumerPromise = consumer.start();
+    try {
+      const consumerPromise = consumer.start();
 
-        await handleWorkflowWithSeparateInbox(eventStore, {
-          type: 'InitiateGroupCheckout',
-          kind: 'Command',
+      await eventStore.appendToStream(`guestStay-${guestId}`, [
+        {
+          type: 'GuestCheckedOut',
           data: {
-            groupCheckoutId,
-            clerkId: 'clerk-1',
-            guestStayAccountIds,
-            now,
+            guestStayAccountId: guestId,
+            checkedOutAt: new Date(),
           },
-        });
-
-        await consumerPromise;
-
-        const { events } = await eventStore.readStream(
-          workflowStreamName({
-            workflowName: 'GroupCheckoutWorkflow',
-            workflowId: groupCheckoutId,
-          }),
-        );
-
-        assertThatArray(events).isNotEmpty();
-        assertEqual(
-          events[0]!.type,
-          'GroupCheckoutWorkflow:InitiateGroupCheckout',
-        );
-        assertEqual(events[0]!.kind, 'Command');
-        assertEqual(events[1]!.type, 'GroupCheckoutInitiated');
-        assertEqual(events[1]!.kind, 'Event');
-        assertEqual(events[2]!.type, 'CheckOut');
-        assertEqual(events[2]!.kind, 'Command');
-        assertEqual(events[3]!.type, 'CheckOut');
-        assertEqual(events[3]!.kind, 'Command');
-      } finally {
-        await consumer.close();
-      }
-    },
-  );
-
-  void it(
-    'completes group checkout after all guests check out',
-    withDeadline,
-    async () => {
-      const groupCheckoutId = uuid();
-      const guestId = uuid();
-      const now = new Date();
-
-      await handleWorkflow(eventStore, {
-        type: 'InitiateGroupCheckout',
-        kind: 'Command',
-        data: {
-          groupCheckoutId,
-          clerkId: 'clerk-1',
-          guestStayAccountIds: [guestId],
-          now,
         },
-      });
+      ]);
 
-      const completeConsumer = mongoDBEventStoreConsumer({
-        connectionString,
-        clientOptions: { directConnection: true },
-      });
+      await consumerPromise;
 
-      completeConsumer.workflowProcessor<
-        GroupCheckoutInput,
-        GroupCheckout,
-        GroupCheckoutOutput
-      >({
-        ...workflowProcessorOptions,
-        separateInputInboxFromProcessing: true,
-        processorId: `workflow-${groupCheckoutId}-complete`,
-        stopAfter: (message) =>
-          message.type === 'GroupCheckoutCompleted' &&
-          message.data.groupCheckoutId === groupCheckoutId,
-      });
-
-      try {
-        const completePromise = completeConsumer.start();
-
-        await eventStore.appendToStream(`guestStay-${guestId}`, [
-          {
-            type: 'GuestCheckedOut',
-            data: {
-              guestStayAccountId: guestId,
-              checkedOutAt: now,
-              groupCheckoutId,
-            },
-          },
-        ]);
-
-        await completePromise;
-
-        const { events } = await eventStore.readStream(
-          workflowStreamName({
-            workflowName: 'GroupCheckoutWorkflow',
-            workflowId: groupCheckoutId,
-          }),
-        );
-
-        const eventTypes = events.map((e) => e.type);
-        assertThatArray(eventTypes).containsElements([
-          'GroupCheckoutWorkflow:InitiateGroupCheckout',
-          'GroupCheckoutInitiated',
-          'GroupCheckoutWorkflow:GuestCheckedOut',
-          'GroupCheckoutCompleted',
-        ]);
-      } finally {
-        await completeConsumer.close();
-      }
-    },
-  );
+      const { events } = await eventStore.readStream(nonExistentStreamId);
+      assertThatArray(events).isEmpty();
+    } finally {
+      await consumer.close();
+    }
+  });
 
   void it(
-    'ignores messages when getWorkflowId returns null',
-    withDeadline,
-    async () => {
-      const guestId = uuid();
-      const nonExistentStreamId = uuid();
-
-      const consumer = mongoDBEventStoreConsumer({
-        connectionString,
-        clientOptions: { directConnection: true },
-      });
-
-      consumer.workflowProcessor<
-        GroupCheckoutInput,
-        GroupCheckout,
-        GroupCheckoutOutput
-      >({
-        ...workflowProcessorOptions,
-        getWorkflowId: () => null,
-        stopAfter: (message) =>
-          message.type === 'GuestCheckedOut' &&
-          message.data.guestStayAccountId === guestId,
-      });
-
-      try {
-        const consumerPromise = consumer.start();
-
-        await eventStore.appendToStream(`guestStay-${guestId}`, [
-          {
-            type: 'GuestCheckedOut',
-            data: {
-              guestStayAccountId: guestId,
-              checkedOutAt: new Date(),
-            },
-          },
-        ]);
-
-        await consumerPromise;
-
-        const { events } = await eventStore.readStream(nonExistentStreamId);
-        assertThatArray(events).isEmpty();
-      } finally {
-        await consumer.close();
-      }
-    },
-  );
-
-  void it(
-    'processes messages directly in regular mode (separateInputInboxFromProcessing: false)',
+    'appends the input and its outputs together (separateInputInboxFromProcessing: false)',
     withDeadline,
     async () => {
       const groupCheckoutId = uuid();
@@ -355,7 +251,7 @@ void describe('MongoDB event store workflow processor', () => {
   );
 
   void it(
-    'stores input first then processes in double-hop mode (separateInputInboxFromProcessing: true)',
+    'stores the input, then appends the outputs of its decision (separateInputInboxFromProcessing: true)',
     withDeadline,
     async () => {
       const groupCheckoutId = uuid();
@@ -421,12 +317,16 @@ void describe('MongoDB event store workflow processor', () => {
   );
 
   void it(
-    'completes group checkout when GuestCheckedOut arrives on external stream',
+    'runs decide once when the same message is delivered twice (separateInputInboxFromProcessing: true)',
     withDeadline,
     async () => {
-      const groupCheckoutId = uuid();
-      const guestStayAccountId = uuid();
-      const now = new Date();
+      const paymentId = uuid();
+      const laterPaymentId = uuid();
+      const paymentAuthorized: PaymentAuthorized = {
+        type: 'PaymentAuthorized',
+        data: { paymentId, amount: 100 },
+        metadata: { messageId: uuid() },
+      };
 
       const consumer = mongoDBEventStoreConsumer({
         connectionString,
@@ -434,58 +334,38 @@ void describe('MongoDB event store workflow processor', () => {
       });
 
       consumer.workflowProcessor<
-        GroupCheckoutInput,
-        GroupCheckout,
-        GroupCheckoutOutput
+        PaymentAuthorized,
+        PaymentCapture,
+        CapturePayment
       >({
-        ...workflowProcessorOptions,
-        separateInputInboxFromProcessing: true,
-        stopAfter: (message) =>
-          message.type === 'GroupCheckoutCompleted' &&
-          message.data.groupCheckoutId === groupCheckoutId,
+        ...paymentCaptureOptions,
+        stopAfter: (message) => message.data.paymentId === laterPaymentId,
       });
 
       try {
         const consumerPromise = consumer.start();
 
-        await handleWorkflow(eventStore, {
-          type: 'InitiateGroupCheckout',
-          kind: 'Command',
-          data: {
-            groupCheckoutId,
-            clerkId: 'clerk-1',
-            guestStayAccountIds: [guestStayAccountId],
-            now,
-          },
+        await handlePaymentCapture(eventStore, paymentAuthorized);
+        await handlePaymentCapture(eventStore, paymentAuthorized);
+        await handlePaymentCapture(eventStore, {
+          type: 'PaymentAuthorized',
+          data: { paymentId: laterPaymentId, amount: 100 },
+          metadata: { messageId: uuid() },
         });
-
-        await eventStore.appendToStream(`guestStay-${guestStayAccountId}`, [
-          {
-            type: 'GuestCheckedOut',
-            data: {
-              guestStayAccountId,
-              checkedOutAt: now,
-              groupCheckoutId,
-            },
-          },
-        ]);
 
         await consumerPromise;
 
         const { events } = await eventStore.readStream(
           workflowStreamName({
-            workflowName: 'GroupCheckoutWorkflow',
-            workflowId: groupCheckoutId,
+            workflowName: 'PaymentCaptureWorkflow',
+            workflowId: paymentId,
           }),
         );
 
-        const eventTypes = events.map((e) => e.type);
-        assertThatArray(eventTypes).containsElements([
-          'GroupCheckoutWorkflow:InitiateGroupCheckout',
-          'GroupCheckoutInitiated',
-          'GroupCheckoutWorkflow:GuestCheckedOut',
-          'GroupCheckoutCompleted',
-        ]);
+        assertEqual(
+          1,
+          events.filter((e) => e.type === 'CapturePayment').length,
+        );
       } finally {
         await consumer.close();
       }
@@ -493,7 +373,126 @@ void describe('MongoDB event store workflow processor', () => {
   );
 
   void it(
-    'completes group checkout when output handler returns input message tagged for decide',
+    'evolves state once when the same message is delivered twice (separateInputInboxFromProcessing: true)',
+    withDeadline,
+    async () => {
+      const paymentId = uuid();
+      const laterPaymentId = uuid();
+      const paymentAuthorized: PaymentAuthorized = {
+        type: 'PaymentAuthorized',
+        data: { paymentId, amount: 100 },
+        metadata: { messageId: uuid() },
+      };
+
+      await handlePaymentCapture(eventStore, paymentAuthorized);
+      await handlePaymentCapture(eventStore, paymentAuthorized);
+      await handlePaymentCapture(eventStore, {
+        type: 'PaymentAuthorized',
+        data: { paymentId, amount: 50 },
+        metadata: { messageId: uuid() },
+      });
+      await handlePaymentCapture(eventStore, {
+        type: 'PaymentAuthorized',
+        data: { paymentId: laterPaymentId, amount: 100 },
+        metadata: { messageId: uuid() },
+      });
+
+      const consumer = mongoDBEventStoreConsumer({
+        connectionString,
+        clientOptions: { directConnection: true },
+      });
+
+      consumer.workflowProcessor<
+        PaymentAuthorized,
+        PaymentCapture,
+        CapturePayment
+      >({
+        ...paymentCaptureOptions,
+        processorId: uuid(),
+        stopAfter: (message) => message.data.paymentId === laterPaymentId,
+      });
+
+      try {
+        await consumer.start();
+      } finally {
+        await consumer.close();
+      }
+
+      const { events } = await eventStore.readStream(
+        workflowStreamName({
+          workflowName: 'PaymentCaptureWorkflow',
+          workflowId: paymentId,
+        }),
+      );
+
+      assertDeepEqual(
+        [
+          { paymentId, amount: 100 },
+          { paymentId, amount: 150 },
+        ],
+        events.filter((e) => e.type === 'CapturePayment').map((e) => e.data),
+      );
+    },
+  );
+
+  void it(
+    'does not run decide again when outputs were appended but the checkpoint was not stored (useCausationIdForIdempotencyCheck: true)',
+    withDeadline,
+    async () => {
+      const paymentId = uuid();
+      const laterPaymentId = uuid();
+
+      await handlePaymentCapture(eventStore, {
+        type: 'PaymentAuthorized',
+        data: { paymentId, amount: 100 },
+        metadata: { messageId: uuid() },
+      });
+      await handlePaymentCapture(eventStore, {
+        type: 'PaymentAuthorized',
+        data: { paymentId: laterPaymentId, amount: 100 },
+        metadata: { messageId: uuid() },
+      });
+
+      const processUntilLaterPayment = async (processorId: string) => {
+        const consumer = mongoDBEventStoreConsumer({
+          connectionString,
+          clientOptions: { directConnection: true },
+        });
+
+        consumer.workflowProcessor<
+          PaymentAuthorized,
+          PaymentCapture,
+          CapturePayment
+        >({
+          ...paymentCaptureOptions,
+          useCausationIdForIdempotencyCheck: true,
+          processorId,
+          stopAfter: (message) => message.data.paymentId === laterPaymentId,
+        });
+
+        try {
+          await consumer.start();
+        } finally {
+          await consumer.close();
+        }
+      };
+
+      await processUntilLaterPayment(uuid());
+      await processUntilLaterPayment(uuid());
+
+      const { events } = await eventStore.readStream(
+        workflowStreamName({
+          workflowName: 'PaymentCaptureWorkflow',
+          workflowId: paymentId,
+        }),
+      );
+
+      assertEqual(1, events.filter((e) => e.type === 'CapturePayment').length);
+    },
+  );
+
+  void it(
+    'decides a message that the output handler returns (separateInputInboxFromProcessing: true)',
     withDeadline,
     async () => {
       const groupCheckoutId = uuid();
@@ -574,7 +573,88 @@ void describe('MongoDB event store workflow processor', () => {
   );
 
   void it(
-    'processes external events in double-hop mode after storing with prefix',
+    'completes group checkout after two guests check out (separateInputInboxFromProcessing: true)',
+    withDeadline,
+    async () => {
+      const groupCheckoutId = uuid();
+      const guestStayAccountIds = [uuid(), uuid()];
+      const now = new Date();
+
+      const consumer = mongoDBEventStoreConsumer({
+        connectionString,
+        clientOptions: { directConnection: true },
+      });
+
+      consumer.workflowProcessor<
+        GroupCheckoutInput,
+        GroupCheckout,
+        GroupCheckoutOutput
+      >({
+        ...workflowProcessorOptions,
+        separateInputInboxFromProcessing: true,
+        outputHandler: workflowOutputHandler<
+          GroupCheckoutInput,
+          GroupCheckoutOutput,
+          GroupCheckoutOutput
+        >({
+          canHandle: ['CheckOut'],
+          eachMessage: (msg): GuestCheckedOut => {
+            const checkOut = msg as unknown as CheckOut;
+            return {
+              type: 'GuestCheckedOut',
+              data: {
+                guestStayAccountId: checkOut.data.guestStayAccountId,
+                checkedOutAt: now,
+                groupCheckoutId: checkOut.data.groupCheckoutId,
+              },
+            };
+          },
+        }),
+        stopAfter: (message) =>
+          message.type === 'GroupCheckoutCompleted' &&
+          message.data.groupCheckoutId === groupCheckoutId,
+      });
+
+      try {
+        const consumerPromise = consumer.start();
+
+        await handleWorkflow(eventStore, {
+          type: 'InitiateGroupCheckout',
+          kind: 'Command',
+          data: {
+            groupCheckoutId,
+            clerkId: 'clerk-1',
+            guestStayAccountIds,
+            now,
+          },
+        });
+
+        await consumerPromise;
+
+        const { events } = await eventStore.readStream(
+          workflowStreamName({
+            workflowName: 'GroupCheckoutWorkflow',
+            workflowId: groupCheckoutId,
+          }),
+        );
+
+        const eventTypes = events.map((e) => e.type);
+        assertThatArray(eventTypes).containsElements([
+          'GroupCheckoutWorkflow:InitiateGroupCheckout',
+          'GroupCheckoutInitiated',
+          'CheckOut',
+          'GuestCheckedOut',
+          'GroupCheckoutWorkflow:GuestCheckedOut',
+          'GroupCheckoutCompleted',
+        ]);
+      } finally {
+        await consumer.close();
+      }
+    },
+  );
+
+  void it(
+    'stores an event from another stream before deciding it (separateInputInboxFromProcessing: true)',
     withDeadline,
     async () => {
       const groupCheckoutId = uuid();

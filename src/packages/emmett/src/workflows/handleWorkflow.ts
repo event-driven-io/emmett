@@ -112,6 +112,40 @@ const tagOutputMessage = <Output extends AnyEvent | AnyCommand>(
   };
 };
 
+const originalMessageIdOf = (
+  metadata: object | undefined,
+): string | undefined =>
+  metadata &&
+  'originalMessageId' in metadata &&
+  typeof metadata.originalMessageId === 'string'
+    ? metadata.originalMessageId
+    : undefined;
+
+const causationIdOf = (metadata: object | undefined): string | undefined =>
+  metadata &&
+  'causationId' in metadata &&
+  typeof metadata.causationId === 'string'
+    ? metadata.causationId
+    : undefined;
+
+const streamPositionOf = (metadata: object | undefined): bigint | undefined =>
+  metadata &&
+  'streamPosition' in metadata &&
+  typeof metadata.streamPosition === 'bigint'
+    ? metadata.streamPosition
+    : undefined;
+
+const isStoredBefore = (
+  metadata: object | undefined,
+  inputStreamPosition: bigint | undefined,
+): boolean => {
+  if (inputStreamPosition === undefined) return true;
+
+  const streamPosition = streamPositionOf(metadata);
+
+  return streamPosition !== undefined && streamPosition < inputStreamPosition;
+};
+
 const createWrappedInitialState = <State>(initialState: () => State) => {
   return (): WorkflowInternalState<State> => ({
     userState: initialState(),
@@ -127,6 +161,8 @@ const createWrappedEvolve = <
   evolve: (state: State, event: WorkflowEvent<Input | Output>) => State,
   workflowName: string,
   separateInputInboxFromProcessing: boolean,
+  inputStreamPosition: bigint | undefined,
+  useCausationIdForIdempotencyCheck: boolean,
 ) => {
   return (
     state: WorkflowInternalState<State>,
@@ -134,25 +170,28 @@ const createWrappedEvolve = <
   ): WorkflowInternalState<State> => {
     const metadata = (event as Record<string, unknown>).metadata as
       Record<string, unknown> | undefined;
+    const isInput = metadata?.input === true;
+    const originalMessageId = isInput
+      ? originalMessageIdOf(metadata)
+      : undefined;
 
-    // Track processed inputs for idempotency
-    let processedInputIds = state.processedInputIds;
-    if (
-      metadata?.input === true &&
-      typeof metadata?.originalMessageId === 'string'
-    ) {
-      processedInputIds = new Set(state.processedInputIds);
-      processedInputIds.add(metadata.originalMessageId);
-    }
+    // In separated inbox mode, inputs stored after the one being processed are still sitting in inbox
+    const isWaitingInInbox =
+      separateInputInboxFromProcessing &&
+      isInput &&
+      (originalMessageId === undefined ||
+        !isStoredBefore(metadata, inputStreamPosition));
+    const isDuplicate =
+      originalMessageId !== undefined &&
+      state.processedInputIds.has(originalMessageId);
 
-    // In separated inbox mode, don't apply inputs to state - they're just sitting in inbox
-    // Only outputs (from processing) should update state
-    if (separateInputInboxFromProcessing && metadata?.input === true) {
-      return {
-        userState: state.userState,
-        processedInputIds,
-      };
-    }
+    if (isWaitingInInbox || isDuplicate) return state;
+
+    const causationId =
+      useCausationIdForIdempotencyCheck && !isInput
+        ? causationIdOf(metadata)
+        : undefined;
+    const processedInputId = originalMessageId ?? causationId;
 
     // Strip workflow prefix from input event types
     const eventType = event.type as string;
@@ -165,7 +204,10 @@ const createWrappedEvolve = <
 
     return {
       userState: evolve(state.userState, eventForEvolve),
-      processedInputIds,
+      processedInputIds:
+        processedInputId !== undefined
+          ? new Set(state.processedInputIds).add(processedInputId)
+          : state.processedInputIds,
     };
   };
 };
@@ -374,10 +416,15 @@ export const WorkflowHandler =
                 // Wrap the evolve and initialState for idempotency tracking
                 const wrappedInitialState =
                   createWrappedInitialState(initialState);
+                const inputStreamPosition = hasWorkflowPrefix
+                  ? streamPositionOf(sourceMetadata)
+                  : undefined;
                 const wrappedEvolve = createWrappedEvolve(
                   evolve,
                   workflowName,
                   options.separateInputInboxFromProcessing ?? false,
+                  inputStreamPosition,
+                  options.useCausationIdForIdempotencyCheck ?? false,
                 ) as (
                   state: WorkflowInternalState<State>,
                   event: WorkflowEvent<Input | Output>,
@@ -420,7 +467,15 @@ export const WorkflowHandler =
 
                 // Idempotency: skip if this input was already processed
 
-                if (processedInputIds.has(inputMessageId)) {
+                const originalMessageId = hasWorkflowPrefix
+                  ? (originalMessageIdOf(sourceMetadata) ?? inputMessageId)
+                  : inputMessageId;
+
+                const isProcessed =
+                  processedInputIds.has(originalMessageId) ||
+                  processedInputIds.has(inputMessageId);
+
+                if (isProcessed) {
                   return emptyHandlerResult<Output, Store>(
                     currentStreamVersion,
                   );
