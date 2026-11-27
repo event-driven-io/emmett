@@ -239,7 +239,10 @@ export const WorkflowHandler =
     const collector = workflowCollector(observability);
     const workflowType = options.workflow.name;
     const inputType = (message as { type: string }).type;
-    const workflowId = options.getWorkflowId(message) ?? '';
+    const workflowId = options.getWorkflowId(message);
+
+    if (!workflowId) return emptyHandlerResult<Output, Store>();
+
     const sourceMetadata =
       'metadata' in message && message.metadata
         ? (message.metadata as Partial<MessageMetadataType>)
