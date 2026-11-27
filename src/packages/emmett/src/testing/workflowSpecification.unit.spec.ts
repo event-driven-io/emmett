@@ -1,17 +1,17 @@
 import { describe, it } from 'vitest';
-import {
-  GroupCheckoutWorkflow,
-  GuestStayStatus,
-} from '../workflows/workflow.testHelpers';
+import { GroupCheckoutWorkflow } from '../workflows/workflow.testHelpers';
 import { WorkflowSpecification } from './workflowSpecification';
 
 const now = new Date();
 
+// #region workflow-specification
 const given = WorkflowSpecification.for(GroupCheckoutWorkflow);
+// #endregion workflow-specification
 
 void describe('GroupCheckout workflow', () => {
   void describe('InitiateGroupCheckout', () => {
     void it('produces GroupCheckoutInitiated and CheckOut commands', () => {
+      // #region workflow-test-initiate
       given([])
         .when({
           type: 'InitiateGroupCheckout',
@@ -46,6 +46,7 @@ void describe('GroupCheckout workflow', () => {
             metadata: { now },
           },
         ]);
+      // #endregion workflow-test-initiate
     });
 
     void it('ignores initiation when already pending', () => {
@@ -112,7 +113,7 @@ void describe('GroupCheckout workflow', () => {
           type: 'GroupCheckoutCompleted',
           data: {
             groupCheckoutId: 'gc-1',
-            completedCheckouts: [GuestStayStatus.Completed],
+            completedCheckouts: ['guest-1'],
             completedAt: now,
           },
         },
@@ -160,6 +161,7 @@ void describe('GroupCheckout workflow', () => {
     });
 
     void it('produces nothing when other guests still pending', () => {
+      // #region workflow-test-nothing-happened
       given([
         {
           type: 'GroupCheckoutInitiated',
@@ -180,6 +182,7 @@ void describe('GroupCheckout workflow', () => {
           },
         })
         .thenNothingHappened();
+      // #endregion workflow-test-nothing-happened
     });
 
     void it('produces GroupCheckoutCompleted when all guests checked out', () => {
@@ -214,16 +217,13 @@ void describe('GroupCheckout workflow', () => {
           type: 'GroupCheckoutCompleted',
           data: {
             groupCheckoutId: 'gc-1',
-            completedCheckouts: [
-              GuestStayStatus.Completed,
-              GuestStayStatus.Completed,
-            ],
+            completedCheckouts: ['guest-1', 'guest-2'],
             completedAt: now,
           },
         });
     });
 
-    void it('produces GroupCheckoutCompleted when at least one guest completed', () => {
+    void it('produces GroupCheckoutFailed when any guest failed', () => {
       given([
         {
           type: 'GroupCheckoutInitiated',
@@ -253,14 +253,12 @@ void describe('GroupCheckout workflow', () => {
           },
         })
         .then({
-          type: 'GroupCheckoutCompleted',
+          type: 'GroupCheckoutFailed',
           data: {
             groupCheckoutId: 'gc-1',
-            completedCheckouts: [
-              GuestStayStatus.Failed,
-              GuestStayStatus.Completed,
-            ],
-            completedAt: now,
+            completedCheckouts: ['guest-2'],
+            failedCheckouts: ['guest-1'],
+            failedAt: now,
           },
         });
     });
@@ -309,7 +307,7 @@ void describe('GroupCheckout workflow', () => {
           type: 'GroupCheckoutCompleted',
           data: {
             groupCheckoutId: 'gc-1',
-            completedCheckouts: [GuestStayStatus.Completed],
+            completedCheckouts: ['guest-1'],
             completedAt: now,
           },
         },
@@ -384,6 +382,7 @@ void describe('GroupCheckout workflow', () => {
     });
 
     void it('produces GroupCheckoutFailed when all guests failed', () => {
+      // #region workflow-test-failed
       given([
         {
           type: 'GroupCheckoutInitiated',
@@ -422,11 +421,13 @@ void describe('GroupCheckout workflow', () => {
             failedAt: now,
           },
         });
+      // #endregion workflow-test-failed
     });
   });
 
   void describe('TimeoutGroupCheckout', () => {
     void it('produces GroupCheckoutTimedOut with checkout statuses', () => {
+      // #region workflow-test-timeout
       given([
         {
           type: 'GroupCheckoutInitiated',
@@ -474,6 +475,7 @@ void describe('GroupCheckout workflow', () => {
             timedOutAt: now,
           },
         });
+      // #endregion workflow-test-timeout
     });
 
     void it('ignores when workflow not existing', () => {
@@ -505,7 +507,7 @@ void describe('GroupCheckout workflow', () => {
           type: 'GroupCheckoutCompleted',
           data: {
             groupCheckoutId: 'gc-1',
-            completedCheckouts: [GuestStayStatus.Completed],
+            completedCheckouts: ['guest-1'],
             completedAt: now,
           },
         },
