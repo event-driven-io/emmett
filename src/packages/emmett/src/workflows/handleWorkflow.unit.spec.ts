@@ -1,7 +1,9 @@
 import { ObservabilitySpec } from '@event-driven-io/almanac';
 import { describe, expect, it } from 'vitest';
 import { getInMemoryEventStore } from '../eventStore';
-import { WorkflowHandler } from './handleWorkflow';
+import { EmmettError } from '../errors';
+import type { Command } from '../typing';
+import { WorkflowHandler, workflowStreamName } from './handleWorkflow';
 import {
   workflowOptions,
   type InitiateGroupCheckout,
@@ -67,5 +69,41 @@ describe('WorkflowHandler', () => {
         handle(getInMemoryEventStore(), input).then(() => tracer.spans.length),
       )
       .then(({ result }) => expect(result).toBe(0));
+  });
+
+  it('throws and appends nothing when decide returns a message of an input type', async () => {
+    type PaymentCommand = Command<string, { paymentId: string }>;
+    type TimeOutPayment = Command<'TimeOutPayment', { paymentId: string }>;
+
+    const eventStore = getInMemoryEventStore();
+    const handle = WorkflowHandler<PaymentCommand, object, TimeOutPayment>({
+      workflow: {
+        name: 'PaymentTimeout',
+        initialState: () => ({}),
+        evolve: (state) => state,
+        decide: ({ data }) => [{ type: 'TimeOutPayment', data }],
+      },
+      getWorkflowId: ({ data }) => data.paymentId,
+      inputs: { commands: ['TimeOutPayment'], events: [] },
+      outputs: { commands: ['TimeOutPayment'], events: [] },
+    });
+
+    const result = handle(eventStore, {
+      type: 'TimeOutPayment',
+      data: { paymentId: 'payment-1' },
+    });
+
+    await expect(result).rejects.toBeInstanceOf(EmmettError);
+    await expect(result).rejects.toThrow(
+      "Workflow 'PaymentTimeout' cannot output 'TimeOutPayment', because it is also one of its inputs.",
+    );
+    expect(
+      await eventStore.streamExists(
+        workflowStreamName({
+          workflowName: 'PaymentTimeout',
+          workflowId: 'payment-1',
+        }),
+      ),
+    ).toBe(false);
   });
 });

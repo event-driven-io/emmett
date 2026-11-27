@@ -155,6 +155,8 @@ type GroupCheckoutOutput =
   | Event<'GroupCheckoutTimedOut', { groupCheckoutId: string }>;
 ```
 
+An output can't have the same type as an input. The workflow stream keeps both, and the type tells them apart. For example, the workflow receives `TimeoutGroupCheckout` and records `GroupCheckoutTimedOut`. If an output type is also an input type, the `Workflow` type doesn't compile. If such an output still gets through, for example because the input type is wide, the workflow handler throws an `EmmettError` and stores nothing.
+
 ### Implement the Decide Function
 
 ```typescript

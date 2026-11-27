@@ -14,7 +14,14 @@ export type Workflow<
   decide: (command: Input, state: State) => WorkflowOutput<Output>;
   evolve: (currentState: State, event: WorkflowEvent<Input | Output>) => State;
   initialState: () => State;
-};
+} & ([SharedMessageTypes<Input, Output>] extends [never]
+  ? unknown
+  : { inputAndOutputTypesMustDiffer: SharedMessageTypes<Input, Output> });
+
+type SharedMessageTypes<
+  Input extends AnyEvent | AnyCommand,
+  Output extends AnyEvent | AnyCommand,
+> = Extract<Input['type'], Output['type']>;
 
 export type WorkflowEvent<Output extends AnyEvent | AnyCommand> = Extract<
   Output,

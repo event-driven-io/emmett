@@ -4,6 +4,7 @@ import {
   resolveMiddleware,
   type MiddlewareOptions,
 } from '../commandHandling/middleware';
+import { EmmettError } from '../errors';
 import {
   canCreateEventStoreSession,
   NO_CONCURRENCY_CHECK,
@@ -527,6 +528,19 @@ export const WorkflowHandler =
                   handlingResult.type === 'APPEND_AND_STOP'
                     ? outputMessages
                     : [];
+
+                const inputTypes: string[] = [
+                  ...options.inputs.commands,
+                  ...options.inputs.events,
+                ];
+                const outputOfInputType = appendedOutputMessages.find((msg) =>
+                  inputTypes.some((type) => type === msg.type),
+                );
+                if (outputOfInputType) {
+                  throw new EmmettError(
+                    `Workflow '${workflowName}' cannot output '${outputOfInputType.type}', because it is also one of its inputs. Give the output a type that says what the workflow decided.`,
+                  );
+                }
 
                 const outputCommandTypes = options.outputs?.commands ?? [];
                 const taggedOutputMessages = appendedOutputMessages.map(
