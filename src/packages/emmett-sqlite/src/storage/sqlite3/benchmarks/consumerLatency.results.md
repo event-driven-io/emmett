@@ -5,19 +5,20 @@
 - Before: 0.43.0-rc.3. A read that found fewer messages than the batch size counted as idle, so the wait kept doubling up to 1 s while messages kept flowing. The `backoff` option does not exist, so the last configuration runs with the default backoff.
 - Reset: reads that find messages reset the wait to the polling frequency, and `pulling.backoff` is configurable. The ceiling stays at 1 s.
 - After: the same, with the default ceiling lowered to 250 ms.
+- Initial wait: the first read that finds nothing waits exactly `backoff.initialInMs`, which defaults to the polling frequency. In the After column, it waited twice the initial wait at startup, and twice the polling frequency once messages stopped.
 
 Measured on Linux 6.18 (WSL2), Node.js 24, sqlite3 driver. Values are p50 / p95 / max in ms.
 
-| Configuration                                                   | Scenario       | Before            | Reset             | After           |
-| --------------------------------------------------------------- | -------------- | ----------------- | ----------------- | --------------- |
-| `batchSize: 100`, default backoff                               | steady trickle | 519 / 992 / 1046  | 50 / 90 / 92      | 51 / 89 / 92    |
-| `batchSize: 100`, default backoff                               | after idle     | 627 / 1009 / 1009 | 640 / 1012 / 1012 | 188 / 197 / 197 |
-| `batchSize: 1`, default backoff                                 | steady trickle | 33 / 184 / 215    | 31 / 176 / 208    | 28 / 44 / 45    |
-| `batchSize: 1`, default backoff                                 | after idle     | 523 / 893 / 893   | 522 / 902 / 902   | 192 / 201 / 201 |
-| `batchSize: 100`, `backoff.maxInMs: 20`, `batchDeadlineInMs: 0` | steady trickle | 495 / 966 / 1007  | 17 / 25 / 26      | 17 / 26 / 27    |
-| `batchSize: 100`, `backoff.maxInMs: 20`, `batchDeadlineInMs: 0` | after idle     | 626 / 1004 / 1004 | 20 / 25 / 25      | 17 / 26 / 26    |
+| Configuration                                                   | Scenario       | Before            | Reset             | After           | Initial wait    |
+| --------------------------------------------------------------- | -------------- | ----------------- | ----------------- | --------------- | --------------- |
+| `batchSize: 100`, default backoff                               | steady trickle | 519 / 992 / 1046  | 50 / 90 / 92      | 51 / 89 / 92    | 44 / 72 / 74    |
+| `batchSize: 100`, default backoff                               | after idle     | 627 / 1009 / 1009 | 640 / 1012 / 1012 | 188 / 197 / 197 | 200 / 217 / 217 |
+| `batchSize: 1`, default backoff                                 | steady trickle | 33 / 184 / 215    | 31 / 176 / 208    | 28 / 44 / 45    | 14 / 24 / 24    |
+| `batchSize: 1`, default backoff                                 | after idle     | 523 / 893 / 893   | 522 / 902 / 902   | 192 / 201 / 201 | 208 / 215 / 215 |
+| `batchSize: 100`, `backoff.maxInMs: 20`, `batchDeadlineInMs: 0` | steady trickle | 495 / 966 / 1007  | 17 / 25 / 26      | 17 / 26 / 27    | 15 / 24 / 25    |
+| `batchSize: 100`, `backoff.maxInMs: 20`, `batchDeadlineInMs: 0` | after idle     | 626 / 1004 / 1004 | 20 / 25 / 25      | 17 / 26 / 26    | 15 / 24 / 24    |
 
-The ceiling bounds the wait after idle time and sets how often an idle consumer reads: once per ceiling. Ceilings measured at the default 50 ms polling frequency, `batchSize: 100`:
+The ceiling bounds the wait after idle time and sets how often an idle consumer reads: once per ceiling. Ceilings measured at the default 50 ms polling frequency, `batchSize: 100`, before the initial wait change:
 
 | `backoff`                       | Steady p50 | After idle p50 / max | Idle reads per second |
 | ------------------------------- | ---------- | -------------------- | --------------------- |

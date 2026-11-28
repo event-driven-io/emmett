@@ -16,7 +16,6 @@ import { toBatchSize } from './messageSource';
 
 export const DefaultPollingBatchSize = 100;
 export const DefaultPollingFrequencyInMs = 50;
-export const DefaultPollingInitialBackoffInMs = 100;
 export const DefaultPollingBackoffCeilingInMs = 250;
 export const DefaultPollingBackoffMultiplier = 2;
 
@@ -61,15 +60,16 @@ export type PollingMessageSourceOptions<
  * messages, even fewer than the batch size.
  */
 export const nextPollingWaitTime = (
-  current: number,
-  foundMessages: boolean,
+  consecutiveEmptyReads: number,
   pullingFrequencyInMs: number,
   backoff: PollingBackoffOptions = {},
 ): number =>
-  foundMessages
+  consecutiveEmptyReads === 0
     ? pullingFrequencyInMs
     : Math.min(
-        current * (backoff.multiplier ?? DefaultPollingBackoffMultiplier),
+        (backoff.initialInMs ?? pullingFrequencyInMs) *
+          (backoff.multiplier ?? DefaultPollingBackoffMultiplier) **
+            (consecutiveEmptyReads - 1),
         backoff.maxInMs ?? DefaultPollingBackoffCeilingInMs,
       );
 
@@ -108,7 +108,7 @@ export const pollingMessageSource = <
       );
 
       let after = await resolveAfter(readOptions.from);
-      let waitTime = backoff.initialInMs ?? DefaultPollingInitialBackoffInMs;
+      let consecutiveEmptyReads = 0;
 
       while (!signal.aborted) {
         const { messages, currentCheckpoint, areMessagesLeft } =
@@ -121,14 +121,17 @@ export const pollingMessageSource = <
         if (!areMessagesLeft)
           yield MessageSourceCaughtUp(after ?? ProcessorCheckpoint('0'));
 
-        waitTime = nextPollingWaitTime(
-          waitTime,
-          messages.length > 0,
-          pullingFrequencyInMs,
-          backoff,
-        );
+        consecutiveEmptyReads =
+          messages.length > 0 ? 0 : consecutiveEmptyReads + 1;
 
-        await delayOrAbort(waitTime, signal);
+        await delayOrAbort(
+          nextPollingWaitTime(
+            consecutiveEmptyReads,
+            pullingFrequencyInMs,
+            backoff,
+          ),
+          signal,
+        );
       }
     },
     readLastMessageCheckpoint,
