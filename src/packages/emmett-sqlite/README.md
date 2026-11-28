@@ -293,7 +293,7 @@ const consumer = eventStore.consumer<ShoppingCartEvent>({
     batchSize: 100, // Events per batch (default: 100)
     pullingFrequencyInMs: 50, // Polling interval (default: 50ms)
     backoff: {
-      initialInMs: 100, // Wait before the first poll that finds nothing (default: 100ms)
+      initialInMs: 50, // Wait after the first poll that finds nothing (default: pullingFrequencyInMs)
       multiplier: 2, // Growth of the wait after each poll that finds nothing (default: 2)
       maxInMs: 250, // Longest wait (default: 250ms)
     },

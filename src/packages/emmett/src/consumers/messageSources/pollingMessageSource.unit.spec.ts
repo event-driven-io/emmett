@@ -6,7 +6,6 @@ import { assertDeepEqual, assertEqual, assertTrue } from '../../testing';
 import type { AnyMessage, RecordedMessage } from '../../typing';
 import {
   DefaultPollingBackoffCeilingInMs,
-  DefaultPollingInitialBackoffInMs,
   nextPollingWaitTime,
   pollingMessageSource,
   type PollingReadBatchOptions,
@@ -73,28 +72,53 @@ const readAll = async (
 };
 
 void describe('nextPollingWaitTime', () => {
-  void it('falls back to the polling frequency while messages keep coming', () => {
-    assertEqual(nextPollingWaitTime(800, true, 50), 50);
+  void it('waits the polling frequency after a read that found messages', () => {
+    assertEqual(nextPollingWaitTime(0, 50, { initialInMs: 100 }), 50);
   });
 
-  void it('doubles the wait while the store has nothing left', () => {
-    assertEqual(nextPollingWaitTime(50, false, 50), 100);
-    assertEqual(nextPollingWaitTime(100, false, 50), 200);
+  void it('waits the polling frequency after the first read that finds nothing, unless configured otherwise', () => {
+    assertEqual(nextPollingWaitTime(1, 50), 50);
   });
 
-  void it('never waits longer than the ceiling', () => {
+  void it('waits the configured initial backoff after the first read that finds nothing', () => {
+    assertEqual(nextPollingWaitTime(1, 50, { initialInMs: 20 }), 20);
+  });
+
+  void it('doubles the wait after each further read that finds nothing', () => {
+    assertEqual(nextPollingWaitTime(2, 50, { initialInMs: 50 }), 100);
     assertEqual(
-      nextPollingWaitTime(DefaultPollingBackoffCeilingInMs, false, 50),
-      DefaultPollingBackoffCeilingInMs,
+      nextPollingWaitTime(3, 50, { initialInMs: 50, maxInMs: 1000 }),
+      200,
     );
   });
 
-  void it('backs off by the configured multiplier', () => {
-    assertEqual(nextPollingWaitTime(100, false, 50, { multiplier: 1.5 }), 150);
+  void it('multiplies the wait by the configured multiplier after each further read that finds nothing', () => {
+    assertEqual(
+      nextPollingWaitTime(2, 50, { initialInMs: 50, multiplier: 1.5 }),
+      75,
+    );
+  });
+
+  void it('never waits longer than the ceiling', () => {
+    assertEqual(nextPollingWaitTime(10, 50), DefaultPollingBackoffCeilingInMs);
   });
 
   void it('never waits longer than the configured ceiling', () => {
-    assertEqual(nextPollingWaitTime(200, false, 50, { maxInMs: 300 }), 300);
+    assertEqual(nextPollingWaitTime(3, 50, { maxInMs: 120 }), 120);
+  });
+
+  void it('never waits longer than the configured ceiling, even after the first read that finds nothing', () => {
+    assertEqual(
+      nextPollingWaitTime(1, 50, { initialInMs: 500, maxInMs: 120 }),
+      120,
+    );
+  });
+
+  void it('keeps waiting the ceiling during a long idle', () => {
+    assertEqual(
+      nextPollingWaitTime(100_000, 50),
+      DefaultPollingBackoffCeilingInMs,
+    );
   });
 });
 
@@ -228,7 +252,7 @@ void describe('pollingMessageSource', () => {
       readBatch: reads.readBatch,
       readLastMessageCheckpoint: () => Promise.resolve(null),
       pullingFrequencyInMs: 5,
-      backoff: { initialInMs: 10, multiplier: 1 },
+      backoff: { initialInMs: 10, multiplier: 10 },
     });
 
     await readAll(source, 'BEGINNING', 3);
@@ -238,13 +262,34 @@ void describe('pollingMessageSource', () => {
     assertTrue(second! - first! < 50);
   });
 
+  void it('waits the configured initial backoff after the first read that finds nothing once messages stop', async () => {
+    const reads = scriptedReads([
+      { checkpoints: ['1'], areMessagesLeft: false },
+      { checkpoints: [], areMessagesLeft: false },
+      { checkpoints: [], areMessagesLeft: false },
+    ]);
+
+    const source = pollingMessageSource({
+      readBatch: reads.readBatch,
+      readLastMessageCheckpoint: () => Promise.resolve(null),
+      pullingFrequencyInMs: 5,
+      backoff: { initialInMs: 10, multiplier: 20 },
+    });
+
+    await readAll(source, 'BEGINNING', 5);
+
+    const [, firstEmpty, secondEmpty] = reads.readAt;
+
+    assertTrue(secondEmpty! - firstEmpty! < 50);
+  });
+
   void it('stops iterating once the signal is aborted mid wait', async () => {
     const reads = scriptedReads([{ checkpoints: [], areMessagesLeft: false }]);
 
     const source = pollingMessageSource({
       readBatch: reads.readBatch,
       readLastMessageCheckpoint: () => Promise.resolve(null),
-      pullingFrequencyInMs: DefaultPollingInitialBackoffInMs,
+      pullingFrequencyInMs: 100,
     });
 
     const controller = new AbortController();
